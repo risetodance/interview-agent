@@ -103,5 +103,54 @@ public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEnti
      * 按向量化状态查找知识库（按上传时间倒序）
      */
     List<KnowledgeBaseEntity> findByVectorStatusOrderByUploadedAtDesc(VectorStatus vectorStatus);
+
+    // ==================== 用户隔离查询 ====================
+
+    /**
+     * 按用户ID查找知识库（按上传时间倒序）
+     */
+    List<KnowledgeBaseEntity> findByUserIdOrderByUploadedAtDesc(Long userId);
+
+    /**
+     * 按用户ID和向量化状态查找知识库（按上传时间倒序）
+     */
+    List<KnowledgeBaseEntity> findByUserIdAndVectorStatusOrderByUploadedAtDesc(Long userId, VectorStatus vectorStatus);
+
+    /**
+     * 按用户ID查找知识库（按名称或文件名模糊搜索）
+     */
+    @Query("SELECT k FROM KnowledgeBaseEntity k WHERE k.userId = :userId AND (LOWER(k.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(k.originalFilename) LIKE LOWER(CONCAT('%', :keyword, '%'))) ORDER BY k.uploadedAt DESC")
+    List<KnowledgeBaseEntity> searchByUserIdAndKeyword(@Param("userId") Long userId, @Param("keyword") String keyword);
+
+    /**
+     * 按用户ID获取分类列表
+     */
+    @Query("SELECT DISTINCT k.category FROM KnowledgeBaseEntity k WHERE k.userId = :userId AND k.category IS NOT NULL ORDER BY k.category")
+    List<String> findCategoriesByUserId(@Param("userId") Long userId);
+
+    /**
+     * 按用户ID查找知识库（用于下载）
+     */
+    Optional<KnowledgeBaseEntity> findByIdAndUserId(Long id, Long userId);
+
+    /**
+     * 按用户ID和分类查找知识库
+     */
+    List<KnowledgeBaseEntity> findByUserIdAndCategoryOrderByUploadedAtDesc(Long userId, String category);
+
+    /**
+     * 查找用户的未分类知识库
+     */
+    List<KnowledgeBaseEntity> findByUserIdAndCategoryIsNullOrderByUploadedAtDesc(Long userId);
+
+    /**
+     * 按用户ID统计知识库数量
+     */
+    long countByUserId(Long userId);
+
+    /**
+     * 按用户ID和向量化状态统计数量
+     */
+    long countByUserIdAndVectorStatus(Long userId, VectorStatus vectorStatus);
 }
 

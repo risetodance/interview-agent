@@ -40,26 +40,32 @@ public class InterviewPersistenceService {
      * 保存新的面试会话
      */
     @Transactional(rollbackFor = Exception.class)
-    public InterviewSessionEntity saveSession(String sessionId, Long resumeId, 
-                                              int totalQuestions, 
+    public InterviewSessionEntity saveSession(Long userId, String sessionId, Long resumeId,
+                                              int totalQuestions,
                                               List<InterviewQuestionDTO> questions) {
         try {
             Optional<ResumeEntity> resumeOpt = resumeRepository.findById(resumeId);
             if (resumeOpt.isEmpty()) {
                 throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
             }
-            
+
+            ResumeEntity resume = resumeOpt.get();
+            // 验证简历属于当前用户
+            if (!userId.equals(resume.getUserId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "无权使用该简历");
+            }
+
             InterviewSessionEntity session = new InterviewSessionEntity();
             session.setSessionId(sessionId);
-            session.setResume(resumeOpt.get());
+            session.setResume(resume);
             session.setTotalQuestions(totalQuestions);
             session.setCurrentQuestionIndex(0);
             session.setStatus(InterviewSessionEntity.SessionStatus.CREATED);
             session.setQuestionsJson(objectMapper.writeValueAsString(questions));
-            
+
             InterviewSessionEntity saved = sessionRepository.save(session);
-            log.info("面试会话已保存: sessionId={}, resumeId={}", sessionId, resumeId);
-            
+            log.info("面试会话已保存: userId={}, sessionId={}, resumeId={}", userId, sessionId, resumeId);
+
             return saved;
         } catch (JacksonException e) {
             log.error("序列化问题列表失败: {}", e.getMessage(), e);

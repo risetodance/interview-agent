@@ -10,7 +10,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "knowledge_bases", indexes = {
     @Index(name = "idx_kb_hash", columnList = "fileHash", unique = true),
-    @Index(name = "idx_kb_category", columnList = "category")
+    @Index(name = "idx_kb_category", columnList = "category"),
+    @Index(name = "idx_kb_user_id", columnList = "userId")
 })
 public class KnowledgeBaseEntity {
 
@@ -72,7 +73,11 @@ public class KnowledgeBaseEntity {
 
     // 向量分块数量
     private Integer chunkCount = 0;
-    
+
+    // 用户ID（用于数据隔离）
+    @Column(nullable = false)
+    private Long userId;
+
     @PrePersist
     protected void onCreate() {
         uploadedAt = LocalDateTime.now();
@@ -217,6 +222,14 @@ public class KnowledgeBaseEntity {
 
     public void setChunkCount(Integer chunkCount) {
         this.chunkCount = chunkCount;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 }
 

@@ -41,10 +41,11 @@ public class ResumeUploadService {
     /**
      * 上传并分析简历（异步）
      *
-     * @param file 简历文件
+     * @param file   简历文件
+     * @param userId 用户ID
      * @return 上传结果（分析将异步进行）
      */
-    public Map<String, Object> uploadAndAnalyze(org.springframework.web.multipart.MultipartFile file) {
+    public Map<String, Object> uploadAndAnalyze(org.springframework.web.multipart.MultipartFile file, Long userId) {
         // 1. 验证文件
         fileValidationService.validateFile(file, MAX_FILE_SIZE, "简历");
 
@@ -73,7 +74,7 @@ public class ResumeUploadService {
         log.info("简历已存储到RustFS: {}", fileKey);
 
         // 6. 保存简历到数据库（状态为 PENDING）
-        ResumeEntity savedResume = persistenceService.saveResume(file, resumeText, fileKey, fileUrl);
+        ResumeEntity savedResume = persistenceService.saveResume(file, resumeText, fileKey, fileUrl, userId);
 
         // 7. 发送分析任务到 Redis Stream（异步处理）
         analyzeStreamProducer.sendAnalyzeTask(savedResume.getId(), resumeText);
@@ -146,11 +147,13 @@ public class ResumeUploadService {
      * 从数据库获取简历文本并发送分析任务
      *
      * @param resumeId 简历ID
+     * @param userId   用户ID（用于权限校验）
      */
     @Transactional
-    public void reanalyze(Long resumeId) {
+    public void reanalyze(Long resumeId, Long userId) {
         ResumeEntity resume = resumeRepository.findById(resumeId)
-            .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND, "简历不存在"));
+            .filter(r -> r.getUserId().equals(userId))
+            .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND, "简历不存在或无权限"));
 
         log.info("开始重新分析简历: resumeId={}, filename={}", resumeId, resume.getOriginalFilename());
 

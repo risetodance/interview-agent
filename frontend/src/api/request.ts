@@ -9,12 +9,28 @@ interface Result<T = unknown> {
   data: T;
 }
 
-const baseURL = import.meta.env.PROD ? '' : 'http://localhost:8080';
+const baseURL = import.meta.env.PROD ? '' : '';
 
 const instance: AxiosInstance = axios.create({
   baseURL,
   timeout: 60000,
+  withCredentials: true,
 });
+
+/**
+ * 请求拦截器
+ * - 从 localStorage 读取 token 并添加到请求头
+ */
+instance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 /**
  * 响应拦截器
@@ -44,6 +60,13 @@ instance.interceptors.response.use(
   (error) => {
     // 有响应的情况：后端返回了结果（即使是错误）
     if (error.response) {
+      // 401 未授权：清除 token 并跳转到登录页
+      if (error.response.status === 401) {
+        localStorage.removeItem('auth_token');
+        window.location.href = '/login';
+        return Promise.reject(new Error('登录已过期，请重新登录'));
+      }
+
       const { data } = error.response;
       // 尝试解析 Result 格式
       if (data && typeof data === 'object' && 'code' in data && 'message' in data) {

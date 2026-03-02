@@ -17,7 +17,8 @@ import java.util.Set;
  */
 @Entity
 @Table(name = "rag_chat_sessions", indexes = {
-    @Index(name = "idx_rag_session_updated", columnList = "updatedAt")
+    @Index(name = "idx_rag_session_updated", columnList = "updatedAt"),
+    @Index(name = "idx_rag_session_user_id", columnList = "userId")
 })
 @Getter
 @Setter
@@ -80,6 +81,12 @@ public class RagChatSessionEntity {
      */
     @Column(columnDefinition = "boolean default false")
     private Boolean isPinned = false;
+
+    /**
+     * 用户ID（用于数据隔离）
+     */
+    @Column(nullable = false)
+    private Long userId;
 
     public enum SessionStatus {
         ACTIVE,    // 活跃会话

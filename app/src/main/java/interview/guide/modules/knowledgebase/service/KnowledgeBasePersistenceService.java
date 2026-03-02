@@ -56,7 +56,7 @@ public class KnowledgeBasePersistenceService {
      */
     @Transactional(rollbackFor = Exception.class)
     public KnowledgeBaseEntity saveKnowledgeBase(MultipartFile file, String name, String category,
-                                                  String storageKey, String storageUrl, String fileHash) {
+                                                  String storageKey, String storageUrl, String fileHash, Long userId) {
         try {
             KnowledgeBaseEntity kb = new KnowledgeBaseEntity();
             kb.setFileHash(fileHash);
@@ -67,9 +67,10 @@ public class KnowledgeBasePersistenceService {
             kb.setContentType(file.getContentType());
             kb.setStorageKey(storageKey);
             kb.setStorageUrl(storageUrl);
+            kb.setUserId(userId);
 
             KnowledgeBaseEntity saved = knowledgeBaseRepository.save(kb);
-            log.info("知识库已保存: id={}, name={}, category={}, hash={}", saved.getId(), saved.getName(), saved.getCategory(), fileHash);
+            log.info("知识库已保存: id={}, name={}, category={}, hash={}, userId={}", saved.getId(), saved.getName(), saved.getCategory(), fileHash, userId);
             return saved;
         } catch (Exception e) {
             log.error("保存知识库失败: {}", e.getMessage(), e);

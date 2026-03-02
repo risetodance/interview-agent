@@ -42,12 +42,22 @@ public class RagChatSessionService {
 
     /**
      * 创建新会话
+     *
+     * @param request 创建会话请求
+     * @param userId 用户ID（用于数据隔离）
      */
     @Transactional
-    public SessionDTO createSession(CreateSessionRequest request) {
-        // 验证知识库存在
+    public SessionDTO createSession(CreateSessionRequest request, Long userId) {
+        // 验证知识库存在且属于当前用户
         List<KnowledgeBaseEntity> knowledgeBases = knowledgeBaseRepository
             .findAllById(request.knowledgeBaseIds());
+
+        // 验证所有知识库都属于当前用户
+        for (KnowledgeBaseEntity kb : knowledgeBases) {
+            if (!kb.getUserId().equals(userId)) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "无权使用他人的知识库");
+            }
+        }
 
         if (knowledgeBases.size() != request.knowledgeBaseIds().size()) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "部分知识库不存在");
@@ -59,16 +69,17 @@ public class RagChatSessionService {
             ? request.title()
             : generateTitle(knowledgeBases));
         session.setKnowledgeBases(new HashSet<>(knowledgeBases));
+        session.setUserId(userId);
 
         session = sessionRepository.save(session);
 
-        log.info("创建 RAG 聊天会话: id={}, title={}", session.getId(), session.getTitle());
+        log.info("创建 RAG 聊天会话: id={}, title={}, userId={}", session.getId(), session.getTitle(), userId);
 
         return ragChatMapper.toSessionDTO(session);
     }
 
     /**
-     * 获取会话列表
+     * 获取会话列表（保持向后兼容）
      */
     public List<SessionListItemDTO> listSessions() {
         return sessionRepository.findAllOrderByPinnedAndUpdatedAtDesc()
@@ -78,7 +89,19 @@ public class RagChatSessionService {
     }
 
     /**
-     * 获取会话详情（包含消息）
+     * 获取当前用户的会话列表
+     *
+     * @param userId 用户ID
+     */
+    public List<SessionListItemDTO> listSessions(Long userId) {
+        return sessionRepository.findByUserIdOrderByPinnedAndUpdatedAtDesc(userId)
+            .stream()
+            .map(ragChatMapper::toSessionListItemDTO)
+            .toList();
+    }
+
+    /**
+     * 获取会话详情（包含消息）- 保持向后兼容
      * 分两次查询避免笛卡尔积问题
      */
     public SessionDetailDTO getSessionDetail(Long sessionId) {
@@ -86,6 +109,35 @@ public class RagChatSessionService {
         RagChatSessionEntity session = sessionRepository
             .findByIdWithKnowledgeBases(sessionId)
             .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
+
+        // 再单独加载消息（避免笛卡尔积）
+        List<RagChatMessageEntity> messages = messageRepository
+            .findBySessionIdOrderByMessageOrderAsc(sessionId);
+
+        // 转换知识库列表
+        List<KnowledgeBaseListItemDTO> kbDTOs = knowledgeBaseMapper.toListItemDTOList(
+            new java.util.ArrayList<>(session.getKnowledgeBases())
+        );
+
+        return ragChatMapper.toSessionDetailDTO(session, messages, kbDTOs);
+    }
+
+    /**
+     * 获取会话详情（用户隔离版本）
+     *
+     * @param sessionId 会话ID
+     * @param userId 用户ID
+     */
+    public SessionDetailDTO getSessionDetail(Long sessionId, Long userId) {
+        // 先加载会话和知识库
+        RagChatSessionEntity session = sessionRepository
+            .findByIdWithKnowledgeBases(sessionId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
+
+        // 验证会话归属
+        if (!session.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权查看他人的会话");
+        }
 
         // 再单独加载消息（避免笛卡尔积）
         List<RagChatMessageEntity> messages = messageRepository
@@ -108,6 +160,39 @@ public class RagChatSessionService {
     public Long prepareStreamMessage(Long sessionId, String question) {
         RagChatSessionEntity session = sessionRepository.findByIdWithKnowledgeBases(sessionId)
             .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
+
+        // 验证会话归属
+        if (session.getUserId() == null) {
+            // 兼容旧数据（无 userId），不做限制
+            log.warn("会话 {} 缺少 userId 字段，可能是旧数据", sessionId);
+        }
+
+        return prepareStreamMessageInternal(session, question);
+    }
+
+    /**
+     * 准备流式消息（用户隔离版本）
+     *
+     * @return AI 消息的 ID
+     */
+    @Transactional
+    public Long prepareStreamMessage(Long sessionId, String question, Long userId) {
+        RagChatSessionEntity session = sessionRepository.findByIdWithKnowledgeBases(sessionId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
+
+        // 验证会话归属
+        if (!session.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权使用他人的会话");
+        }
+
+        return prepareStreamMessageInternal(session, question);
+    }
+
+    /**
+     * 内部方法：准备流式消息
+     */
+    private Long prepareStreamMessageInternal(RagChatSessionEntity session, String question) {
+        Long sessionId = session.getId();
 
         // 获取当前消息数量作为起始顺序
         int nextOrder = session.getMessageCount();
@@ -167,7 +252,7 @@ public class RagChatSessionService {
     }
 
     /**
-     * 更新会话标题
+     * 更新会话标题（保持向后兼容）
      */
     @Transactional
     public void updateSessionTitle(Long sessionId, String title) {
@@ -181,7 +266,26 @@ public class RagChatSessionService {
     }
 
     /**
-     * 切换会话置顶状态
+     * 更新会话标题（用户隔离版本）
+     */
+    @Transactional
+    public void updateSessionTitle(Long sessionId, String title, Long userId) {
+        RagChatSessionEntity session = sessionRepository.findById(sessionId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
+
+        // 验证会话归属
+        if (!session.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权修改他人的会话");
+        }
+
+        session.setTitle(title);
+        sessionRepository.save(session);
+
+        log.info("更新会话标题: sessionId={}, title={}, userId={}", sessionId, title, userId);
+    }
+
+    /**
+     * 切换会话置顶状态（保持向后兼容）
      */
     @Transactional
     public void togglePin(Long sessionId) {
@@ -197,7 +301,28 @@ public class RagChatSessionService {
     }
 
     /**
-     * 更新会话的知识库关联
+     * 切换会话置顶状态（用户隔离版本）
+     */
+    @Transactional
+    public void togglePin(Long sessionId, Long userId) {
+        RagChatSessionEntity session = sessionRepository.findById(sessionId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
+
+        // 验证会话归属
+        if (!session.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权修改他人的会话");
+        }
+
+        // 处理 null 值（兼容旧数据）
+        Boolean currentPinned = session.getIsPinned() != null ? session.getIsPinned() : false;
+        session.setIsPinned(!currentPinned);
+        sessionRepository.save(session);
+
+        log.info("切换会话置顶状态: sessionId={}, isPinned={}, userId={}", sessionId, session.getIsPinned(), userId);
+    }
+
+    /**
+     * 更新会话的知识库关联（保持向后兼容）
      */
     @Transactional
     public void updateSessionKnowledgeBases(Long sessionId, List<Long> knowledgeBaseIds) {
@@ -214,7 +339,34 @@ public class RagChatSessionService {
     }
 
     /**
-     * 删除会话
+     * 更新会话的知识库关联（用户隔离版本）
+     */
+    @Transactional
+    public void updateSessionKnowledgeBases(Long sessionId, List<Long> knowledgeBaseIds, Long userId) {
+        RagChatSessionEntity session = sessionRepository.findById(sessionId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
+
+        // 验证会话归属
+        if (!session.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权修改他人的会话");
+        }
+
+        // 验证知识库归属
+        List<KnowledgeBaseEntity> knowledgeBases = knowledgeBaseRepository.findAllById(knowledgeBaseIds);
+        for (KnowledgeBaseEntity kb : knowledgeBases) {
+            if (!kb.getUserId().equals(userId)) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "无权使用他人的知识库");
+            }
+        }
+
+        session.setKnowledgeBases(new HashSet<>(knowledgeBases));
+        sessionRepository.save(session);
+
+        log.info("更新会话知识库: sessionId={}, kbIds={}, userId={}", sessionId, knowledgeBaseIds, userId);
+    }
+
+    /**
+     * 删除会话（保持向后兼容）
      */
     @Transactional
     public void deleteSession(Long sessionId) {
@@ -224,6 +376,24 @@ public class RagChatSessionService {
         sessionRepository.deleteById(sessionId);
 
         log.info("删除会话: sessionId={}", sessionId);
+    }
+
+    /**
+     * 删除会话（用户隔离版本）
+     */
+    @Transactional
+    public void deleteSession(Long sessionId, Long userId) {
+        RagChatSessionEntity session = sessionRepository.findById(sessionId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
+
+        // 验证会话归属
+        if (!session.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权删除他人的会话");
+        }
+
+        sessionRepository.deleteById(sessionId);
+
+        log.info("删除会话: sessionId={}, userId={}", sessionId, userId);
     }
 
     // ========== 私有方法 ==========

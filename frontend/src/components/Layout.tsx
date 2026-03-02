@@ -8,6 +8,7 @@ import {
   Database,
   MessageSquare,
   ChevronRight,
+  User,
 } from 'lucide-react';
 
 interface NavItem {
@@ -45,6 +46,13 @@ export default function Layout() {
       items: [
         { id: 'kb-manage', path: '/knowledgebase', label: '知识库管理', icon: Database, description: '管理知识文档' },
         { id: 'chat', path: '/knowledgebase/chat', label: '问答助手', icon: MessageSquare, description: '基于知识库问答' },
+      ],
+    },
+    {
+      id: 'account',
+      title: '账号',
+      items: [
+        { id: 'profile', path: '/profile', label: '个人中心', icon: User, description: '查看和编辑个人资料' },
       ],
     },
   ];

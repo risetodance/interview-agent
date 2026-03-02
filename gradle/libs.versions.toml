@@ -10,12 +10,16 @@ redisson = "4.0.0"
 mapstruct = "1.6.3"
 aws-sdk = "2.29.51"
 itext = "8.0.5"
+jjwt = "0.12.6"
 
 [libraries]
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 tika-core = { module = "org.apache.tika:tika-core", version.ref = "tika" }
 tika-parsers = { module = "org.apache.tika:tika-parsers-standard-package", version.ref = "tika" }
+jjwt-api = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jjwt" }
+jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
+jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

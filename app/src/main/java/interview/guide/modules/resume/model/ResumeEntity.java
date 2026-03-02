@@ -11,7 +11,8 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "resumes", indexes = {
-    @Index(name = "idx_resume_hash", columnList = "fileHash", unique = true)
+    @Index(name = "idx_resume_hash", columnList = "fileHash", unique = true),
+    @Index(name = "idx_resume_user_id", columnList = "userId")
 })
 public class ResumeEntity {
     
@@ -63,6 +64,10 @@ public class ResumeEntity {
     // 分析错误信息（失败时记录）
     @Column(length = 500)
     private String analyzeError;
+
+    // 上传用户ID（用于数据隔离）
+    @Column(nullable = false)
+    private Long userId;
     
     @PrePersist
     protected void onCreate() {
@@ -179,5 +184,13 @@ public class ResumeEntity {
 
     public void setAnalyzeError(String analyzeError) {
         this.analyzeError = analyzeError;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 }

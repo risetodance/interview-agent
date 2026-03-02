@@ -66,10 +66,10 @@ public class ResumePersistenceService {
      */
     @Transactional(rollbackFor = Exception.class)
     public ResumeEntity saveResume(MultipartFile file, String resumeText,
-                                   String storageKey, String storageUrl) {
+                                   String storageKey, String storageUrl, Long userId) {
         try {
             String fileHash = fileHashService.calculateHash(file);
-            
+
             ResumeEntity resume = new ResumeEntity();
             resume.setFileHash(fileHash);
             resume.setOriginalFilename(file.getOriginalFilename());
@@ -78,10 +78,11 @@ public class ResumePersistenceService {
             resume.setStorageKey(storageKey);
             resume.setStorageUrl(storageUrl);
             resume.setResumeText(resumeText);
-            
+            resume.setUserId(userId);
+
             ResumeEntity saved = resumeRepository.save(resume);
-            log.info("简历已保存: id={}, hash={}", saved.getId(), fileHash);
-            
+            log.info("简历已保存: id={}, hash={}, userId={}", saved.getId(), fileHash, userId);
+
             return saved;
         } catch (Exception e) {
             log.error("保存简历失败: {}", e.getMessage(), e);
@@ -134,6 +135,13 @@ public class ResumePersistenceService {
     public List<ResumeEntity> findAllResumes() {
         return resumeRepository.findAll();
     }
+
+    /**
+     * 根据用户ID获取简历列表
+     */
+    public List<ResumeEntity> findByUserId(Long userId) {
+        return resumeRepository.findByUserId(userId);
+    }
     
     /**
      * 获取简历的所有评测记录
@@ -178,6 +186,13 @@ public class ResumePersistenceService {
      */
     public Optional<ResumeEntity> findById(Long id) {
         return resumeRepository.findById(id);
+    }
+
+    /**
+     * 根据ID和用户ID获取简历（用于权限校验）
+     */
+    public Optional<ResumeEntity> findByIdAndUserId(Long id, Long userId) {
+        return resumeRepository.findById(id).filter(resume -> resume.getUserId().equals(userId));
     }
     
     /**

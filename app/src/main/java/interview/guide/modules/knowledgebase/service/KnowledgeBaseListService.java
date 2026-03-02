@@ -35,14 +35,41 @@ public class KnowledgeBaseListService {
 
     /**
      * 获取知识库列表（支持状态过滤和排序）
-     * 
+     *
+     * @param userId 用户ID（用于数据隔离）
+     * @param vectorStatus 向量化状态，null 表示不过滤
+     * @param sortBy 排序字段，null 或 "time" 表示按时间排序
+     * @return 知识库列表
+     */
+    public List<KnowledgeBaseListItemDTO> listKnowledgeBases(Long userId, VectorStatus vectorStatus, String sortBy) {
+        List<KnowledgeBaseEntity> entities;
+
+        // 如果指定了状态，按状态过滤
+        if (vectorStatus != null) {
+            entities = knowledgeBaseRepository.findByUserIdAndVectorStatusOrderByUploadedAtDesc(userId, vectorStatus);
+        } else {
+            // 否则获取当前用户的所有知识库
+            entities = knowledgeBaseRepository.findByUserIdOrderByUploadedAtDesc(userId);
+        }
+
+        // 如果指定了排序字段，在内存中排序
+        if (sortBy != null && !sortBy.isBlank() && !sortBy.equalsIgnoreCase("time")) {
+            entities = sortEntities(entities, sortBy);
+        }
+
+        return knowledgeBaseMapper.toListItemDTOList(entities);
+    }
+
+    /**
+     * 获取知识库列表（保持向后兼容，不限用户）
+     *
      * @param vectorStatus 向量化状态，null 表示不过滤
      * @param sortBy 排序字段，null 或 "time" 表示按时间排序
      * @return 知识库列表
      */
     public List<KnowledgeBaseListItemDTO> listKnowledgeBases(VectorStatus vectorStatus, String sortBy) {
         List<KnowledgeBaseEntity> entities;
-        
+
         // 如果指定了状态，按状态过滤
         if (vectorStatus != null) {
             entities = knowledgeBaseRepository.findByVectorStatusOrderByUploadedAtDesc(vectorStatus);
@@ -50,12 +77,12 @@ public class KnowledgeBaseListService {
             // 否则获取所有知识库
             entities = knowledgeBaseRepository.findAllByOrderByUploadedAtDesc();
         }
-        
+
         // 如果指定了排序字段，在内存中排序
         if (sortBy != null && !sortBy.isBlank() && !sortBy.equalsIgnoreCase("time")) {
             entities = sortEntities(entities, sortBy);
         }
-        
+
         return knowledgeBaseMapper.toListItemDTOList(entities);
     }
 
@@ -74,10 +101,18 @@ public class KnowledgeBaseListService {
     }
 
     /**
-     * 根据ID获取知识库详情
+     * 根据ID获取知识库详情（保持向后兼容）
      */
     public Optional<KnowledgeBaseListItemDTO> getKnowledgeBase(Long id) {
         return knowledgeBaseRepository.findById(id)
+            .map(knowledgeBaseMapper::toListItemDTO);
+    }
+
+    /**
+     * 根据用户ID和ID获取知识库详情
+     */
+    public Optional<KnowledgeBaseListItemDTO> getKnowledgeBase(Long userId, Long id) {
+        return knowledgeBaseRepository.findByIdAndUserId(id, userId)
             .map(knowledgeBaseMapper::toListItemDTO);
     }
 
@@ -102,14 +137,21 @@ public class KnowledgeBaseListService {
     // ========== 分类管理 ==========
 
     /**
-     * 获取所有分类
+     * 获取所有分类（保持向后兼容）
      */
     public List<String> getAllCategories() {
         return knowledgeBaseRepository.findAllCategories();
     }
 
     /**
-     * 根据分类获取知识库列表
+     * 根据用户ID获取分类
+     */
+    public List<String> getCategoriesByUserId(Long userId) {
+        return knowledgeBaseRepository.findCategoriesByUserId(userId);
+    }
+
+    /**
+     * 根据分类获取知识库列表（保持向后兼容）
      */
     public List<KnowledgeBaseListItemDTO> listByCategory(String category) {
         List<KnowledgeBaseEntity> entities;
@@ -117,6 +159,19 @@ public class KnowledgeBaseListService {
             entities = knowledgeBaseRepository.findByCategoryIsNullOrderByUploadedAtDesc();
         } else {
             entities = knowledgeBaseRepository.findByCategoryOrderByUploadedAtDesc(category);
+        }
+        return knowledgeBaseMapper.toListItemDTOList(entities);
+    }
+
+    /**
+     * 根据用户ID和分类获取知识库列表
+     */
+    public List<KnowledgeBaseListItemDTO> listByCategory(Long userId, String category) {
+        List<KnowledgeBaseEntity> entities;
+        if (category == null || category.isBlank()) {
+            entities = knowledgeBaseRepository.findByUserIdAndCategoryIsNullOrderByUploadedAtDesc(userId);
+        } else {
+            entities = knowledgeBaseRepository.findByUserIdAndCategoryOrderByUploadedAtDesc(userId, category);
         }
         return knowledgeBaseMapper.toListItemDTOList(entities);
     }
@@ -136,7 +191,7 @@ public class KnowledgeBaseListService {
     // ========== 搜索功能 ==========
 
     /**
-     * 按关键词搜索知识库
+     * 按关键词搜索知识库（保持向后兼容）
      */
     public List<KnowledgeBaseListItemDTO> search(String keyword) {
         if (keyword == null || keyword.isBlank()) {
@@ -144,6 +199,18 @@ public class KnowledgeBaseListService {
         }
         return knowledgeBaseMapper.toListItemDTOList(
             knowledgeBaseRepository.searchByKeyword(keyword.trim())
+        );
+    }
+
+    /**
+     * 按用户ID和关键词搜索知识库
+     */
+    public List<KnowledgeBaseListItemDTO> searchByUserId(Long userId, String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return listKnowledgeBases(userId, null, null);
+        }
+        return knowledgeBaseMapper.toListItemDTOList(
+            knowledgeBaseRepository.searchByUserIdAndKeyword(userId, keyword.trim())
         );
     }
 

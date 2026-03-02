@@ -8,9 +8,13 @@ import InterviewHistoryPage from './pages/InterviewHistoryPage';
 import KnowledgeBaseQueryPage from './pages/KnowledgeBaseQueryPage';
 import KnowledgeBaseUploadPage from './pages/KnowledgeBaseUploadPage';
 import KnowledgeBaseManagePage from './pages/KnowledgeBaseManagePage';
+import ProfilePage from './pages/profile/ProfilePage';
+import LoginPage from './pages/auth/LoginPage';
+import RegisterPage from './pages/auth/RegisterPage';
 import {historyApi} from './api/history';
 import {useEffect, useState} from 'react';
 import type {UploadKnowledgeBaseResponse} from './api/knowledgebase';
+import {UserProvider} from './store/user';
 
 // 上传页面包装器
 function UploadPageWrapper() {
@@ -128,12 +132,17 @@ function InterviewWrapper() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          {/* 默认重定向到上传页面 */}
-          <Route index element={<Navigate to="/upload" replace />} />
-          
+    <UserProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* 登录注册页面（不需要Layout） */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+
+          <Route path="/" element={<Layout />}>
+            {/* 默认重定向到上传页面 */}
+            <Route index element={<Navigate to="/upload" replace />} />
+
           {/* 上传页面 */}
           <Route path="upload" element={<UploadPageWrapper />} />
           
@@ -157,9 +166,13 @@ function App() {
 
           {/* 问答助手（知识库聊天） */}
           <Route path="knowledgebase/chat" element={<KnowledgeBaseQueryPageWrapper />} />
+
+          {/* 个人中心 */}
+          <Route path="profile" element={<ProfilePage />} />
         </Route>
       </Routes>
     </BrowserRouter>
+    </UserProvider>
   );
 }
 

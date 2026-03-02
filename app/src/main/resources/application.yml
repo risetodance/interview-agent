@@ -38,6 +38,7 @@ spring:
         singleServerConfig:
           address: "redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}"
           database: 0
+          password: ${REDIS_PASSWORD:123456}
           connectionMinimumIdleSize: 10
           connectionPoolSize: 64
           subscriptionConnectionMinimumIdleSize: 1
@@ -82,8 +83,8 @@ app:
   # RustFS (S3兼容) 存储配置
   storage:
     endpoint: ${APP_STORAGE_ENDPOINT:http://localhost:9000}
-    access-key: ${APP_STORAGE_ACCESS_KEY:wr45VXJZhCxc6FAWz0YR}
-    secret-key: ${APP_STORAGE_SECRET_KEY:GtKxV57WJkpw4CvASPBzTy2DYElLnRqh8dIXQa0m}
+    access-key: ${APP_STORAGE_ACCESS_KEY:dHN8XLCvDl1ZfBMc9yRi}
+    secret-key: ${APP_STORAGE_SECRET_KEY:zWOFlUyeIY20qML3j7DPpBCoRbV4sGHxAgnJSfm8}
     bucket: ${APP_STORAGE_BUCKET:interview-guide}
     region: ${APP_STORAGE_REGION:us-east-1}
   

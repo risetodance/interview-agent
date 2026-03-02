@@ -43,9 +43,10 @@ public class KnowledgeBaseUploadService {
      * @param file 知识库文件
      * @param name 知识库名称（可选，如果为空则从文件名提取）
      * @param category 分类（可选）
+     * @param userId 用户ID（用于数据隔离）
      * @return 上传结果和存储信息（包含duplicate字段，表示是否为重复上传）
      */
-    public Map<String, Object> uploadKnowledgeBase(MultipartFile file, String name, String category) {
+    public Map<String, Object> uploadKnowledgeBase(MultipartFile file, String name, String category, Long userId) {
         // 1. 验证文件
         fileValidationService.validateFile(file, MAX_FILE_SIZE, "知识库");
 
@@ -76,7 +77,7 @@ public class KnowledgeBaseUploadService {
         log.info("知识库已存储到RustFS: {}", fileKey);
 
         // 6. 保存知识库元数据到数据库（状态为 PENDING）
-        KnowledgeBaseEntity savedKb = persistenceService.saveKnowledgeBase(file, name, category, fileKey, fileUrl, fileHash);
+        KnowledgeBaseEntity savedKb = persistenceService.saveKnowledgeBase(file, name, category, fileKey, fileUrl, fileHash, userId);
 
         // 7. 发送向量化任务到 Redis Stream（异步处理）
         vectorizeStreamProducer.sendVectorizeTask(savedKb.getId(), content);

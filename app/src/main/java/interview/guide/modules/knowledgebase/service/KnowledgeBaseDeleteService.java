@@ -31,12 +31,20 @@ public class KnowledgeBaseDeleteService {
     /**
      * 删除知识库
      * 包括：RAG会话关联、向量数据、RustFS文件、数据库记录
+     *
+     * @param id 知识库ID
+     * @param userId 用户ID（用于验证归属）
      */
     @Transactional(rollbackFor = Exception.class)
-    public void deleteKnowledgeBase(Long id) {
+    public void deleteKnowledgeBase(Long id, Long userId) {
         // 1. 获取知识库信息
         KnowledgeBaseEntity kb = knowledgeBaseRepository.findById(id)
             .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "知识库不存在"));
+
+        // 验证知识库归属
+        if (!kb.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权删除他人的知识库");
+        }
         
         // 2. 删除所有RAG会话中的知识库关联（必须先删除关联，否则外键约束会阻止删除）
         List<RagChatSessionEntity> sessions = sessionRepository.findByKnowledgeBaseIds(List.of(id));

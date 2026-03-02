@@ -1,5 +1,6 @@
 package interview.guide.modules.knowledgebase;
 
+import interview.guide.common.annotation.CurrentUser;
 import interview.guide.common.annotation.RateLimit;
 import interview.guide.common.result.Result;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseListItemDTO;
@@ -40,13 +41,14 @@ public class KnowledgeBaseController {
     private final KnowledgeBaseDeleteService deleteService;
 
     /**
-     * 获取所有知识库列表
+     * 获取当前用户的知识库列表
      */
     @GetMapping("/api/knowledgebase/list")
     public Result<List<KnowledgeBaseListItemDTO>> getAllKnowledgeBases(
+            @CurrentUser Long userId,
             @RequestParam(value = "sortBy", required = false) String sortBy,
             @RequestParam(value = "vectorStatus", required = false) String vectorStatus) {
-        
+
         VectorStatus status = null;
         if (vectorStatus != null && !vectorStatus.isBlank()) {
             try {
@@ -55,16 +57,18 @@ public class KnowledgeBaseController {
                 return Result.error("无效的向量化状态: " + vectorStatus);
             }
         }
-        
-        return Result.success(listService.listKnowledgeBases(status, sortBy));
+
+        return Result.success(listService.listKnowledgeBases(userId, status, sortBy));
     }
 
     /**
      * 获取知识库详情
      */
     @GetMapping("/api/knowledgebase/{id}")
-    public Result<KnowledgeBaseListItemDTO> getKnowledgeBase(@PathVariable Long id) {
-        return listService.getKnowledgeBase(id)
+    public Result<KnowledgeBaseListItemDTO> getKnowledgeBase(
+            @CurrentUser Long userId,
+            @PathVariable Long id) {
+        return listService.getKnowledgeBase(userId, id)
                 .map(Result::success)
                 .orElse(Result.error("知识库不存在"));
     }
@@ -73,8 +77,10 @@ public class KnowledgeBaseController {
      * 删除知识库
      */
     @DeleteMapping("/api/knowledgebase/{id}")
-    public Result<Void> deleteKnowledgeBase(@PathVariable Long id) {
-        deleteService.deleteKnowledgeBase(id);
+    public Result<Void> deleteKnowledgeBase(
+            @CurrentUser Long userId,
+            @PathVariable Long id) {
+        deleteService.deleteKnowledgeBase(id, userId);
         return Result.success(null);
     }
 
@@ -100,34 +106,44 @@ public class KnowledgeBaseController {
     // ========== 分类管理 API ==========
 
     /**
-     * 获取所有分类
+     * 获取当前用户的分类列表
      */
     @GetMapping("/api/knowledgebase/categories")
-    public Result<List<String>> getAllCategories() {
-        return Result.success(listService.getAllCategories());
+    public Result<List<String>> getAllCategories(@CurrentUser Long userId) {
+        return Result.success(listService.getCategoriesByUserId(userId));
     }
 
     /**
      * 根据分类获取知识库列表
      */
     @GetMapping("/api/knowledgebase/category/{category}")
-    public Result<List<KnowledgeBaseListItemDTO>> getByCategory(@PathVariable String category) {
-        return Result.success(listService.listByCategory(category));
+    public Result<List<KnowledgeBaseListItemDTO>> getByCategory(
+            @CurrentUser Long userId,
+            @PathVariable String category) {
+        return Result.success(listService.listByCategory(userId, category));
     }
 
     /**
      * 获取未分类的知识库
      */
     @GetMapping("/api/knowledgebase/uncategorized")
-    public Result<List<KnowledgeBaseListItemDTO>> getUncategorized() {
-        return Result.success(listService.listByCategory(null));
+    public Result<List<KnowledgeBaseListItemDTO>> getUncategorized(@CurrentUser Long userId) {
+        return Result.success(listService.listByCategory(userId, null));
     }
 
     /**
      * 更新知识库分类
      */
     @PutMapping("/api/knowledgebase/{id}/category")
-    public Result<Void> updateCategory(@PathVariable Long id, @RequestBody Map<String, String> body) {
+    public Result<Void> updateCategory(
+            @CurrentUser Long userId,
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        // 验证知识库归属
+        var kb = listService.getKnowledgeBase(userId, id);
+        if (kb.isEmpty()) {
+            return Result.error("知识库不存在或无权操作");
+        }
         listService.updateCategory(id, body.get("category"));
         return Result.success(null);
     }
@@ -140,18 +156,31 @@ public class KnowledgeBaseController {
     @PostMapping(value = "/api/knowledgebase/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL, RateLimit.Dimension.IP}, count = 3)
     public Result<Map<String, Object>> uploadKnowledgeBase(
+            @CurrentUser Long userId,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "name", required = false) String name,
             @RequestParam(value = "category", required = false) String category) {
-        return Result.success(uploadService.uploadKnowledgeBase(file, name, category));
+        return Result.success(uploadService.uploadKnowledgeBase(file, name, category, userId));
     }
 
     /**
      * 下载知识库文件
      */
     @GetMapping("/api/knowledgebase/{id}/download")
-    public ResponseEntity<byte[]> downloadKnowledgeBase(@PathVariable Long id) {
+    public ResponseEntity<byte[]> downloadKnowledgeBase(
+            @CurrentUser Long userId,
+            @PathVariable Long id) {
+        // 先验证归属，获取实体信息用于下载
+        var kbOpt = listService.getKnowledgeBase(userId, id);
+        if (kbOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        // 获取完整实体信息用于下载
         var entity = listService.getEntityForDownload(id);
+        // 验证归属
+        if (!entity.getUserId().equals(userId)) {
+            return ResponseEntity.status(403).build();
+        }
         byte[] fileContent = listService.downloadFile(id);
 
         String filename = entity.getOriginalFilename();
@@ -173,14 +202,16 @@ public class KnowledgeBaseController {
      * 搜索知识库
      */
     @GetMapping("/api/knowledgebase/search")
-    public Result<List<KnowledgeBaseListItemDTO>> search(@RequestParam("keyword") String keyword) {
-        return Result.success(listService.search(keyword));
+    public Result<List<KnowledgeBaseListItemDTO>> search(
+            @CurrentUser Long userId,
+            @RequestParam("keyword") String keyword) {
+        return Result.success(listService.searchByUserId(userId, keyword));
     }
 
     // ========== 统计 API ==========
 
     /**
-     * 获取知识库统计信息
+     * 获取知识库统计信息（全局统计，保持向后兼容）
      */
     @GetMapping("/api/knowledgebase/stats")
     public Result<KnowledgeBaseStatsDTO> getStatistics() {
@@ -195,7 +226,14 @@ public class KnowledgeBaseController {
      */
     @PostMapping("/api/knowledgebase/{id}/revectorize")
     @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL, RateLimit.Dimension.IP}, count = 2)
-    public Result<Void> revectorize(@PathVariable Long id) {
+    public Result<Void> revectorize(
+            @CurrentUser Long userId,
+            @PathVariable Long id) {
+        // 验证归属
+        var kb = listService.getKnowledgeBase(userId, id);
+        if (kb.isEmpty()) {
+            return Result.error("知识库不存在或无权操作");
+        }
         uploadService.revectorize(id);
         return Result.success(null);
     }

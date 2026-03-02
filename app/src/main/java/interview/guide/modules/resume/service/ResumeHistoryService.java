@@ -38,10 +38,10 @@ public class ResumeHistoryService {
     private final InterviewMapper interviewMapper;
 
     /**
-     * 获取所有简历列表
+     * 获取所有简历列表（按用户ID过滤）
      */
-    public List<ResumeListItemDTO> getAllResumes() {
-        List<ResumeEntity> resumes = resumePersistenceService.findAllResumes();
+    public List<ResumeListItemDTO> getAllResumes(Long userId) {
+        List<ResumeEntity> resumes = resumePersistenceService.findByUserId(userId);
 
         return resumes.stream().map(resume -> {
             // 获取最新分析结果的分数
@@ -72,10 +72,10 @@ public class ResumeHistoryService {
     }
 
     /**
-     * 获取简历详情（包含分析历史）
+     * 获取简历详情（包含分析历史，按用户ID校验权限）
      */
-    public ResumeDetailDTO getResumeDetail(Long id) {
-        Optional<ResumeEntity> resumeOpt = resumePersistenceService.findById(id);
+    public ResumeDetailDTO getResumeDetail(Long id, Long userId) {
+        Optional<ResumeEntity> resumeOpt = resumePersistenceService.findByIdAndUserId(id, userId);
         if (resumeOpt.isEmpty()) {
             throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
         }
@@ -148,10 +148,10 @@ public class ResumeHistoryService {
     }
 
     /**
-     * 导出简历分析报告为PDF
+     * 导出简历分析报告为PDF（按用户ID校验权限）
      */
-    public ExportResult exportAnalysisPdf(Long resumeId) {
-        Optional<ResumeEntity> resumeOpt = resumePersistenceService.findById(resumeId);
+    public ExportResult exportAnalysisPdf(Long resumeId, Long userId) {
+        Optional<ResumeEntity> resumeOpt = resumePersistenceService.findByIdAndUserId(resumeId, userId);
         if (resumeOpt.isEmpty()) {
             throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
         }

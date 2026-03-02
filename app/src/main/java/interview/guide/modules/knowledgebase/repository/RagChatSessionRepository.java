@@ -50,4 +50,17 @@ public interface RagChatSessionRepository extends JpaRepository<RagChatSessionEn
      */
     @Query("SELECT s FROM RagChatSessionEntity s LEFT JOIN FETCH s.knowledgeBases WHERE s.id = :id")
     Optional<RagChatSessionEntity> findByIdWithKnowledgeBases(@Param("id") Long id);
+
+    // ==================== 用户隔离查询 ====================
+
+    /**
+     * 按用户ID获取所有会话（按置顶状态和更新时间排序）
+     */
+    @Query("SELECT s FROM RagChatSessionEntity s WHERE s.userId = :userId ORDER BY s.isPinned DESC, s.updatedAt DESC")
+    List<RagChatSessionEntity> findByUserIdOrderByPinnedAndUpdatedAtDesc(@Param("userId") Long userId);
+
+    /**
+     * 按用户ID查找会话（用于验证会话归属）
+     */
+    Optional<RagChatSessionEntity> findByIdAndUserId(Long id, Long userId);
 }
