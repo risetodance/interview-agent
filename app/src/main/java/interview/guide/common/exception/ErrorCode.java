@@ -72,7 +72,11 @@ public enum ErrorCode {
     USER_DISABLED(9006, "用户已被禁用"),
     USER_INACTIVE(9007, "用户未激活"),
     PASSWORD_MISMATCH(9008, "两次输入的密码不一致"),
-    OLD_PASSWORD_ERROR(9009, "原密码错误");
+    OLD_PASSWORD_ERROR(9009, "原密码错误"),
+
+    // ========== 会员与积分模块错误 10xxx ==========
+    INSUFFICIENT_POINTS(10001, "积分不足"),
+    QUOTA_EXCEEDED(10002, "额度不足");
     
     private final Integer code;
     private final String message;

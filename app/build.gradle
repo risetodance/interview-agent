@@ -51,6 +51,10 @@ dependencies {
     implementation "com.itextpdf:itext-core:${libs.versions.itext.get()}"
     implementation "com.itextpdf:font-asian:${libs.versions.itext.get()}"
 
+    // Apache POI for Excel parsing
+    implementation libs.poi.core
+    implementation libs.poi.ooxml
+
     // Lombok
     compileOnly libs.lombok
     annotationProcessor libs.lombok

@@ -11,6 +11,13 @@ import KnowledgeBaseManagePage from './pages/KnowledgeBaseManagePage';
 import ProfilePage from './pages/profile/ProfilePage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import BankListPage from './pages/question/BankListPage';
+import QuestionDetailPage from './pages/question/QuestionDetailPage';
+import MyBankPage from './pages/question/MyBankPage';
+import QuestionImport from './pages/question/QuestionImport';
+import QuestionEditPage from './pages/question/QuestionEditPage';
+import MembershipPage from './pages/membership/MembershipPage';
+import PointsHistoryPage from './pages/membership/PointsHistoryPage';
 import {historyApi} from './api/history';
 import {useEffect, useState} from 'react';
 import type {UploadKnowledgeBaseResponse} from './api/knowledgebase';
@@ -169,6 +176,18 @@ function App() {
 
           {/* 个人中心 */}
           <Route path="profile" element={<ProfilePage />} />
+
+          {/* 会员中心 */}
+          <Route path="membership" element={<MembershipPage />} />
+          <Route path="membership/points-history" element={<PointsHistoryPage />} />
+
+          {/* 题库管理 */}
+          <Route path="questions" element={<BankListPageWrapper />} />
+          <Route path="questions/bank/create" element={<MyBankPageWrapper mode="create" />} />
+          <Route path="questions/bank/:bankId/edit" element={<MyBankPageWrapper mode="edit" />} />
+          <Route path="questions/bank/:bankId" element={<QuestionDetailPageWrapper />} />
+          <Route path="questions/bank/:bankId/import" element={<QuestionImportWrapper />} />
+          <Route path="questions/:questionId/edit" element={<QuestionEditPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
@@ -256,6 +275,28 @@ function KnowledgeBaseUploadPageWrapper() {
   };
   
   return <KnowledgeBaseUploadPage onUploadComplete={handleUploadComplete} onBack={handleBack} />;
+}
+
+// 题库列表页面包装器
+function BankListPageWrapper() {
+  const navigate = useNavigate();
+
+  return <BankListPage onViewQuestions={(bankId) => navigate(`/questions/bank/${bankId}`)} />;
+}
+
+// 题库创建/编辑页面包装器
+function MyBankPageWrapper(_props: { mode: 'create' | 'edit' }) {
+  return <MyBankPage />;
+}
+
+// 题目详情页面包装器
+function QuestionDetailPageWrapper() {
+  return <QuestionDetailPage />;
+}
+
+// 题目导入页面包装器
+function QuestionImportWrapper() {
+  return <QuestionImport />;
 }
 
 export default App;

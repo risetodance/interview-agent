@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Sparkles,
@@ -9,7 +9,11 @@ import {
   MessageSquare,
   ChevronRight,
   User,
+  BookOpen,
+  Crown,
+  LogOut,
 } from 'lucide-react';
+import { useUser } from '../store/user';
 
 interface NavItem {
   id: string;
@@ -28,6 +32,13 @@ interface NavGroup {
 export default function Layout() {
   const location = useLocation();
   const currentPath = location.pathname;
+  const navigate = useNavigate();
+  const { logout, user } = useUser();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   // 按业务模块组织的导航项
   const navGroups: NavGroup[] = [
@@ -38,6 +49,7 @@ export default function Layout() {
         { id: 'upload', path: '/upload', label: '上传简历', icon: Upload, description: 'AI 分析简历' },
         { id: 'resumes', path: '/history', label: '简历库', icon: FileStack, description: '管理所有简历' },
         { id: 'interviews', path: '/interviews', label: '面试记录', icon: Users, description: '查看面试历史' },
+        { id: 'questions', path: '/questions', label: '题库管理', icon: BookOpen, description: '管理面试题库' },
       ],
     },
     {
@@ -52,10 +64,17 @@ export default function Layout() {
       id: 'account',
       title: '账号',
       items: [
+        { id: 'membership', path: '/membership', label: '会员中心', icon: Crown, description: 'VIP 会员与积分' },
         { id: 'profile', path: '/profile', label: '个人中心', icon: User, description: '查看和编辑个人资料' },
       ],
     },
   ];
+
+  // 登出按钮点击处理
+  const handleLogoutClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    handleLogout();
+  };
 
   // 判断当前页面是否匹配导航项
   const isActive = (path: string) => {
@@ -64,6 +83,12 @@ export default function Layout() {
     }
     if (path === '/knowledgebase') {
       return currentPath === '/knowledgebase' || currentPath === '/knowledgebase/upload';
+    }
+    if (path === '/questions') {
+      return currentPath.startsWith('/questions');
+    }
+    if (path === '/membership') {
+      return currentPath.startsWith('/membership');
     }
     return currentPath.startsWith(path);
   };
@@ -141,7 +166,21 @@ export default function Layout() {
         </nav>
 
         {/* 底部信息 */}
-        <div className="p-4 border-t border-slate-100">
+        <div className="p-4 border-t border-slate-100 space-y-2">
+          {/* 登出按钮 */}
+          <button
+            onClick={handleLogoutClick}
+            className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
+          >
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100 text-slate-500 group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
+              <LogOut className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium block">退出登录</span>
+              {user && <span className="text-xs text-slate-400 truncate block">{user.username}</span>}
+            </div>
+          </button>
+
           <div className="px-3 py-2 bg-gradient-to-r from-primary-50 to-indigo-50 rounded-xl">
             <p className="text-xs text-primary-600 font-medium">AI 面试助手 v1.0</p>
             <p className="text-xs text-slate-400 mt-0.5">Powered by AI</p>

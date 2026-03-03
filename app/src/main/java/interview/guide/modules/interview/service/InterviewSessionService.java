@@ -8,8 +8,10 @@ import interview.guide.infrastructure.redis.InterviewSessionCache.CachedSession;
 import interview.guide.modules.interview.listener.EvaluateStreamProducer;
 import interview.guide.modules.interview.model.*;
 import interview.guide.modules.interview.model.InterviewSessionDTO.SessionStatus;
+import interview.guide.modules.question.service.QuestionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -35,6 +37,9 @@ public class InterviewSessionService {
     private final ObjectMapper objectMapper;
     private final EvaluateStreamProducer evaluateStreamProducer;
 
+    @Lazy
+    private QuestionService questionServiceForBank;
+
     /**
      * 创建新的面试会话
      * 注意：如果已有未完成的会话，不会创建新的，而是返回现有会话
@@ -53,14 +58,38 @@ public class InterviewSessionService {
 
         String sessionId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 
-        log.info("创建新面试会话: userId={}, sessionId={}, 题目数量: {}, resumeId: {}",
-            userId, sessionId, request.questionCount(), request.resumeId());
+        log.info("创建新面试会话: userId={}, sessionId={}, 题目数量: {}, resumeId: {}, questionBankIds: {}",
+            userId, sessionId, request.questionCount(), request.resumeId(), request.questionBankIds());
 
         // 生成面试问题
-        List<InterviewQuestionDTO> questions = questionService.generateQuestions(
-            request.resumeText(),
-            request.questionCount()
-        );
+        List<InterviewQuestionDTO> questions;
+
+        // 如果指定了题库，从题库获取题目；否则使用 AI 生成
+        if (request.questionBankIds() != null && !request.questionBankIds().isEmpty()) {
+            log.info("从题库获取题目: bankIds={}", request.questionBankIds());
+            var bankQuestions = questionServiceForBank.getRandomQuestionsFromBanks(
+                request.questionBankIds(),
+                request.questionCount()
+            );
+            var questionList = bankQuestions.getData();
+            questions = new java.util.ArrayList<InterviewQuestionDTO>();
+            for (int i = 0; i < questionList.size(); i++) {
+                var q = questionList.get(i);
+                InterviewQuestionDTO dto = InterviewQuestionDTO.create(
+                    i,
+                    q.getContent(),
+                    InterviewQuestionDTO.QuestionType.JAVA_BASIC,
+                    q.getDifficulty() != null ? q.getDifficulty().name() : "MEDIUM"
+                );
+                questions.add(dto);
+            }
+        } else {
+            // 使用 AI 生成题目
+            questions = questionService.generateQuestions(
+                request.resumeText(),
+                request.questionCount()
+            );
+        }
 
         // 保存到 Redis 缓存
         sessionCache.saveSession(

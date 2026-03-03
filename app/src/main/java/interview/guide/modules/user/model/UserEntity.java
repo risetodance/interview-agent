@@ -85,6 +85,24 @@ public class UserEntity {
     private MembershipType membership = MembershipType.FREE;
 
     /**
+     * 已使用的简历额度
+     */
+    @Builder.Default
+    private Integer resumeQuotaUsed = 0;
+
+    /**
+     * 已使用的面试额度
+     */
+    @Builder.Default
+    private Integer interviewQuotaUsed = 0;
+
+    /**
+     * 已使用的AI调用额度
+     */
+    @Builder.Default
+    private Integer aiCallQuotaUsed = 0;
+
+    /**
      * 创建时间
      */
     @Column(nullable = false, updatable = false)
