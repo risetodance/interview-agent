@@ -66,21 +66,39 @@ public class InterviewQuestionService {
     
     /**
      * 生成面试问题
-     * 
+     *
      * @param resumeText 简历文本
      * @param questionCount 问题数量
      * @return 面试问题列表
      */
     public List<InterviewQuestionDTO> generateQuestions(String resumeText, int questionCount) {
-        log.info("开始生成面试问题，简历长度: {}, 问题数量: {}", resumeText.length(), questionCount);
-        
+        return generateQuestionsWithContext(resumeText, questionCount, null);
+    }
+
+    /**
+     * 生成面试问题（带知识库上下文）
+     *
+     * @param resumeText 简历文本
+     * @param questionCount 问题数量
+     * @param knowledgeBaseContext 知识库上下文内容（可选）
+     * @return 面试问题列表
+     */
+    public List<InterviewQuestionDTO> generateQuestionsWithContext(String resumeText, int questionCount, String knowledgeBaseContext) {
+        log.info("开始生成面试问题，简历长度: {}, 问题数量: {}, 知识库上下文: {}",
+            resumeText.length(), questionCount, knowledgeBaseContext != null ? "有" : "无");
+
         // 计算各类型问题数量
         QuestionDistribution distribution = calculateDistribution(questionCount);
-        
+
         try {
             // 加载系统提示词
             String systemPrompt = systemPromptTemplate.render();
-            
+
+            // 如果有知识库内容，在系统提示词中添加相关说明
+            if (knowledgeBaseContext != null && !knowledgeBaseContext.isEmpty()) {
+                systemPrompt += "\n\n参考以下知识库内容生成更具针对性的问题：\n" + knowledgeBaseContext;
+            }
+
             // 加载用户提示词并填充变量
             Map<String, Object> variables = new HashMap<>();
             variables.put("questionCount", questionCount);
@@ -93,10 +111,10 @@ public class InterviewQuestionService {
             variables.put("springCount", distribution.spring);
             variables.put("resumeText", resumeText);
             String userPrompt = userPromptTemplate.render(variables);
-            
+
             // 添加格式指令到系统提示词
             String systemPromptWithFormat = systemPrompt + "\n\n" + outputConverter.getFormat();
-            
+
             // 调用AI
             QuestionListDTO dto;
             try {
@@ -108,16 +126,16 @@ public class InterviewQuestionService {
                 log.debug("AI响应解析成功: questions count={}", dto.questions().size());
             } catch (Exception e) {
                 log.error("面试问题生成AI调用失败: {}", e.getMessage(), e);
-                throw new BusinessException(ErrorCode.INTERVIEW_QUESTION_GENERATION_FAILED, 
+                throw new BusinessException(ErrorCode.INTERVIEW_QUESTION_GENERATION_FAILED,
                     "面试问题生成失败：" + e.getMessage());
             }
-            
+
             // 转换为业务对象
             List<InterviewQuestionDTO> questions = convertToQuestions(dto);
             log.info("成功生成 {} 个面试问题", questions.size());
-            
+
             return questions;
-            
+
         } catch (Exception e) {
             log.error("生成面试问题失败: {}", e.getMessage(), e);
             // 返回默认问题集

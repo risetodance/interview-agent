@@ -14,6 +14,7 @@ import java.io.Serializable;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.ArrayList;
 
 /**
  * 面试会话 Redis 缓存服务
@@ -53,6 +54,7 @@ public class InterviewSessionCache {
         private String questionsJson;  // 序列化的问题列表
         private int currentIndex;
         private SessionStatus status;
+        private List<Long> knowledgeBaseIds;  // 关联的知识库ID列表
 
         public CachedSession() {
         }
@@ -60,11 +62,18 @@ public class InterviewSessionCache {
         public CachedSession(String sessionId, String resumeText, Long resumeId,
                             List<InterviewQuestionDTO> questions, int currentIndex,
                             SessionStatus status, ObjectMapper objectMapper) {
+            this(sessionId, resumeText, resumeId, questions, currentIndex, status, null, objectMapper);
+        }
+
+        public CachedSession(String sessionId, String resumeText, Long resumeId,
+                            List<InterviewQuestionDTO> questions, int currentIndex,
+                            SessionStatus status, List<Long> knowledgeBaseIds, ObjectMapper objectMapper) {
             this.sessionId = sessionId;
             this.resumeText = resumeText;
             this.resumeId = resumeId;
             this.currentIndex = currentIndex;
             this.status = status;
+            this.knowledgeBaseIds = knowledgeBaseIds != null ? new ArrayList<>(knowledgeBaseIds) : new ArrayList<>();
             try {
                 this.questionsJson = objectMapper.writeValueAsString(questions);
             } catch (JacksonException e) {
@@ -87,9 +96,18 @@ public class InterviewSessionCache {
     public void saveSession(String sessionId, String resumeText, Long resumeId,
                            List<InterviewQuestionDTO> questions, int currentIndex,
                            SessionStatus status) {
+        saveSession(sessionId, resumeText, resumeId, questions, currentIndex, status, null);
+    }
+
+    /**
+     * 保存会话到缓存（包含知识库ID）
+     */
+    public void saveSession(String sessionId, String resumeText, Long resumeId,
+                           List<InterviewQuestionDTO> questions, int currentIndex,
+                           SessionStatus status, List<Long> knowledgeBaseIds) {
         String key = buildSessionKey(sessionId);
         CachedSession cachedSession = new CachedSession(
-            sessionId, resumeText, resumeId, questions, currentIndex, status, objectMapper
+            sessionId, resumeText, resumeId, questions, currentIndex, status, knowledgeBaseIds, objectMapper
         );
 
         redisService.set(key, cachedSession, SESSION_TTL);

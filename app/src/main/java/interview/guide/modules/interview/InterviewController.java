@@ -7,6 +7,7 @@ import interview.guide.modules.interview.model.*;
 import interview.guide.modules.interview.service.InterviewHistoryService;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
 import interview.guide.modules.interview.service.InterviewSessionService;
+import interview.guide.modules.interview.service.ScoreTrendService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -30,6 +31,7 @@ public class InterviewController {
     private final InterviewSessionService sessionService;
     private final InterviewHistoryService historyService;
     private final InterviewPersistenceService persistenceService;
+    private final ScoreTrendService scoreTrendService;
     
     /**
      * 创建面试会话
@@ -185,5 +187,32 @@ public class InterviewController {
         log.info("删除面试会话: 用户{}, 会话{}", userId, sessionId);
         persistenceService.deleteSessionBySessionId(sessionId);
         return Result.success(null);
+    }
+
+    /**
+     * 切换面试知识库
+     * 会根据新的知识库重新生成未回答的问题
+     */
+    @PutMapping("/api/interview/sessions/{sessionId}/knowledge-base")
+    public Result<InterviewSessionDTO> switchKnowledgeBase(
+            @CurrentUser Long userId,
+            @PathVariable String sessionId,
+            @RequestBody SwitchKnowledgeBaseRequest request) {
+        log.info("切换面试知识库: 用户{}, 会话{}, 知识库IDs={}", userId, sessionId, request.knowledgeBaseIds());
+        sessionService.validateSessionOwnership(userId, sessionId);
+        InterviewSessionDTO session = sessionService.switchKnowledgeBase(userId, sessionId, request.knowledgeBaseIds());
+        return Result.success(session);
+    }
+
+    /**
+     * 获取评分趋势
+     * GET /api/interview/score-trend
+     */
+    @GetMapping("/api/interview/score-trend")
+    public Result<interview.guide.modules.interview.model.ScoreTrendDTO> getScoreTrend(
+            @CurrentUser Long userId) {
+        log.info("获取评分趋势: 用户{}", userId);
+        interview.guide.modules.interview.model.ScoreTrendDTO trend = scoreTrendService.getScoreTrend(userId);
+        return Result.success(trend);
     }
 }

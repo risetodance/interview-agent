@@ -8,18 +8,22 @@ import interview.guide.infrastructure.redis.InterviewSessionCache.CachedSession;
 import interview.guide.modules.interview.listener.EvaluateStreamProducer;
 import interview.guide.modules.interview.model.*;
 import interview.guide.modules.interview.model.InterviewSessionDTO.SessionStatus;
+import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
 import interview.guide.modules.question.service.QuestionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.document.Document;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 面试会话管理服务
@@ -36,6 +40,7 @@ public class InterviewSessionService {
     private final InterviewSessionCache sessionCache;
     private final ObjectMapper objectMapper;
     private final EvaluateStreamProducer evaluateStreamProducer;
+    private final KnowledgeBaseVectorService knowledgeBaseVectorService;
 
     @Lazy
     private QuestionService questionServiceForBank;
@@ -58,8 +63,15 @@ public class InterviewSessionService {
 
         String sessionId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 
-        log.info("创建新面试会话: userId={}, sessionId={}, 题目数量: {}, resumeId: {}, questionBankIds: {}",
-            userId, sessionId, request.questionCount(), request.resumeId(), request.questionBankIds());
+        log.info("创建新面试会话: userId={}, sessionId={}, 题目数量: {}, resumeId: {}, questionBankIds: {}, knowledgeBaseIds: {}",
+            userId, sessionId, request.questionCount(), request.resumeId(), request.questionBankIds(), request.knowledgeBaseIds());
+
+        // 获取知识库内容（如果有指定知识库）
+        String knowledgeBaseContext = null;
+        if (request.knowledgeBaseIds() != null && !request.knowledgeBaseIds().isEmpty()) {
+            knowledgeBaseContext = retrieveKnowledgeBaseContext(request.knowledgeBaseIds());
+            log.info("已从知识库获取上下文内容，长度: {}", knowledgeBaseContext != null ? knowledgeBaseContext.length() : 0);
+        }
 
         // 生成面试问题
         List<InterviewQuestionDTO> questions;
@@ -83,6 +95,14 @@ public class InterviewSessionService {
                 );
                 questions.add(dto);
             }
+        } else if (knowledgeBaseContext != null) {
+            // 使用知识库内容生成问题
+            log.info("使用知识库内容生成面试问题");
+            questions = questionService.generateQuestionsWithContext(
+                request.resumeText(),
+                request.questionCount(),
+                knowledgeBaseContext
+            );
         } else {
             // 使用 AI 生成题目
             questions = questionService.generateQuestions(
@@ -91,14 +111,15 @@ public class InterviewSessionService {
             );
         }
 
-        // 保存到 Redis 缓存
+        // 保存到 Redis 缓存（包含知识库ID）
         sessionCache.saveSession(
             sessionId,
             request.resumeText(),
             request.resumeId(),
             questions,
             0,
-            SessionStatus.CREATED
+            SessionStatus.CREATED,
+            request.knowledgeBaseIds()
         );
 
         // 保存到数据库（关联用户ID）
@@ -117,7 +138,8 @@ public class InterviewSessionService {
             questions.size(),
             0,
             questions,
-            SessionStatus.CREATED
+            SessionStatus.CREATED,
+            request.knowledgeBaseIds()
         );
     }
 
@@ -526,7 +548,116 @@ public class InterviewSessionService {
             questions.size(),
             session.getCurrentIndex(),
             questions,
-            session.getStatus()
+            session.getStatus(),
+            session.getKnowledgeBaseIds()
         );
+    }
+
+    /**
+     * 切换面试知识库
+     * 会根据新的知识库重新生成所有未回答的问题
+     */
+    public InterviewSessionDTO switchKnowledgeBase(Long userId, String sessionId, List<Long> knowledgeBaseIds) {
+        // 验证会话所有权
+        validateSessionOwnership(userId, sessionId);
+
+        // 获取会话
+        CachedSession session = getOrRestoreSession(sessionId);
+
+        // 检查面试状态，只有未完成的面试才能切换知识库
+        if (session.getStatus() == SessionStatus.COMPLETED || session.getStatus() == SessionStatus.EVALUATED) {
+            throw new BusinessException(ErrorCode.INTERVIEW_ALREADY_COMPLETED, "面试已完成，无法切换知识库");
+        }
+
+        log.info("切换面试知识库: sessionId={}, 新知识库IDs={}, 当前进度={}/{}}",
+            sessionId, knowledgeBaseIds, session.getCurrentIndex(), session.getQuestions(objectMapper).size());
+
+        // 获取知识库内容
+        String knowledgeBaseContext = retrieveKnowledgeBaseContext(knowledgeBaseIds);
+
+        // 获取已回答的问题（保留答案）
+        List<InterviewQuestionDTO> answeredQuestions = new ArrayList<>();
+        List<InterviewQuestionDTO> allQuestions = session.getQuestions(objectMapper);
+        for (int i = 0; i < session.getCurrentIndex(); i++) {
+            if (i < allQuestions.size() && allQuestions.get(i).userAnswer() != null) {
+                answeredQuestions.add(allQuestions.get(i));
+            }
+        }
+
+        // 重新生成剩余问题
+        List<InterviewQuestionDTO> newQuestions;
+        if (knowledgeBaseContext != null) {
+            newQuestions = questionService.generateQuestionsWithContext(
+                session.getResumeText(),
+                allQuestions.size(),
+                knowledgeBaseContext
+            );
+        } else {
+            newQuestions = questionService.generateQuestions(
+                session.getResumeText(),
+                allQuestions.size()
+            );
+        }
+
+        // 合并已回答的问题和新生成的问题
+        int answeredCount = answeredQuestions.size();
+        for (int i = 0; i < answeredCount && i < newQuestions.size(); i++) {
+            newQuestions.set(i, answeredQuestions.get(i));
+        }
+
+        // 更新缓存
+        sessionCache.saveSession(
+            sessionId,
+            session.getResumeText(),
+            session.getResumeId(),
+            newQuestions,
+            session.getCurrentIndex(),
+            session.getStatus(),
+            knowledgeBaseIds
+        );
+
+        // 尝试更新数据库（如果会话已持久化）
+        try {
+            persistenceService.updateQuestions(sessionId, newQuestions);
+        } catch (Exception e) {
+            log.warn("更新数据库问题列表失败: {}", e.getMessage());
+        }
+
+        log.info("切换知识库完成: sessionId={}, 新问题数量={}", sessionId, newQuestions.size());
+
+        return toDTO(sessionCache.getSession(sessionId).orElseThrow(
+            () -> new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND)
+        ));
+    }
+
+    /**
+     * 从知识库检索相关内容作为上下文
+     */
+    private String retrieveKnowledgeBaseContext(List<Long> knowledgeBaseIds) {
+        try {
+            // 搜索与简历相关的知识库内容
+            // 这里使用一个通用查询来获取知识库的摘要信息
+            List<Document> docs = knowledgeBaseVectorService.similaritySearch(
+                "面试题 技术知识 项目经验",
+                knowledgeBaseIds,
+                10
+            );
+
+            if (docs.isEmpty()) {
+                log.info("知识库检索结果为空");
+                return null;
+            }
+
+            // 合并检索到的文档内容
+            String context = docs.stream()
+                .map(Document::getText)
+                .collect(Collectors.joining("\n\n"));
+
+            log.info("从知识库检索到 {} 个相关文档片段", docs.size());
+            return context;
+        } catch (Exception e) {
+            log.warn("从知识库检索内容失败: {}", e.getMessage());
+            return null;
+        }
     }
 }

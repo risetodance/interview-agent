@@ -4,8 +4,10 @@ import type {
   CurrentQuestionResponse,
   InterviewReport,
   InterviewSession,
+  ScoreTrend,
   SubmitAnswerRequest,
-  SubmitAnswerResponse
+  SubmitAnswerResponse,
+  SwitchKnowledgeBaseRequest
 } from '../types/interview';
 
 export const interviewApi = {
@@ -81,5 +83,23 @@ export const interviewApi = {
    */
   async completeInterview(sessionId: string): Promise<void> {
     return request.post<void>(`/api/interview/sessions/${sessionId}/complete`);
+  },
+
+  /**
+   * 切换面试知识库
+   * 会根据新的知识库重新生成未回答的问题
+   */
+  async switchKnowledgeBase(sessionId: string, knowledgeBaseIds: number[]): Promise<InterviewSession> {
+    return request.put<InterviewSession>(
+      `/api/interview/sessions/${sessionId}/knowledge-base`,
+      { knowledgeBaseIds }
+    );
+  },
+
+  /**
+   * 获取评分趋势
+   */
+  async getScoreTrend(): Promise<ScoreTrend> {
+    return request.get<ScoreTrend>('/api/interview/score-trend');
   },
 };

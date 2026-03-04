@@ -34,6 +34,8 @@ export interface CreateInterviewRequest {
   questionCount: number;
   resumeId?: number;
   forceCreate?: boolean;  // 是否强制创建新会话（忽略未完成的会话）
+  questionBankIds?: number[];  // 题库ID列表
+  knowledgeBaseIds?: number[];  // 知识库ID列表
 }
 
 export interface SubmitAnswerRequest {
@@ -87,4 +89,28 @@ export interface ReferenceAnswer {
   question: string;
   referenceAnswer: string;
   keyPoints: string[];
+}
+
+// 评分趋势
+export interface ScoreTrend {
+  dailyScores: DailyScore[];
+  statistics: ScoreStatistics;
+}
+
+export interface DailyScore {
+  date: string;  // ISO 日期格式
+  averageScore: number;
+  interviewCount: number;
+}
+
+export interface ScoreStatistics {
+  averageScore: number;
+  highestScore: number;
+  lowestScore: number;
+  totalInterviews: number;
+}
+
+// 切换知识库请求
+export interface SwitchKnowledgeBaseRequest {
+  knowledgeBaseIds: number[];
 }

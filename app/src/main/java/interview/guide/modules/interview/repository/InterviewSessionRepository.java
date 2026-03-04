@@ -53,4 +53,35 @@ public interface InterviewSessionRepository extends JpaRepository<InterviewSessi
         Long resumeId,
         List<SessionStatus> statuses
     );
+
+    /**
+     * 查询用户的所有已完成面试会话（通过简历关联用户）
+     */
+    @Query("SELECT s FROM InterviewSessionEntity s JOIN s.resume r WHERE r.userId = :userId AND s.status = :status ORDER BY s.createdAt DESC")
+    List<InterviewSessionEntity> findByUserIdAndStatus(
+        @Param("userId") Long userId,
+        @Param("status") SessionStatus status
+    );
+
+    /**
+     * 查询用户的已完成面试数量
+     */
+    @Query("SELECT COUNT(s) FROM InterviewSessionEntity s JOIN s.resume r WHERE r.userId = :userId AND s.status = :status")
+    Long countByUserIdAndStatus(
+        @Param("userId") Long userId,
+        @Param("status") SessionStatus status
+    );
+
+    /**
+     * 查询用户的平均评分
+     */
+    @Query("SELECT AVG(s.overallScore) FROM InterviewSessionEntity s JOIN s.resume r WHERE r.userId = :userId AND s.overallScore IS NOT NULL")
+    Double findAverageScoreByUserId(@Param("userId") Long userId);
+
+    /**
+     * 查询用户最近的N次面试评分
+     */
+    @Query("SELECT s FROM InterviewSessionEntity s JOIN s.resume r WHERE r.userId = :userId AND s.overallScore IS NOT NULL ORDER BY s.createdAt DESC")
+    List<InterviewSessionEntity> findRecentScoresByUserId(@Param("userId") Long userId);
+
 }

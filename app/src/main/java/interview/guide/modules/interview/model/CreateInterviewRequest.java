@@ -23,5 +23,7 @@ public record CreateInterviewRequest(
 
     Boolean forceCreate,    // 是否强制创建新会话（忽略未完成的会话），默认为 false
 
-    List<Long> questionBankIds  // 指定的题库ID列表（可选，不指定则从所有题库随机）
+    List<Long> questionBankIds,  // 指定的题库ID列表（可选，不指定则从所有题库随机）
+
+    List<Long> knowledgeBaseIds  // 知识库ID列表（可选，用于生成面试问题时参考知识库内容）
 ) {}

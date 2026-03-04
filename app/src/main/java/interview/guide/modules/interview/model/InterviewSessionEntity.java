@@ -81,7 +81,15 @@ public class InterviewSessionEntity {
     // 评估错误信息
     @Column(length = 500)
     private String evaluateError;
-    
+
+    // 关联的知识库ID列表 (JSON格式, 存储如: [1, 2, 3])
+    @Column(columnDefinition = "TEXT")
+    private String knowledgeBaseIds;
+
+    // 评分历史 (JSON格式, 存储如: [{"score": 85, "createdAt": "2024-01-01T10:00:00"}])
+    @Column(columnDefinition = "TEXT")
+    private String scoreHistory;
+
     public enum SessionStatus {
         CREATED,      // 会话已创建
         IN_PROGRESS,  // 面试进行中
@@ -229,6 +237,22 @@ public class InterviewSessionEntity {
 
     public void setEvaluateError(String evaluateError) {
         this.evaluateError = evaluateError;
+    }
+
+    public String getKnowledgeBaseIds() {
+        return knowledgeBaseIds;
+    }
+
+    public void setKnowledgeBaseIds(String knowledgeBaseIds) {
+        this.knowledgeBaseIds = knowledgeBaseIds;
+    }
+
+    public String getScoreHistory() {
+        return scoreHistory;
+    }
+
+    public void setScoreHistory(String scoreHistory) {
+        this.scoreHistory = scoreHistory;
     }
 
     public void addAnswer(InterviewAnswerEntity answer) {

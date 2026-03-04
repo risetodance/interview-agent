@@ -122,7 +122,26 @@ public class InterviewPersistenceService {
             sessionRepository.save(session);
         }
     }
-    
+
+    /**
+     * 更新会话的问题列表（切换知识库时使用）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateQuestions(String sessionId, List<InterviewQuestionDTO> questions) {
+        try {
+            Optional<InterviewSessionEntity> sessionOpt = sessionRepository.findBySessionId(sessionId);
+            if (sessionOpt.isPresent()) {
+                InterviewSessionEntity session = sessionOpt.get();
+                session.setQuestionsJson(objectMapper.writeValueAsString(questions));
+                sessionRepository.save(session);
+                log.info("会话问题列表已更新: sessionId={}, questionCount={}", sessionId, questions.size());
+            }
+        } catch (JacksonException e) {
+            log.error("序列化问题列表失败: {}", e.getMessage(), e);
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "更新问题列表失败");
+        }
+    }
+
     /**
      * 保存面试答案
      */
