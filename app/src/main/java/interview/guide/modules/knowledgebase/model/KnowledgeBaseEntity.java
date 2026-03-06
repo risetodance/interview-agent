@@ -78,6 +78,14 @@ public class KnowledgeBaseEntity {
     @Column(nullable = false)
     private Long userId;
 
+    // 是否公开（其他用户可引用）
+    @Column(nullable = false)
+    private Boolean isPublic = false;
+
+    // 被引用次数
+    @Column(nullable = false)
+    private Integer usageCount = 0;
+
     @PrePersist
     protected void onCreate() {
         uploadedAt = LocalDateTime.now();
@@ -230,6 +238,26 @@ public class KnowledgeBaseEntity {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public Boolean getIsPublic() {
+        return isPublic;
+    }
+
+    public void setIsPublic(Boolean isPublic) {
+        this.isPublic = isPublic;
+    }
+
+    public Integer getUsageCount() {
+        return usageCount;
+    }
+
+    public void setUsageCount(Integer usageCount) {
+        this.usageCount = usageCount;
+    }
+
+    public void incrementUsageCount() {
+        this.usageCount++;
     }
 }
 

@@ -152,5 +152,42 @@ public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEnti
      * 按用户ID和向量化状态统计数量
      */
     long countByUserIdAndVectorStatus(Long userId, VectorStatus vectorStatus);
+
+    // ==================== 公开知识库查询 ====================
+
+    /**
+     * 查询所有公开的知识库（按被引用次数倒序）
+     */
+    List<KnowledgeBaseEntity> findByIsPublicTrueOrderByUsageCountDesc();
+
+    /**
+     * 查询所有公开的知识库（按上传时间倒序）
+     */
+    List<KnowledgeBaseEntity> findByIsPublicTrueOrderByUploadedAtDesc();
+
+    /**
+     * 根据关键词搜索公开知识库
+     */
+    @Query("SELECT k FROM KnowledgeBaseEntity k WHERE k.isPublic = true AND (LOWER(k.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(k.originalFilename) LIKE LOWER(CONCAT('%', :keyword, '%'))) ORDER BY k.usageCount DESC")
+    List<KnowledgeBaseEntity> searchPublicByKeyword(@Param("keyword") String keyword);
+
+    /**
+     * 根据分类查询公开知识库
+     */
+    List<KnowledgeBaseEntity> findByIsPublicTrueAndCategoryOrderByUsageCountDesc(String category);
+
+    /**
+     * 根据ID和公开状态查询知识库
+     */
+    Optional<KnowledgeBaseEntity> findByIdAndIsPublicTrue(Long id);
+
+    // ==================== 增加引用次数 ====================
+
+    /**
+     * 增加知识库被引用次数
+     */
+    @Modifying
+    @Query("UPDATE KnowledgeBaseEntity k SET k.usageCount = k.usageCount + 1 WHERE k.id = :id")
+    int incrementUsageCount(@Param("id") Long id);
 }
 

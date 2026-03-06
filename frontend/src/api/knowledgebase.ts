@@ -19,6 +19,8 @@ export interface KnowledgeBaseItem {
   vectorStatus: VectorStatus;
   vectorError: string | null;
   chunkCount: number;
+  isPublic?: boolean;      // 是否公开
+  usageCount?: number;    // 被引用次数
 }
 
 // 统计信息
@@ -31,6 +33,9 @@ export interface KnowledgeBaseStats {
 }
 
 export type SortOption = 'time' | 'size' | 'access' | 'question';
+
+// 公开知识库排序选项
+export type PublicSortOption = 'usage' | 'time';
 
 export interface UploadKnowledgeBaseResponse {
   knowledgeBase: {
@@ -265,5 +270,47 @@ export const knowledgeBaseApi = {
     } catch (error) {
       onError(new Error(getErrorMessage(error)));
     }
+  },
+
+  // ========== 公开知识库 ==========
+
+  /**
+   * 设置知识库公开/私有
+   */
+  async setVisibility(id: number, isPublic: boolean): Promise<void> {
+    return request.put(`/api/knowledgebase/${id}/visibility`, { isPublic });
+  },
+
+  /**
+   * 获取公开知识库列表
+   */
+  async getPublicKnowledgeBases(sortBy?: PublicSortOption): Promise<KnowledgeBaseItem[]> {
+    const params = new URLSearchParams();
+    if (sortBy) {
+      params.append('sortBy', sortBy);
+    }
+    const queryString = params.toString();
+    return request.get<KnowledgeBaseItem[]>(`/api/knowledgebase/public${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /**
+   * 搜索公开知识库
+   */
+  async searchPublicKnowledgeBases(keyword: string): Promise<KnowledgeBaseItem[]> {
+    return request.get<KnowledgeBaseItem[]>(`/api/knowledgebase/public/search?keyword=${encodeURIComponent(keyword)}`);
+  },
+
+  /**
+   * 按分类获取公开知识库
+   */
+  async getPublicKnowledgeBasesByCategory(category: string): Promise<KnowledgeBaseItem[]> {
+    return request.get<KnowledgeBaseItem[]>(`/api/knowledgebase/public/category/${encodeURIComponent(category)}`);
+  },
+
+  /**
+   * 引用公开知识库
+   */
+  async referenceKnowledgeBase(id: number): Promise<{ success: boolean; message: string }> {
+    return request.post<{ success: boolean; message: string }>(`/api/knowledgebase/${id}/reference`);
   },
 };
