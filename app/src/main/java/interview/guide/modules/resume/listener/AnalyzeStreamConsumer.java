@@ -4,6 +4,8 @@ import interview.guide.common.constant.AsyncTaskStreamConstants;
 import interview.guide.common.model.AsyncTaskStatus;
 import interview.guide.infrastructure.redis.RedisService;
 import interview.guide.modules.interview.model.ResumeAnalysisResponse;
+import interview.guide.modules.notification.enums.NotificationType;
+import interview.guide.modules.notification.service.NotificationSenderService;
 import interview.guide.modules.resume.model.ResumeEntity;
 import interview.guide.modules.resume.repository.ResumeRepository;
 import interview.guide.modules.resume.service.ResumeGradingService;
@@ -34,6 +36,7 @@ public class AnalyzeStreamConsumer {
     private final ResumeGradingService gradingService;
     private final ResumePersistenceService persistenceService;
     private final ResumeRepository resumeRepository;
+    private final NotificationSenderService notificationSenderService;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private ExecutorService executorService;
@@ -146,7 +149,10 @@ public class AnalyzeStreamConsumer {
             // 4. 更新状态为 COMPLETED
             updateAnalyzeStatus(resumeId, AsyncTaskStatus.COMPLETED, null);
 
-            // 5. 确认消息
+            // 5. 发送通知
+            sendNotification(resumeId);
+
+            // 6. 确认消息
             ackMessage(messageId);
 
             log.info("简历分析任务完成: resumeId={}, score={}", resumeId, analysis.overallScore());
@@ -230,5 +236,30 @@ public class AnalyzeStreamConsumer {
     private String truncateError(String error) {
         if (error == null) return null;
         return error.length() > 500 ? error.substring(0, 500) : error;
+    }
+
+    /**
+     * 发送简历分析完成通知
+     */
+    private void sendNotification(Long resumeId) {
+        try {
+            resumeRepository.findById(resumeId).ifPresent(resume -> {
+                Long userId = resume.getUserId();
+                String resumeName = resume.getOriginalFilename();
+                String title = "简历分析完成";
+                String content = String.format("您的简历「%s」分析已完成，快来查看结果吧！", resumeName);
+                notificationSenderService.sendInAppNotification(
+                    userId,
+                    NotificationType.RESUME_COMPLETE,
+                    title,
+                    content,
+                    resumeId,
+                    "RESUME"
+                );
+                log.info("简历分析完成通知已发送: resumeId={}, userId={}", resumeId, userId);
+            });
+        } catch (Exception e) {
+            log.error("发送简历分析完成通知失败: resumeId={}, error={}", resumeId, e.getMessage(), e);
+        }
     }
 }

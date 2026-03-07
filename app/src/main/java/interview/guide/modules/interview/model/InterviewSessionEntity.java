@@ -90,6 +90,12 @@ public class InterviewSessionEntity {
     @Column(columnDefinition = "TEXT")
     private String scoreHistory;
 
+    // 预定面试时间（用于提醒）
+    private LocalDateTime scheduledTime;
+
+    // 提醒是否已发送
+    private Boolean reminderSent = false;
+
     public enum SessionStatus {
         CREATED,      // 会话已创建
         IN_PROGRESS,  // 面试进行中
@@ -253,6 +259,22 @@ public class InterviewSessionEntity {
 
     public void setScoreHistory(String scoreHistory) {
         this.scoreHistory = scoreHistory;
+    }
+
+    public LocalDateTime getScheduledTime() {
+        return scheduledTime;
+    }
+
+    public void setScheduledTime(LocalDateTime scheduledTime) {
+        this.scheduledTime = scheduledTime;
+    }
+
+    public Boolean getReminderSent() {
+        return reminderSent;
+    }
+
+    public void setReminderSent(Boolean reminderSent) {
+        this.reminderSent = reminderSent;
     }
 
     public void addAnswer(InterviewAnswerEntity answer) {

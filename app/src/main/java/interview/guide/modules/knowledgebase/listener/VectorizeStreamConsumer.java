@@ -5,6 +5,8 @@ import interview.guide.infrastructure.redis.RedisService;
 import interview.guide.modules.knowledgebase.model.VectorStatus;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
+import interview.guide.modules.notification.enums.NotificationType;
+import interview.guide.modules.notification.service.NotificationSenderService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,7 @@ public class VectorizeStreamConsumer {
     private final RedisService redisService;
     private final KnowledgeBaseVectorService vectorService;
     private final KnowledgeBaseRepository knowledgeBaseRepository;
+    private final NotificationSenderService notificationSenderService;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private ExecutorService executorService;
@@ -126,7 +129,10 @@ public class VectorizeStreamConsumer {
             // 3. 更新状态为 COMPLETED
             updateVectorStatus(kbId, VectorStatus.COMPLETED, null);
 
-            // 4. 确认消息
+            // 4. 发送通知
+            sendNotification(kbId);
+
+            // 5. 确认消息
             ackMessage(messageId);
 
             log.info("向量化任务完成: kbId={}", kbId);
@@ -210,5 +216,30 @@ public class VectorizeStreamConsumer {
     private String truncateError(String error) {
         if (error == null) return null;
         return error.length() > 500 ? error.substring(0, 500) : error;
+    }
+
+    /**
+     * 发送知识库向量化完成通知
+     */
+    private void sendNotification(Long kbId) {
+        try {
+            knowledgeBaseRepository.findById(kbId).ifPresent(kb -> {
+                Long userId = kb.getUserId();
+                String kbName = kb.getName();
+                String title = "知识库处理完成";
+                String content = String.format("您的知识库「%s」已处理完成，现在可以在面试中使用。", kbName);
+                notificationSenderService.sendInAppNotification(
+                    userId,
+                    NotificationType.KB_COMPLETE,
+                    title,
+                    content,
+                    kbId,
+                    "KNOWLEDGEBASE"
+                );
+                log.info("知识库向量化完成通知已发送: kbId={}, userId={}", kbId, userId);
+            });
+        } catch (Exception e) {
+            log.error("发送知识库向量化完成通知失败: kbId={}, error={}", kbId, e.getMessage(), e);
+        }
     }
 }

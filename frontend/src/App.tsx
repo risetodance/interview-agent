@@ -19,6 +19,8 @@ import QuestionImport from './pages/question/QuestionImport';
 import QuestionEditPage from './pages/question/QuestionEditPage';
 import MembershipPage from './pages/membership/MembershipPage';
 import PointsHistoryPage from './pages/membership/PointsHistoryPage';
+import NotificationListPage from './pages/notification/NotificationListPage';
+import NotificationSettingsPage from './pages/notification/NotificationSettingsPage';
 import {historyApi} from './api/history';
 import {useEffect, useState} from 'react';
 import type {UploadKnowledgeBaseResponse} from './api/knowledgebase';
@@ -184,6 +186,10 @@ function App() {
           {/* 会员中心 */}
           <Route path="membership" element={<MembershipPage />} />
           <Route path="membership/points-history" element={<PointsHistoryPage />} />
+
+          {/* 通知中心 */}
+          <Route path="notifications" element={<NotificationListPage />} />
+          <Route path="notifications/settings" element={<NotificationSettingsPage />} />
 
           {/* 题库管理 */}
           <Route path="questions" element={<BankListPageWrapper />} />

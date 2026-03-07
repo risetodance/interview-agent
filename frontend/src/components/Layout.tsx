@@ -14,6 +14,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useUser } from '../store/user';
+import NotificationBell from './notification/NotificationBell';
 
 interface NavItem {
   id: string;
@@ -90,6 +91,9 @@ export default function Layout() {
     if (path === '/membership') {
       return currentPath.startsWith('/membership');
     }
+    if (path === '/notifications') {
+      return currentPath.startsWith('/notifications');
+    }
     return currentPath.startsWith(path);
   };
 
@@ -98,7 +102,7 @@ export default function Layout() {
       {/* 左侧边栏 */}
       <aside className="w-64 bg-white border-r border-slate-100 fixed h-screen left-0 top-0 z-50 flex flex-col">
         {/* Logo */}
-        <div className="p-6 border-b border-slate-100">
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <Link to="/upload" className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
               <Sparkles className="w-5 h-5" />
@@ -108,6 +112,7 @@ export default function Layout() {
               <span className="text-xs text-slate-400">智能面试助手</span>
             </div>
           </Link>
+          <NotificationBell />
         </div>
 
         {/* 导航菜单 */}

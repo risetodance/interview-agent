@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -83,5 +84,14 @@ public interface InterviewSessionRepository extends JpaRepository<InterviewSessi
      */
     @Query("SELECT s FROM InterviewSessionEntity s JOIN s.resume r WHERE r.userId = :userId AND s.overallScore IS NOT NULL ORDER BY s.createdAt DESC")
     List<InterviewSessionEntity> findRecentScoresByUserId(@Param("userId") Long userId);
+
+    /**
+     * 查询即将开始的面试（用于提醒）
+     */
+    @Query("SELECT s FROM InterviewSessionEntity s JOIN FETCH s.resume r WHERE s.status = :status AND s.scheduledTime IS NOT NULL AND s.scheduledTime <= :beforeTime AND (s.reminderSent IS NULL OR s.reminderSent = false)")
+    List<InterviewSessionEntity> findByStatusAndScheduledTimeBefore(
+        @Param("status") SessionStatus status,
+        @Param("beforeTime") LocalDateTime beforeTime
+    );
 
 }
