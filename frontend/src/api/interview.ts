@@ -7,7 +7,6 @@ import type {
   ScoreTrend,
   SubmitAnswerRequest,
   SubmitAnswerResponse,
-  SwitchKnowledgeBaseRequest
 } from '../types/interview';
 
 export const interviewApi = {

@@ -12,6 +12,7 @@ import {
   BookOpen,
   Crown,
   LogOut,
+  Settings,
 } from 'lucide-react';
 import { useUser } from '../store/user';
 import NotificationBell from './notification/NotificationBell';
@@ -71,6 +72,16 @@ export default function Layout() {
     },
   ];
 
+  // 如果是管理员，添加后台管理入口
+  const isAdmin = user?.role === 'ADMIN';
+  const adminNav: NavGroup | null = isAdmin ? {
+    id: 'admin',
+    title: '系统管理',
+    items: [
+      { id: 'admin', path: '/admin', label: '管理后台', icon: Settings, description: '系统管理入口' },
+    ],
+  } : null;
+
   // 登出按钮点击处理
   const handleLogoutClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -118,6 +129,54 @@ export default function Layout() {
         {/* 导航菜单 */}
         <nav className="flex-1 p-4 overflow-y-auto">
           <div className="space-y-6">
+            {/* 管理员后台入口 */}
+            {adminNav && (
+              <div>
+                <div className="px-3 mb-2">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    {adminNav.title}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {adminNav.items.map((item) => {
+                    const active = isActive(item.path);
+                    return (
+                      <Link
+                        key={item.id}
+                        to={item.path}
+                        className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200
+                          ${active
+                            ? 'bg-primary-50 text-primary-600'
+                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                          }`}
+                      >
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors
+                          ${active
+                            ? 'bg-primary-100 text-primary-600'
+                            : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700'
+                          }`}
+                        >
+                          <item.icon className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-sm block ${active ? 'font-semibold' : 'font-medium'}`}>
+                            {item.label}
+                          </span>
+                          {item.description && (
+                            <span className="text-xs text-slate-400 truncate block">
+                              {item.description}
+                            </span>
+                          )}
+                        </div>
+                        {active && (
+                          <ChevronRight className="w-4 h-4 text-primary-400" />
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {navGroups.map((group) => (
               <div key={group.id}>
                 {/* 分组标题 */}

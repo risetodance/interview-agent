@@ -2,6 +2,7 @@ package interview.guide.common.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -21,30 +22,26 @@ public final class JwtTokenProvider {
     private static final String CLAIM_KEY_ROLE = "role";
 
     /**
-     * Token 有效期: 7 天
+     * Token 有效期（毫秒），从配置读取，默认 24 小时
      */
-    private static final long TOKEN_EXPIRATION = 7 * 24 * 60 * 60 * 1000L;
+    private final long tokenExpiration;
 
     /**
-     * JWT 密钥 (生产环境应从配置读取)
-     * 使用 HS512 算法，密钥长度至少 512 位
+     * JWT 密钥，从配置读取
      */
-    private static final String SECRET = "interview-guide-jwt-secret-key-must-be-at-least-512-bits-long-for-hs512";
+    private final String secret;
 
     private final SecretKey secretKey;
 
     /**
-     * 私有构造器，使用单例模式
+     * 构造器，从配置读取参数
      */
-    private JwtTokenProvider() {
-        this.secretKey = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
-    }
-
-    /**
-     * 获取 JwtTokenProvider 实例 (懒加载)
-     */
-    public static JwtTokenProvider getInstance() {
-        return JwtTokenProviderHolder.INSTANCE;
+    public JwtTokenProvider(
+            @Value("${app.jwt.token-expiration-hours:24}") int tokenExpirationHours,
+            @Value("${app.jwt.secret:interview-guide-jwt-secret-key-must-be-at-least-512-bits-long-for-hs512}") String secret) {
+        this.tokenExpiration = tokenExpirationHours * 60 * 60 * 1000L;
+        this.secret = secret;
+        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -57,7 +54,7 @@ public final class JwtTokenProvider {
      */
     public String generateToken(Long userId, String username, String role) {
         Date now = new Date();
-        Date expiration = new Date(now.getTime() + TOKEN_EXPIRATION);
+        Date expiration = new Date(now.getTime() + tokenExpiration);
 
         return Jwts.builder()
                 .subject(username)
@@ -70,6 +67,13 @@ public final class JwtTokenProvider {
                 .expiration(expiration)
                 .signWith(secretKey, Jwts.SIG.HS512)
                 .compact();
+    }
+
+    /**
+     * 获取 Token 过期时间（毫秒）
+     */
+    public long getTokenExpiration() {
+        return tokenExpiration;
     }
 
     /**
@@ -143,12 +147,5 @@ public final class JwtTokenProvider {
     public Date getExpirationFromToken(String token) {
         Claims claims = parseToken(token);
         return claims.getExpiration();
-    }
-
-    /**
-     * 内部类实现延迟加载单例
-     */
-    private static class JwtTokenProviderHolder {
-        private static final JwtTokenProvider INSTANCE = new JwtTokenProvider();
     }
 }

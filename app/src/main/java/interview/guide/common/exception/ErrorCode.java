@@ -76,7 +76,11 @@ public enum ErrorCode {
 
     // ========== 会员与积分模块错误 10xxx ==========
     INSUFFICIENT_POINTS(10001, "积分不足"),
-    QUOTA_EXCEEDED(10002, "额度不足");
+    QUOTA_EXCEEDED(10002, "额度不足"),
+
+    // ========== 管理模块错误 11xxx ==========
+    CONFIG_NOT_FOUND(11001, "配置不存在"),
+    ADMIN_UNAUTHORIZED(11002, "无管理员权限");
     
     private final Integer code;
     private final String message;

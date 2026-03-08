@@ -13,3 +13,8 @@ qodana.yaml
 
 app/src/main/resources/application-dev.yml
 /docs
+/feature/*
+/temp/*
+/frontend/CLAUDE.md
+/app/CLAUDE.md
+*.md

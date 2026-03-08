@@ -74,9 +74,9 @@ export default function NotificationListPage() {
       if (filterStatus) params.status = filterStatus;
 
       const response = await notificationApi.getNotifications(params);
-      // 后端返回 Spring Data Page 格式，数据在 content 字段中
-      setNotifications(response.content || []);
-      setTotal(response.totalElements || 0);
+      // 后端返回格式
+      setNotifications(response.items || []);
+      setTotal(response.total || 0);
       setTotalPages(response.totalPages || 0);
     } catch (error) {
       setMessage({ type: 'error', text: getErrorMessage(error) });

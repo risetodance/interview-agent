@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { TrendingUp, Loader2, AlertCircle } from 'lucide-react';
 import { interviewApi } from '../../api/interview';
-import type { ScoreTrend, ScoreStatistics } from '../../types/interview';
+import type { ScoreTrend } from '../../types/interview';
 
 interface ScoreTrendChartProps {
   className?: string;
@@ -145,9 +145,9 @@ export default function ScoreTrendChart({ className = '' }: ScoreTrendChartProps
                   borderRadius: '12px',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                 }}
-                formatter={(value: number, name: string) => [
-                  `${value} 分`,
-                  name === 'score' ? '得分' : name,
+                formatter={(value: number | undefined, name: string | undefined) => [
+                  `${value ?? 0} 分`,
+                  name === 'score' ? '得分' : (name ?? ''),
                 ]}
                 labelFormatter={(label) => `日期: ${label}`}
               />

@@ -1,6 +1,9 @@
 package interview.guide.modules.user.repository;
 
 import interview.guide.modules.user.model.UserEntity;
+import interview.guide.modules.user.model.UserStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -27,6 +30,21 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
      * @return 用户实体
      */
     Optional<UserEntity> findByEmail(String email);
+
+    /**
+     * 根据状态查询用户（分页）
+     */
+    Page<UserEntity> findByStatus(UserStatus status, Pageable pageable);
+
+    /**
+     * 关键词搜索用户
+     */
+    Page<UserEntity> findByUsernameContainingOrEmailContaining(String username, String email, Pageable pageable);
+
+    /**
+     * 统计指定状态的用户数量
+     */
+    long countByStatus(UserStatus status);
 
     /**
      * 检查用户名是否存在

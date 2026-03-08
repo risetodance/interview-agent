@@ -1,4 +1,4 @@
-import {BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams} from 'react-router-dom';
+import {BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams} from 'react-router-dom';
 import Layout from './components/Layout';
 import UploadPage from './pages/UploadPage';
 import HistoryList from './pages/HistoryPage';
@@ -21,10 +21,53 @@ import MembershipPage from './pages/membership/MembershipPage';
 import PointsHistoryPage from './pages/membership/PointsHistoryPage';
 import NotificationListPage from './pages/notification/NotificationListPage';
 import NotificationSettingsPage from './pages/notification/NotificationSettingsPage';
+import AdminSidebar from './components/admin/Sidebar';
+import DashboardPage from './pages/admin/DashboardPage';
+import UserManagementPage from './pages/admin/UserManagementPage';
+import SystemConfigPage from './pages/admin/SystemConfigPage';
+import AuditLogPage from './pages/admin/AuditLogPage';
 import {historyApi} from './api/history';
 import {useEffect, useState} from 'react';
 import type {UploadKnowledgeBaseResponse} from './api/knowledgebase';
-import {UserProvider} from './store/user';
+import {UserProvider, useUser} from './store/user';
+
+// 通用登录路由守卫（用于需要登录才能访问的页面）
+function AuthRouteGuard() {
+  const { isLoggedIn, token } = useUser();
+  const location = useLocation();
+
+  if (!isLoggedIn || !token) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return <Layout />;
+}
+
+// 管理员路由守卫
+function AdminRouteGuard() {
+  const { user, isLoggedIn, token } = useUser();
+  const location = useLocation();
+
+  // 未登录，跳转到登录页面
+  if (!isLoggedIn || !token) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // 检查用户角色是否是管理员
+  if (user?.role !== 'ADMIN') {
+    // 不是管理员，显示提示并跳转到首页
+    return <Navigate to="/upload" replace />;
+  }
+
+  return (
+    <div className="flex min-h-screen bg-slate-50">
+      <AdminSidebar />
+      <main className="flex-1 ml-64 p-8">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
 
 // 上传页面包装器
 function UploadPageWrapper() {
@@ -149,57 +192,65 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          <Route path="/" element={<Layout />}>
+          <Route element={<AuthRouteGuard />}>
             {/* 默认重定向到上传页面 */}
             <Route index element={<Navigate to="/upload" replace />} />
 
-          {/* 上传页面 */}
-          <Route path="upload" element={<UploadPageWrapper />} />
-          
-          {/* 历史记录列表（简历库） */}
-          <Route path="history" element={<HistoryListWrapper />} />
-          
-          {/* 简历详情 */}
-          <Route path="history/:resumeId" element={<ResumeDetailWrapper />} />
-          
-          {/* 面试记录列表 */}
-          <Route path="interviews" element={<InterviewHistoryWrapper />} />
+            {/* 上传页面 */}
+            <Route path="upload" element={<UploadPageWrapper />} />
 
-          {/* 模拟面试 */}
-          <Route path="interview/:resumeId" element={<InterviewWrapper />} />
+            {/* 历史记录列表（简历库） */}
+            <Route path="history" element={<HistoryListWrapper />} />
 
-          {/* 知识库管理 */}
-          <Route path="knowledgebase" element={<KnowledgeBaseManagePageWrapper />} />
+            {/* 简历详情 */}
+            <Route path="history/:resumeId" element={<ResumeDetailWrapper />} />
 
-          {/* 知识库上传 */}
-          <Route path="knowledgebase/upload" element={<KnowledgeBaseUploadPageWrapper />} />
+            {/* 面试记录列表 */}
+            <Route path="interviews" element={<InterviewHistoryWrapper />} />
 
-          {/* 问答助手（知识库聊天） */}
-          <Route path="knowledgebase/chat" element={<KnowledgeBaseQueryPageWrapper />} />
+            {/* 模拟面试 */}
+            <Route path="interview/:resumeId" element={<InterviewWrapper />} />
 
-          {/* 公开知识库 */}
-          <Route path="knowledgebase/public" element={<PublicKnowledgeBasePageWrapper />} />
+            {/* 知识库管理 */}
+            <Route path="knowledgebase" element={<KnowledgeBaseManagePageWrapper />} />
 
-          {/* 个人中心 */}
-          <Route path="profile" element={<ProfilePage />} />
+            {/* 知识库上传 */}
+            <Route path="knowledgebase/upload" element={<KnowledgeBaseUploadPageWrapper />} />
 
-          {/* 会员中心 */}
-          <Route path="membership" element={<MembershipPage />} />
-          <Route path="membership/points-history" element={<PointsHistoryPage />} />
+            {/* 问答助手（知识库聊天） */}
+            <Route path="knowledgebase/chat" element={<KnowledgeBaseQueryPageWrapper />} />
 
-          {/* 通知中心 */}
-          <Route path="notifications" element={<NotificationListPage />} />
-          <Route path="notifications/settings" element={<NotificationSettingsPage />} />
+            {/* 公开知识库 */}
+            <Route path="knowledgebase/public" element={<PublicKnowledgeBasePageWrapper />} />
 
-          {/* 题库管理 */}
-          <Route path="questions" element={<BankListPageWrapper />} />
-          <Route path="questions/bank/create" element={<MyBankPageWrapper mode="create" />} />
-          <Route path="questions/bank/:bankId/edit" element={<MyBankPageWrapper mode="edit" />} />
-          <Route path="questions/bank/:bankId" element={<QuestionDetailPageWrapper />} />
-          <Route path="questions/bank/:bankId/import" element={<QuestionImportWrapper />} />
-          <Route path="questions/:questionId/edit" element={<QuestionEditPage />} />
-        </Route>
-      </Routes>
+            {/* 个人中心 */}
+            <Route path="profile" element={<ProfilePage />} />
+
+            {/* 会员中心 */}
+            <Route path="membership" element={<MembershipPage />} />
+            <Route path="membership/points-history" element={<PointsHistoryPage />} />
+
+            {/* 通知中心 */}
+            <Route path="notifications" element={<NotificationListPage />} />
+            <Route path="notifications/settings" element={<NotificationSettingsPage />} />
+
+            {/* 题库管理 */}
+            <Route path="questions" element={<BankListPageWrapper />} />
+            <Route path="questions/bank/create" element={<MyBankPageWrapper mode="create" />} />
+            <Route path="questions/bank/:bankId/edit" element={<MyBankPageWrapper mode="edit" />} />
+            <Route path="questions/bank/:bankId" element={<QuestionDetailPageWrapper />} />
+            <Route path="questions/bank/:bankId/import" element={<QuestionImportWrapper />} />
+            <Route path="questions/:questionId/edit" element={<QuestionEditPage />} />
+          </Route>
+
+          {/* 管理后台（独立布局，不使用 Layout） */}
+          <Route path="/admin" element={<AdminRouteGuard />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="users" element={<UserManagementPage />} />
+            <Route path="config" element={<SystemConfigPage />} />
+            <Route path="audit-logs" element={<AuditLogPage />} />
+          </Route>
+        </Routes>
     </BrowserRouter>
     </UserProvider>
   );

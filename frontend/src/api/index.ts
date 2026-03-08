@@ -6,3 +6,4 @@ export { resumeApi } from './resume';
 export { interviewApi } from './interview';
 export { knowledgeBaseApi } from './knowledgebase';
 export { historyApi } from './history';
+export { adminApi } from './admin';

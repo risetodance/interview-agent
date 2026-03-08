@@ -72,6 +72,18 @@ spring:
 
 # Application custom configuration
 app:
+  # JWT Token 配置
+  jwt:
+    # Token 过期时间（小时），默认 24 小时
+    token-expiration-hours: ${JWT_TOKEN_EXPIRATION_HOURS:24}
+    # Token 密钥（生产环境应使用环境变量）
+    secret: ${JWT_SECRET:interview-guide-jwt-secret-key-must-be-at-least-512-bits-long-for-hs512}
+
+  # 会话/空闲超时配置
+  session:
+    # 空闲超时时间（分钟），用户多长时间不操作后需要重新登录，默认 30 分钟
+    idle-timeout-minutes: ${SESSION_IDLE_TIMEOUT_MINUTES:30}
+
   resume:
     upload-dir: ${java.io.tmpdir}/ai-interview/resumes
     allowed-types:

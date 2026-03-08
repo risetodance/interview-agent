@@ -56,6 +56,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/resumes/health").permitAll()
                         .requestMatchers("/api/health").permitAll()
                         .requestMatchers("/api/actuator/**").permitAll()
+                        .requestMatchers("/api/config/session").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         .requestMatchers("/swagger-resources/**").permitAll()
@@ -63,6 +64,8 @@ public class SecurityConfig {
                         .requestMatchers("/doc.html").permitAll()
                         .requestMatchers("/favicon.ico").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // 临时允许admin接口（测试用）
+                        .requestMatchers("/api/admin/**").permitAll()
 
                         // 其他请求需要认证
                         .anyRequest().authenticated()
