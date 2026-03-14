@@ -36,7 +36,8 @@ public record ResumeDetailDTO(
         String summary,
         LocalDateTime analyzedAt,
         List<String> strengths,
-        List<Object> suggestions
+        List<Object> suggestions,
+        List<String> matchedPositions
     ) {}
 }
 

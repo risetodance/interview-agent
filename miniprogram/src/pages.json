@@ -1,0 +1,111 @@
+{
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "首页"
+      }
+    },
+    {
+      "path": "pages/auth/login",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": {
+        "navigationBarTitleText": "个人中心"
+      }
+    },
+    {
+      "path": "pages/resume/list",
+      "style": {
+        "navigationBarTitleText": "简历管理",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/resume/upload",
+      "style": {
+        "navigationBarTitleText": "上传简历",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/resume/detail",
+      "style": {
+        "navigationBarTitleText": "简历详情"
+      }
+    },
+    {
+      "path": "pages/interview/list",
+      "style": {
+        "navigationBarTitleText": "我的面试",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/interview/create",
+      "style": {
+        "navigationBarTitleText": "创建面试",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/interview/session",
+      "style": {
+        "navigationBarTitleText": "面试会话",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/knowledge/list",
+      "style": {
+        "navigationBarTitleText": "知识库",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/knowledge/chat",
+      "style": {
+        "navigationBarTitleText": "知识库问答",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/notification/list",
+      "style": {
+        "navigationBarTitleText": "消息通知",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/notification/settings",
+      "style": {
+        "navigationBarTitleText": "消息设置"
+      }
+    },
+    {
+      "path": "pages/points/index",
+      "style": {
+        "navigationBarTitleText": "积分商城",
+        "enablePullDownRefresh": true
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "面试指南",
+    "navigationBarBackgroundColor": "#F8F8F8",
+    "backgroundColor": "#F8F8F8"
+  },
+  "tabBar": {
+    "color": "#7A7E83",
+    "selectedColor": "#3cc51f",
+    "borderStyle": "black",
+    "backgroundColor": "#ffffff"
+  },
+  "uniIdRouter": {}
+}

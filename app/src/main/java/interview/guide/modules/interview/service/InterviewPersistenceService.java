@@ -265,6 +265,13 @@ public class InterviewPersistenceService {
     public List<InterviewSessionEntity> findByResumeId(Long resumeId) {
         return sessionRepository.findByResumeIdOrderByCreatedAtDesc(resumeId);
     }
+
+    /**
+     * 获取用户的所有面试会话
+     */
+    public List<InterviewSessionEntity> findAllByUserId(Long userId) {
+        return sessionRepository.findAllByUserId(userId);
+    }
     
     /**
      * 删除简历的所有面试会话

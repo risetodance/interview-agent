@@ -49,6 +49,21 @@ public class SecurityConfig {
                 // 禁用 CSRF（使用 JWT 无需 CSRF 防护）
                 .csrf(AbstractHttpConfigurer::disable)
 
+                // 配置 CORS
+                .cors(cors -> cors.configurationSource(request -> {
+                    var corsConfig = new org.springframework.web.cors.CorsConfiguration();
+                    corsConfig.addAllowedOriginPattern("*");
+                    corsConfig.addAllowedMethod(org.springframework.http.HttpMethod.GET);
+                    corsConfig.addAllowedMethod(org.springframework.http.HttpMethod.POST);
+                    corsConfig.addAllowedMethod(org.springframework.http.HttpMethod.PUT);
+                    corsConfig.addAllowedMethod(org.springframework.http.HttpMethod.DELETE);
+                    corsConfig.addAllowedMethod(org.springframework.http.HttpMethod.OPTIONS);
+                    corsConfig.addAllowedHeader("*");
+                    corsConfig.setAllowCredentials(true);
+                    corsConfig.setMaxAge(3600L);
+                    return corsConfig;
+                }))
+
                 // 配置请求授权规则
                 .authorizeHttpRequests(authorize -> authorize
                         // 放行路径

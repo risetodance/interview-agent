@@ -65,6 +65,12 @@ public interface InterviewSessionRepository extends JpaRepository<InterviewSessi
     );
 
     /**
+     * 查询用户的所有面试会话
+     */
+    @Query("SELECT s FROM InterviewSessionEntity s JOIN s.resume r WHERE r.userId = :userId ORDER BY s.createdAt DESC")
+    List<InterviewSessionEntity> findAllByUserId(@Param("userId") Long userId);
+
+    /**
      * 查询用户的已完成面试数量
      */
     @Query("SELECT COUNT(s) FROM InterviewSessionEntity s JOIN s.resume r WHERE r.userId = :userId AND s.status = :status")

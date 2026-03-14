@@ -8,19 +8,22 @@ import java.util.List;
 public record ResumeAnalysisResponse(
     // 总分 (0-100)
     int overallScore,
-    
+
     // 各维度评分
     ScoreDetail scoreDetail,
-    
+
     // 简历摘要
     String summary,
-    
+
     // 优点列表
     List<String> strengths,
-    
+
     // 改进建议列表
     List<Suggestion> suggestions,
-    
+
+    // 匹配的岗位列表
+    List<String> matchedPositions,
+
     // 原始简历文本
     String originalText
 ) {

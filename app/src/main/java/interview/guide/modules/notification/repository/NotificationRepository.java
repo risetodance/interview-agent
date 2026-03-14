@@ -1,5 +1,6 @@
 package interview.guide.modules.notification.repository;
 
+import interview.guide.modules.notification.enums.NotificationChannel;
 import interview.guide.modules.notification.model.NotificationEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -51,4 +53,9 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
     @Modifying
     @Query("UPDATE NotificationEntity n SET n.isRead = true, n.readAt = :readAt WHERE n.id = :id AND n.userId = :userId")
     int markAsReadByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId, @Param("readAt") LocalDateTime readAt);
+
+    /**
+     * 查询用户特定渠道未发送的通知
+     */
+    List<NotificationEntity> findByUserIdAndChannelAndIsSentFalse(Long userId, NotificationChannel channel);
 }

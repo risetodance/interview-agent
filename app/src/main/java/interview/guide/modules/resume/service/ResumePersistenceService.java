@@ -103,6 +103,7 @@ public class ResumePersistenceService {
             // JSON 字段需要手动序列化
             entity.setStrengthsJson(objectMapper.writeValueAsString(analysis.strengths()));
             entity.setSuggestionsJson(objectMapper.writeValueAsString(analysis.suggestions()));
+            entity.setMatchedPositionsJson(objectMapper.writeValueAsString(analysis.matchedPositions()));
 
             ResumeAnalysisEntity saved = analysisRepository.save(entity);
             log.info("简历评测结果已保存: analysisId={}, resumeId={}, score={}",
@@ -166,13 +167,20 @@ public class ResumePersistenceService {
                     new TypeReference<>() {
                     }
             );
-            
+
+            List<String> matchedPositions = objectMapper.readValue(
+                entity.getMatchedPositionsJson() != null ? entity.getMatchedPositionsJson() : "[]",
+                    new TypeReference<>() {
+                    }
+            );
+
             return new ResumeAnalysisResponse(
                 entity.getOverallScore(),
                 resumeMapper.toScoreDetail(entity),  // 使用MapStruct自动映射
                 entity.getSummary(),
                 strengths,
                 suggestions,
+                matchedPositions,
                 entity.getResume().getResumeText()
             );
         } catch (JacksonException e) {

@@ -76,6 +76,13 @@ public class InterviewSessionService {
         // 生成面试问题
         List<InterviewQuestionDTO> questions;
 
+        // 如果没有简历文本，使用默认值
+        String resumeText = request.resumeText();
+        if (resumeText == null || resumeText.isBlank()) {
+            resumeText = "通用面试，无特定简历内容";
+            log.info("未提供简历文本，使用默认通用面试");
+        }
+
         // 如果指定了题库，从题库获取题目；否则使用 AI 生成
         if (request.questionBankIds() != null && !request.questionBankIds().isEmpty()) {
             log.info("从题库获取题目: bankIds={}", request.questionBankIds());
@@ -99,14 +106,14 @@ public class InterviewSessionService {
             // 使用知识库内容生成问题
             log.info("使用知识库内容生成面试问题");
             questions = questionService.generateQuestionsWithContext(
-                request.resumeText(),
+                resumeText,
                 request.questionCount(),
                 knowledgeBaseContext
             );
         } else {
             // 使用 AI 生成题目
             questions = questionService.generateQuestions(
-                request.resumeText(),
+                resumeText,
                 request.questionCount()
             );
         }

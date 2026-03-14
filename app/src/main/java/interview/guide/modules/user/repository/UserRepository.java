@@ -61,4 +61,12 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
      * @return 是否存在
      */
     boolean existsByEmail(String email);
+
+    /**
+     * 根据微信openid查询用户
+     *
+     * @param wechatOpenid 微信openid
+     * @return 用户实体
+     */
+    Optional<UserEntity> findByWechatOpenid(String wechatOpenid);
 }

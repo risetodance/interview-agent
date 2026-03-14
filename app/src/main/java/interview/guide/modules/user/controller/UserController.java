@@ -57,6 +57,38 @@ public class UserController {
     }
 
     /**
+     * H5测试用登录接口 - 自动创建用户
+     * POST /api/auth/login/test
+     */
+    @PostMapping("/api/auth/login/test")
+    public Result<LoginResponse> testLogin(@RequestBody LoginRequest request) {
+        log.info("收到H5测试登录请求: username={}", request.username());
+        try {
+            // 尝试登录
+            LoginResponse response = loginService.login(request);
+            return Result.success("登录成功", response);
+        } catch (Exception e) {
+            // 登录失败，尝试注册新用户
+            log.info("用户不存在，尝试创建新用户: username={}", request.username());
+            try {
+                RegisterRequest registerRequest = new RegisterRequest(
+                    request.username(),
+                    request.password(),
+                    request.username() + "@test.com",
+                    request.username()
+                );
+                RegisterResponse registerResponse = registerService.register(registerRequest);
+                // 注册成功后登录
+                LoginResponse response = loginService.login(request);
+                return Result.success("注册并登录成功", response);
+            } catch (Exception ex) {
+                log.error("H5测试登录失败", ex);
+                return Result.error("登录失败: " + ex.getMessage());
+            }
+        }
+    }
+
+    /**
      * 获取当前用户信息
      * GET /api/users/me
      */

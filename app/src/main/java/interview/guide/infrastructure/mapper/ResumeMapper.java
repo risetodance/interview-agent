@@ -50,7 +50,8 @@ public interface ResumeMapper {
             resume.getAccessCount(),
             latestScore,
             lastAnalyzedAt,
-            interviewCount
+            interviewCount,
+            resume.getAnalyzeStatus()
         );
     }
 
@@ -61,6 +62,7 @@ public interface ResumeMapper {
     @Mapping(target = "latestScore", ignore = true)
     @Mapping(target = "lastAnalyzedAt", ignore = true)
     @Mapping(target = "interviewCount", ignore = true)
+    @Mapping(target = "analyzeStatus", source = "analyzeStatus")
     ResumeListItemDTO toListItemDTOBasic(ResumeEntity entity);
 
     // ========== ResumeDetailDTO 映射 ==========
@@ -77,14 +79,16 @@ public interface ResumeMapper {
 
     /**
      * ResumeAnalysisEntity 转换为 AnalysisHistoryDTO
-     * 注意：strengths 和 suggestions 需要在 Service 层从 JSON 解析后传入
+     * 注意：strengths, suggestions, matchedPositions 需要在 Service 层从 JSON 解析后传入
      */
     @Mapping(target = "strengths", source = "strengths")
     @Mapping(target = "suggestions", source = "suggestions")
+    @Mapping(target = "matchedPositions", source = "matchedPositions")
     ResumeDetailDTO.AnalysisHistoryDTO toAnalysisHistoryDTO(
         ResumeAnalysisEntity entity,
         List<String> strengths,
-        List<Object> suggestions
+        List<Object> suggestions,
+        List<String> matchedPositions
     );
 
     /**
@@ -93,10 +97,11 @@ public interface ResumeMapper {
     default List<ResumeDetailDTO.AnalysisHistoryDTO> toAnalysisHistoryDTOList(
         List<ResumeAnalysisEntity> entities,
         java.util.function.Function<ResumeAnalysisEntity, List<String>> strengthsExtractor,
-        java.util.function.Function<ResumeAnalysisEntity, List<Object>> suggestionsExtractor
+        java.util.function.Function<ResumeAnalysisEntity, List<Object>> suggestionsExtractor,
+        java.util.function.Function<ResumeAnalysisEntity, List<String>> matchedPositionsExtractor
     ) {
         return entities.stream()
-            .map(e -> toAnalysisHistoryDTO(e, strengthsExtractor.apply(e), suggestionsExtractor.apply(e)))
+            .map(e -> toAnalysisHistoryDTO(e, strengthsExtractor.apply(e), suggestionsExtractor.apply(e), matchedPositionsExtractor.apply(e)))
             .toList();
     }
 
@@ -110,6 +115,7 @@ public interface ResumeMapper {
     @Mapping(target = "resume", ignore = true)
     @Mapping(target = "strengthsJson", ignore = true)
     @Mapping(target = "suggestionsJson", ignore = true)
+    @Mapping(target = "matchedPositionsJson", ignore = true)
     @Mapping(target = "analyzedAt", ignore = true)
     @Mapping(target = "contentScore", source = "scoreDetail.contentScore")
     @Mapping(target = "structureScore", source = "scoreDetail.structureScore")
@@ -125,6 +131,7 @@ public interface ResumeMapper {
     @Mapping(target = "resume", ignore = true)
     @Mapping(target = "strengthsJson", ignore = true)
     @Mapping(target = "suggestionsJson", ignore = true)
+    @Mapping(target = "matchedPositionsJson", ignore = true)
     @Mapping(target = "analyzedAt", ignore = true)
     @Mapping(target = "contentScore", source = "scoreDetail.contentScore")
     @Mapping(target = "structureScore", source = "scoreDetail.structureScore")

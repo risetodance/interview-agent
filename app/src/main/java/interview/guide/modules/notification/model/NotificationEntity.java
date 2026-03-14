@@ -91,6 +91,12 @@ public class NotificationEntity {
      */
     private LocalDateTime readAt;
 
+    /**
+     * 是否已发送（用于微信订阅消息等异步发送场景）
+     */
+    @Builder.Default
+    private Boolean isSent = false;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,7 +46,16 @@ public class InterviewController {
         InterviewSessionDTO session = sessionService.createSession(userId, request);
         return Result.success(session);
     }
-    
+
+    /**
+     * 获取用户的所有面试会话列表
+     */
+    @GetMapping("/api/interview/sessions")
+    public Result<List<InterviewSessionListItemDTO>> getAllSessions(@CurrentUser Long userId) {
+        List<InterviewSessionListItemDTO> sessions = historyService.getAllSessions(userId);
+        return Result.success(sessions);
+    }
+
     /**
      * 获取会话信息
      */

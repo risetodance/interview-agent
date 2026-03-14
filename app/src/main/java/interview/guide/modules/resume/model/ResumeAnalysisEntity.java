@@ -42,7 +42,11 @@ public class ResumeAnalysisEntity {
     // 改进建议列表 (JSON格式)
     @Column(columnDefinition = "TEXT")
     private String suggestionsJson;
-    
+
+    // 匹配的岗位列表 (JSON格式)
+    @Column(columnDefinition = "TEXT")
+    private String matchedPositionsJson;
+
     // 评测时间
     @Column(nullable = false)
     private LocalDateTime analyzedAt;
@@ -140,7 +144,15 @@ public class ResumeAnalysisEntity {
     public void setSuggestionsJson(String suggestionsJson) {
         this.suggestionsJson = suggestionsJson;
     }
-    
+
+    public String getMatchedPositionsJson() {
+        return matchedPositionsJson;
+    }
+
+    public void setMatchedPositionsJson(String matchedPositionsJson) {
+        this.matchedPositionsJson = matchedPositionsJson;
+    }
+
     public LocalDateTime getAnalyzedAt() {
         return analyzedAt;
     }

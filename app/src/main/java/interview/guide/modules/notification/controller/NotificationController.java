@@ -2,11 +2,15 @@ package interview.guide.modules.notification.controller;
 
 import interview.guide.common.annotation.CurrentUser;
 import interview.guide.common.result.Result;
+import interview.guide.modules.notification.dto.WechatSendRequest;
+import interview.guide.modules.notification.dto.WechatSubscribeRequest;
 import interview.guide.modules.notification.model.NotificationDTO;
 import interview.guide.modules.notification.model.UserNotificationSettingsDTO;
 import interview.guide.modules.notification.service.NotificationService;
 import interview.guide.modules.notification.service.NotificationSettingsService;
+import interview.guide.modules.notification.service.WechatMessageService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 /**
  * 通知控制器
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/notifications")
 @RequiredArgsConstructor
@@ -23,6 +28,7 @@ public class NotificationController {
 
     private final NotificationService notificationService;
     private final NotificationSettingsService notificationSettingsService;
+    private final WechatMessageService wechatMessageService;
 
     /**
      * 获取通知列表
@@ -101,5 +107,33 @@ public class NotificationController {
         UserNotificationSettingsDTO settings = notificationSettingsService.updateSettings(
                 userId, inAppEnabled, emailEnabled, smsEnabled, wechatEnabled);
         return Result.success(settings);
+    }
+
+    /**
+     * 保存微信订阅消息模板ID
+     * 用于用户绑定微信订阅消息模板
+     */
+    @PostMapping("/wechat/subscribe")
+    public Result<Boolean> subscribeWechat(
+            @CurrentUser Long userId,
+            @RequestBody WechatSubscribeRequest request) {
+        // 这里可以保存用户的 openId 和 templateId 到用户表或专门的微信订阅表
+        // 实际实现可能需要创建 UserWechatSubscription 实体来存储这些信息
+        log.info("用户绑定微信订阅消息: userId={}, templateId={}, openId={}",
+                userId, request.getTemplateId(), request.getOpenId());
+        // TODO: 保存用户的微信订阅信息
+        return Result.success(true);
+    }
+
+    /**
+     * 发送微信订阅消息
+     * 将站内通知转换为微信订阅消息发送
+     */
+    @PostMapping("/wechat/send")
+    public Result<Boolean> sendWechatMessage(
+            @CurrentUser Long userId,
+            @RequestBody WechatSendRequest request) {
+        boolean success = wechatMessageService.sendSubscribeMessage(request);
+        return Result.success(success);
     }
 }

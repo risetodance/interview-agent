@@ -15,7 +15,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "users", indexes = {
     @Index(name = "idx_user_username", columnList = "username", unique = true),
-    @Index(name = "idx_user_email", columnList = "email", unique = true)
+    @Index(name = "idx_user_email", columnList = "email", unique = true),
+    @Index(name = "idx_user_wechat_openid", columnList = "wechat_openid")
 })
 @Getter
 @Setter
@@ -45,6 +46,18 @@ public class UserEntity {
      */
     @Column(unique = true, length = 100)
     private String email;
+
+    /**
+     * 微信openid（用于微信小程序登录，可为空）
+     */
+    @Column(name = "wechat_openid", length = 100)
+    private String wechatOpenid;
+
+    /**
+     * 微信手机号（可选）
+     */
+    @Column(name = "wechat_phone", length = 20)
+    private String wechatPhone;
 
     /**
      * 昵称（可为空）

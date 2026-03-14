@@ -44,14 +44,14 @@ spring:
           subscriptionConnectionMinimumIdleSize: 1
           subscriptionConnectionPoolSize: 50
   
-  # Spring AI - 阿里云DashScope (OpenAI兼容模式)
+  # Spring AI
   ai:
     openai:
-      base-url: https://dashscope.aliyuncs.com/compatible-mode
-      api-key: ${AI_BAILIAN_API_KEY}
+      base-url: https://api.minimaxi.com/
+      api-key: ${MINIMAX_API_KEY}
       chat:
         options:
-          model: ${AI_MODEL:qwen-plus}
+          model: ${AI_MODEL:MiniMax-M2.5}
           temperature: 0.7
       # Embedding模型配置 - 使用text-embedding-v3
       embedding:
@@ -72,6 +72,10 @@ spring:
 
 # Application custom configuration
 app:
+  # CORS配置
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:80}
+
   # JWT Token 配置
   jwt:
     # Token 过期时间（小时），默认 24 小时
@@ -100,6 +104,17 @@ app:
     bucket: ${APP_STORAGE_BUCKET:interview-guide}
     region: ${APP_STORAGE_REGION:us-east-1}
   
-  # CORS配置 - React前端
-  cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:80}
+  # 微信配置
+  wechat:
+    # 微信小程序配置
+    miniapp:
+      # 微信小程序AppID（需替换为实际值）
+      appid: ${WECHAT_MINIAPP_APPID:your_appid_here}
+      # 微信小程序AppSecret（需替换为实际值）
+      secret: ${WECHAT_MINIAPP_SECRET:your_secret_here}
+    # 微信网页应用配置（扫码登录使用）
+    web:
+      # 微信网页应用AppID（需替换为实际值）
+      appid: ${WECHAT_WEB_APPID:your_web_appid_here}
+      # 微信网页应用AppSecret（需替换为实际值）
+      secret: ${WECHAT_WEB_SECRET:your_web_secret_here}

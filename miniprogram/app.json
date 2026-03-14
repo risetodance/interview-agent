@@ -1,0 +1,24 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/auth/login",
+    "pages/profile/index",
+    "pages/resume/list",
+    "pages/resume/upload",
+    "pages/resume/detail",
+    "pages/interview/list",
+    "pages/interview/create",
+    "pages/interview/session",
+    "pages/knowledge/list",
+    "pages/knowledge/chat",
+    "pages/notification/list",
+    "pages/notification/settings"
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "面试指南",
+    "navigationBarBackgroundColor": "#F8F8F8",
+    "backgroundColor": "#F8F8F8"
+  },
+  "uniIdRouter": {}
+}

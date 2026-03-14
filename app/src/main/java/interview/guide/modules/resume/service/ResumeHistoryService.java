@@ -66,7 +66,8 @@ public class ResumeHistoryService {
                 resume.getAccessCount(),
                 latestScore,
                 lastAnalyzedAt,
-                interviewCount
+                interviewCount,
+                resume.getAnalyzeStatus()
             );
         }).toList();
     }
@@ -87,7 +88,8 @@ public class ResumeHistoryService {
         List<ResumeDetailDTO.AnalysisHistoryDTO> analysisHistory = resumeMapper.toAnalysisHistoryDTOList(
             analyses,
             this::extractStrengths,
-            this::extractSuggestions
+            this::extractSuggestions,
+            this::extractMatchedPositions
         );
 
         // 使用 InterviewMapper 转换面试历史
@@ -143,6 +145,24 @@ public class ResumeHistoryService {
             }
         } catch (JacksonException e) {
             log.error("解析 suggestions JSON 失败", e);
+        }
+        return List.of();
+    }
+
+    /**
+     * 从 JSON 提取 matchedPositions
+     */
+    private List<String> extractMatchedPositions(ResumeAnalysisEntity entity) {
+        try {
+            if (entity.getMatchedPositionsJson() != null) {
+                return objectMapper.readValue(
+                    entity.getMatchedPositionsJson(),
+                    new TypeReference<>() {
+                    }
+                );
+            }
+        } catch (JacksonException e) {
+            log.error("解析 matchedPositions JSON 失败", e);
         }
         return List.of();
     }

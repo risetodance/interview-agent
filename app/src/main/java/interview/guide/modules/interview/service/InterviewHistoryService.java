@@ -11,6 +11,7 @@ import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewDetailDTO;
 import interview.guide.modules.interview.model.InterviewQuestionDTO;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
+import interview.guide.modules.interview.model.InterviewSessionListItemDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -157,6 +158,38 @@ public class InterviewHistoryService {
             log.error("导出PDF失败: sessionId={}", sessionId, e);
             throw new BusinessException(ErrorCode.EXPORT_PDF_FAILED, "导出PDF失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 获取用户的所有面试会话列表
+     */
+    public List<InterviewSessionListItemDTO> getAllSessions(Long userId) {
+        List<InterviewSessionEntity> sessions = interviewPersistenceService.findAllByUserId(userId);
+        return sessions.stream()
+            .map(this::toListItemDTO)
+            .toList();
+    }
+
+    /**
+     * 将实体转换为列表项DTO
+     */
+    private InterviewSessionListItemDTO toListItemDTO(InterviewSessionEntity session) {
+        return new InterviewSessionListItemDTO(
+            session.getId(),
+            session.getSessionId(),
+            session.getResume().getOriginalFilename() != null ? session.getResume().getOriginalFilename() + "面试" : "面试会话",
+            "practice", // 默认类型
+            null, // position - could be extracted from resume
+            null, // company - could be extracted from resume
+            session.getStatus().toString(),
+            session.getOverallScore(),
+            session.getCompletedAt() != null && session.getCreatedAt() != null
+                ? (int) java.time.Duration.between(session.getCreatedAt(), session.getCompletedAt()).toMinutes()
+                : null,
+            session.getTotalQuestions(),
+            session.getCreatedAt(),
+            session.getCompletedAt() != null ? session.getCompletedAt() : session.getCreatedAt()
+        );
     }
 }
 
