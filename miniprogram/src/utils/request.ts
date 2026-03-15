@@ -121,7 +121,7 @@ export const request = <T = any>(options: RequestOptions): Promise<T> => {
     method = 'GET',
     data = {},
     header = {},
-    timeout = 30000,
+    timeout = 60000,
     showLoading = false,
     showError = true
   } = options

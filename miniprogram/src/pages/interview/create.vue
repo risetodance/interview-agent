@@ -162,6 +162,14 @@ const toggleCategory = (id: number) => {
 
 // 下一步
 const nextStep = () => {
+  // 步骤2需要验证简历选择
+  if (currentStep.value === 2 && !selectedResume.value) {
+    uni.showToast({
+      title: '请选择简历',
+      icon: 'none'
+    })
+    return
+  }
   if (currentStep.value < 3) {
     currentStep.value++
   }
@@ -390,7 +398,7 @@ onMounted(() => {
 
       <!-- 关联简历 -->
       <view class="section">
-        <view class="section-title">关联简历</view>
+        <view class="section-title">关联简历 <text class="required">*</text></view>
         <view v-if="selectedResume" class="selected-resume">
           <view class="resume-info">
             <text class="resume-name">{{ selectedResume.name }}</text>
@@ -400,7 +408,7 @@ onMounted(() => {
         </view>
         <view v-else class="resume-selector" @click="showResumePicker = true">
           <text class="selector-icon">&#xe60d;</text>
-          <text class="selector-text">选择简历（可选）</text>
+          <text class="selector-text">请选择简历（必填）</text>
         </view>
       </view>
 
@@ -469,7 +477,7 @@ onMounted(() => {
 
       <view class="start-tip">
         <text class="tip-icon">&#xe617;</text>
-        <text class="tip-text">点击开始面试后，将进入 AI 模拟面试环节</text>
+        <text class="tip-text">点击开始后，将进入 AI 模拟面试环节</text>
       </view>
     </view>
 
@@ -481,18 +489,18 @@ onMounted(() => {
       <view
         v-if="currentStep < 3"
         class="btn btn-primary"
-        :class="{ disabled: currentStep === 1 && !formData.position }"
+        :class="{ disabled: (currentStep === 1 && !formData.position) || (currentStep === 2 && !selectedResume) }"
         @click="nextStep"
       >
         下一步
       </view>
       <view
         v-if="currentStep === 3"
-        class="btn btn-primary start-btn"
-        :class="{ loading }"
+        class="btn btn-primary"
+        :class="{ loading, disabled: loading }"
         @click="createInterview"
       >
-        <text v-if="!loading">开始面试</text>
+        <text v-if="!loading">开始</text>
         <text v-else>创建中...</text>
       </view>
     </view>
@@ -648,7 +656,8 @@ $bg-color: #f8fafc;
 .step-content {
   flex: 1;
   padding: 30rpx;
-  overflow: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .section {
@@ -663,6 +672,10 @@ $bg-color: #f8fafc;
   font-weight: 600;
   color: #333;
   margin-bottom: 24rpx;
+
+  .required {
+    color: #F56C6C;
+  }
 }
 
 .type-list {
@@ -992,28 +1005,28 @@ $bg-color: #f8fafc;
 
 .bottom-actions {
   display: flex;
-  gap: 24rpx;
-  padding: 30rpx;
+  gap: 20rpx;
+  padding: 24rpx;
   background-color: #fff;
   border-top: 1rpx solid #f0f0f0;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 100%;
 
-  // 按钮全宽
+  // 按钮
   .btn {
     flex: 1;
+    min-width: 0;
   }
 
   // 上一步按钮
   .btn-secondary {
-    flex: 0 0 180rpx;
+    flex: 0 0 160rpx;
     background-color: #f0f1f5;
     color: #6366f1;
     border: 2rpx solid #6366f1;
   }
 
-  // 开始面试按钮占满剩余空间
-  .start-btn {
-    flex: 1;
-  }
 }
 
 .btn {
@@ -1025,10 +1038,12 @@ $bg-color: #f8fafc;
   font-size: 32rpx;
   font-weight: 500;
   transition: all 0.3s;
+  white-space: nowrap;
 
   &.btn-primary {
     background: linear-gradient(135deg, $primary-color 0%, $primary-light 100%);
     color: #fff;
+    padding: 0 32rpx;
 
     &.disabled {
       opacity: 0.5;

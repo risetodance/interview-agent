@@ -1,13 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { useInterviewStore, type Interview } from '../../stores/interview'
 import { getRecommendedPositions } from '../../api/interview'
-
-// 面试类型定义
-const interviewTypeOptions = [
-  { value: 'practice', label: '练习模式', icon: '&#xe60a;' },
-  { value: 'real', label: '真实面试', icon: '&#xe617;' }
-]
 
 // 状态筛选
 const statusTabs = [
@@ -102,37 +97,37 @@ const goToCreate = () => {
 
 // 跳转到面试会话
 const goToSession = (item: Interview) => {
-  if (item.status === 'pending') {
-    // 待开始的面试，点击开始
-    uni.navigateTo({
-      url: `/pages/interview/session?id=${item.id}`
-    })
-  } else if (item.status === 'in_progress') {
-    // 进行中的面试，继续
-    uni.navigateTo({
-      url: `/pages/interview/session?id=${item.id}`
-    })
-  } else if (item.status === 'completed') {
-    // 已完成的面试，查看报告
-    uni.navigateTo({
-      url: `/pages/interview/session?id=${item.id}&mode=result`
-    })
-  }
+  const sessionId = item.sessionId || item.id
+  uni.navigateTo({
+    url: `/pages/interview/session?id=${sessionId}`
+  })
+}
+
+// 跳转到面试报告
+const goToReport = (item: Interview) => {
+  const sessionId = item.sessionId || item.id
+  uni.navigateTo({
+    url: `/pages/interview/report?id=${sessionId}`
+  })
 }
 
 // 删除面试
-const handleDelete = (id: number, index: number) => {
+const handleDelete = (item: Interview, index: number) => {
+  // 使用 sessionId
+  const sessionId = item.sessionId || item.id
   uni.showModal({
     title: '确认删除',
     content: '确定要删除这场面试记录吗？',
     success: async (res) => {
       if (res.confirm) {
         try {
-          await interviewStore.removeInterview(id)
+          await interviewStore.removeInterview(sessionId)
           uni.showToast({
             title: '删除成功',
             icon: 'success'
           })
+          // 删除成功后刷新列表
+          loadInterviewList()
         } catch (error) {
           console.error('删除面试失败:', error)
         }
@@ -175,7 +170,7 @@ const loadRecommendedPositions = async () => {
   }
 }
 
-onMounted(() => {
+onShow(() => {
   loadInterviewList()
   loadRecommendedPositions()
 })
@@ -192,22 +187,8 @@ onMounted(() => {
 
       <!-- 创建面试按钮 -->
       <view class="create-btn" @click="goToCreate">
-        <text class="iconfont">&#xe60d;</text>
+        <text class="iconfont">+</text>
         <text>创建面试</text>
-      </view>
-    </view>
-
-    <!-- 面试类型快捷入口 -->
-    <view class="type-cards">
-      <view
-        v-for="item in interviewTypeOptions"
-        :key="item.value"
-        class="type-card"
-        :class="item.value"
-        @click="goToCreate"
-      >
-        <text class="type-icon" v-html="item.icon"></text>
-        <text class="type-label">{{ item.label }}</text>
       </view>
     </view>
 
@@ -243,7 +224,6 @@ onMounted(() => {
         v-for="(item, index) in interviewList"
         :key="item.id"
         class="interview-card"
-        @click="goToSession(item)"
       >
         <!-- 卡片头部 -->
         <view class="card-header">
@@ -282,35 +262,36 @@ onMounted(() => {
 
         <!-- 卡片底部 -->
         <view class="card-footer">
-          <view v-if="item.status === 'completed' && item.score !== undefined" class="score-section">
+          <view v-if="item.status === 'completed'" class="score-section">
             <text class="score-label">面试评分</text>
-            <text class="score-value">{{ item.score }} 分</text>
+            <text v-if="item.score !== undefined && item.score !== null" class="score-value">{{ item.score }} 分</text>
+            <text v-else class="score-value">待出分</text>
           </view>
           <view v-else-if="item.status === 'in_progress'" class="progress-section">
             <text class="progress-label">进度</text>
             <text class="progress-value">{{ item.currentQuestionIndex || 0 }}/{{ item.questionCount || 0 }}</text>
           </view>
-          <view class="action-btns" @click.stop>
-            <text
+          <view class="action-btns">
+            <view
               v-if="item.status !== 'completed'"
               class="action-btn start"
               @click="goToSession(item)"
             >
               {{ item.status === 'pending' ? '开始面试' : '继续面试' }}
-            </text>
-            <text
+            </view>
+            <view
               v-else
               class="action-btn view"
-              @click="goToSession(item)"
+              @click="goToReport(item)"
             >
               查看报告
-            </text>
-            <text
+            </view>
+            <view
               class="action-btn delete"
-              @click="handleDelete(item.id, index)"
+              @click.stop="handleDelete(item, index)"
             >
               删除
-            </text>
+            </view>
           </view>
         </view>
       </view>
@@ -400,6 +381,7 @@ $info: #818cf8;
 .create-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 12rpx;
   padding: 20rpx 36rpx;
   background: rgba(255, 255, 255, 0.18);
@@ -409,6 +391,8 @@ $info: #818cf8;
   backdrop-filter: blur(12rpx);
   border: 1rpx solid rgba(255, 255, 255, 0.15);
   transition: all 0.3s ease;
+  width: auto;
+  box-sizing: border-box;
 
   &:active {
     background: rgba(255, 255, 255, 0.25);
@@ -417,6 +401,17 @@ $info: #818cf8;
 
   .iconfont {
     font-size: 32rpx;
+    margin: 0;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  text {
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    display: inline-block;
+    flex-shrink: 0;
   }
 }
 
@@ -573,6 +568,7 @@ $info: #818cf8;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 24rpx;
+  gap: 16rpx;
 }
 
 .card-info {
@@ -625,6 +621,7 @@ $info: #818cf8;
   border-radius: 20rpx;
   font-size: 24rpx;
   font-weight: 500;
+  margin-right: 0;
 }
 
 .card-content {

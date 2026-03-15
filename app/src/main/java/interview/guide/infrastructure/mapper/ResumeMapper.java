@@ -40,7 +40,8 @@ public interface ResumeMapper {
         ResumeEntity resume,
         Integer latestScore,
         java.time.LocalDateTime lastAnalyzedAt,
-        Integer interviewCount
+        Integer interviewCount,
+        interview.guide.modules.interview.model.InterviewSessionEntity.SessionStatus interviewStatus
     ) {
         return new ResumeListItemDTO(
             resume.getId(),
@@ -51,7 +52,8 @@ public interface ResumeMapper {
             latestScore,
             lastAnalyzedAt,
             interviewCount,
-            resume.getAnalyzeStatus()
+            resume.getAnalyzeStatus(),
+            interviewStatus
         );
     }
 
@@ -62,6 +64,7 @@ public interface ResumeMapper {
     @Mapping(target = "latestScore", ignore = true)
     @Mapping(target = "lastAnalyzedAt", ignore = true)
     @Mapping(target = "interviewCount", ignore = true)
+    @Mapping(target = "interviewStatus", ignore = true)
     @Mapping(target = "analyzeStatus", source = "analyzeStatus")
     ResumeListItemDTO toListItemDTOBasic(ResumeEntity entity);
 

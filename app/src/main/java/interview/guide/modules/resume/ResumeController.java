@@ -137,6 +137,25 @@ public class ResumeController {
         uploadService.reanalyze(id, userId);
         return Result.success(null);
     }
+
+    /**
+     * 重新上传简历文件
+     * 用新文件替换旧文件，并更新时间戳
+     *
+     * @param id     简历ID
+     * @param file   新简历文件
+     * @param userId 当前登录用户ID
+     * @return 更新后的简历信息
+     */
+    @PostMapping(value = "/api/resumes/{id}/reupload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL, RateLimit.Dimension.IP}, count = 5)
+    public Result<Map<String, Object>> reupload(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @CurrentUser Long userId) {
+        Map<String, Object> result = uploadService.reupload(id, file, userId);
+        return Result.success(result);
+    }
     
     /**
      * 健康检查接口

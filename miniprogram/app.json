@@ -1,6 +1,8 @@
 {
   "pages": [
-    "pages/index/index",
+    {
+      "path": "pages/index/index"
+    },
     "pages/auth/login",
     "pages/profile/index",
     "pages/resume/list",

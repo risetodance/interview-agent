@@ -49,10 +49,13 @@ public class InterviewController {
 
     /**
      * 获取用户的所有面试会话列表
+     * @param status 状态筛选 (pending/in_progress/completed)
      */
     @GetMapping("/api/interview/sessions")
-    public Result<List<InterviewSessionListItemDTO>> getAllSessions(@CurrentUser Long userId) {
-        List<InterviewSessionListItemDTO> sessions = historyService.getAllSessions(userId);
+    public Result<List<InterviewSessionListItemDTO>> getAllSessions(
+            @CurrentUser Long userId,
+            @RequestParam(required = false) String status) {
+        List<InterviewSessionListItemDTO> sessions = historyService.getAllSessions(userId, status);
         return Result.success(sessions);
     }
 
@@ -77,7 +80,7 @@ public class InterviewController {
         sessionService.validateSessionOwnership(userId, sessionId);
         return Result.success(sessionService.getCurrentQuestionResponse(sessionId));
     }
-    
+
     /**
      * 提交答案
      */
@@ -95,7 +98,19 @@ public class InterviewController {
         SubmitAnswerResponse response = sessionService.submitAnswer(request);
         return Result.success(response);
     }
-    
+
+    /**
+     * 查询面试评估状态（轻量级接口，不触发评估）
+     */
+    @GetMapping("/api/interview/sessions/{sessionId}/status")
+    public Result<InterviewEvaluateStatusDTO> getEvaluateStatus(
+            @CurrentUser Long userId,
+            @PathVariable String sessionId) {
+        sessionService.validateSessionOwnership(userId, sessionId);
+        InterviewEvaluateStatusDTO status = sessionService.getEvaluateStatus(sessionId);
+        return Result.success(status);
+    }
+
     /**
      * 生成面试报告
      */

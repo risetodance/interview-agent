@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useInterviewStore, type InterviewQuestion, type QuestionEvaluation } from '../../stores/interview'
 import { wsManager, WebSocketMessageType, sendInterviewAnswer, requestNextQuestion } from '../../utils/websocket'
+import { endInterview } from '../../api/interview'
 
 // 路由参数
 const pageId = ref<string>('')
@@ -25,9 +26,16 @@ const answerText = ref('')
 const isRecording = ref(false)
 const recordingTime = ref(0)
 const recordingTimer = ref<number | null>(null)
+const pollTimer = ref<number | null>(null)
+
+// 滚动相关
+const scrollTop = ref(0)
+const scrollViewRef = ref<any>(null)
 
 // 面试状态
 const interviewStatus = ref<'idle' | 'connected' | 'answering' | 'evaluating' | 'completed'>('idle')
+// 跳转报告页面时的加载蒙版
+const showReportLoading = ref(false)
 
 // 消息列表
 const messages = ref<Array<{
@@ -69,16 +77,21 @@ const initInterview = async () => {
 
     // 获取面试详情
     console.log('[Session] fetching detail...')
-    await interviewStore.fetchInterviewDetail(pageId.value)
+    const detail = await interviewStore.fetchInterviewDetail(pageId.value)
     console.log('[Session] detail fetched')
+
+    // 检查面试是否已完成，如果已完成则设置为 completed 状态
+    if (detail.status === 'completed' || detail.status === 'EVALUATED') {
+      interviewStatus.value = 'completed'
+    }
 
     // 获取问题列表
     console.log('[Session] fetching questions...')
     await interviewStore.fetchQuestions(pageId.value)
     console.log('[Session] questions fetched')
 
-    // 如果是结果模式，获取结果
-    if (pageMode.value === 'result') {
+    // 如果是结果模式或面试已结束，获取结果
+    if (pageMode.value === 'result' || interviewStatus.value === 'completed') {
       console.log('[Session] fetching result...')
       const result = await interviewStore.fetchInterviewResult(pageId.value)
       interviewResult.value = result
@@ -99,7 +112,7 @@ const initInterview = async () => {
   }
 }
 
-// 连接 WebSocket
+// 连接 WebSocket（带 REST API fallback）
 const startWebSocket = () => {
   if (!wsManager.isConnected) {
     wsManager.connect()
@@ -115,6 +128,23 @@ const startWebSocket = () => {
       showCurrentQuestion()
     }
   })
+
+  // WebSocket 连接失败时，使用 REST API fallback
+  const checkConnection = () => {
+    setTimeout(() => {
+      if (interviewStatus.value === 'idle' && questions.value.length > 0) {
+        // WebSocket 未连接，使用 REST API 模式
+        interviewStatus.value = 'connected'
+        addSystemMessage('使用 REST API 模式')
+
+        // 显示第一道题
+        if (!currentQuestion.value?.answer) {
+          showCurrentQuestion()
+        }
+      }
+    }, 3000) // 等待 3 秒后如果还是 idle 状态，则使用 REST API
+  }
+  checkConnection()
 
   // 监听问题
   wsManager.on(WebSocketMessageType.INTERVIEW_QUESTION, (data) => {
@@ -229,9 +259,12 @@ const handleInterviewComplete = (data: any) => {
 const scrollToBottom = () => {
   // 使用 nextTick 后滚动
   setTimeout(() => {
-    uni.pageScrollTo({
-      scrollTop: 99999,
-      duration: 300
+    // 触发 scroll-view 滚动到最新消息
+    const newScrollTop = scrollTop.value + 100
+    scrollTop.value = newScrollTop > 99999 ? 0 : newScrollTop
+    // 强制触发滚动
+    nextTick(() => {
+      scrollTop.value = 99999
     })
   }, 200)
 }
@@ -264,6 +297,16 @@ const submitAnswer = async () => {
     if (wsManager.isConnected) {
       sendInterviewAnswer(answer, String(questionId))
     }
+
+    // 立即进入下一题（不等待评价完成）
+    if (currentIndex.value < questions.value.length - 1) {
+      setTimeout(() => {
+        goToNextQuestion()
+      }, 500)
+    } else {
+      // 如果是最后一题，结束面试并等待结果
+      finishInterviewAndWaitForResult()
+    }
   } catch (error) {
     console.error('提交答案失败:', error)
     interviewStatus.value = 'answering'
@@ -271,6 +314,16 @@ const submitAnswer = async () => {
       title: '提交失败，请重试',
       icon: 'none'
     })
+  }
+}
+
+// 跳转到下一题
+const goToNextQuestion = () => {
+  if (currentIndex.value < questions.value.length - 1) {
+    interviewStore.nextQuestion()
+    showCurrentQuestion()
+    interviewStatus.value = 'answering'
+    scrollToBottom()
   }
 }
 
@@ -336,6 +389,51 @@ const goToQuestion = (index: number) => {
   showCurrentQuestion()
 }
 
+// 结束面试并等待结果
+const finishInterviewAndWaitForResult = async () => {
+  try {
+    // 调用后端接口结束面试
+    await endInterview(pageId.value)
+
+    // 关闭 WebSocket
+    if (wsManager.isConnected) {
+      wsManager.close()
+    }
+
+    // 显示加载蒙版，等待评估完成
+    interviewStatus.value = 'evaluating'
+    showReportLoading.value = true
+
+    // 轮询等待评估完成
+    const pollResult = async () => {
+      try {
+        const status = await interviewStore.fetchEvaluateStatus(pageId.value)
+
+        if (status && status.overallScore !== null && status.overallScore !== undefined) {
+          showReportLoading.value = false
+          interviewStatus.value = 'completed'
+
+          uni.navigateTo({
+            url: `/pages/interview/report?id=${pageId.value}`
+          })
+        } else {
+          pollTimer.value = setTimeout(pollResult, 2000) as unknown as number
+        }
+      } catch (error) {
+        pollTimer.value = setTimeout(pollResult, 2000) as unknown as number
+      }
+    }
+
+    setTimeout(pollResult, 2000)
+  } catch (error) {
+    console.error('结束面试失败:', error)
+    uni.showToast({
+      title: '结束面试失败',
+      icon: 'none'
+    })
+  }
+}
+
 // 结束面试
 const finishInterview = () => {
   uni.showModal({
@@ -343,28 +441,7 @@ const finishInterview = () => {
     content: '确定要结束这场面试吗？',
     success: async (res) => {
       if (res.confirm) {
-        try {
-          // 通过 WebSocket 结束面试
-          if (wsManager.isConnected) {
-            wsManager.send(WebSocketMessageType.INTERVIEW_COMPLETE, {
-              interviewId: String(pageId.value)
-            })
-          }
-
-          wsManager.close()
-          interviewStore.finishInterview()
-
-          uni.showToast({
-            title: '面试已结束',
-            icon: 'success'
-          })
-
-          setTimeout(() => {
-            uni.navigateBack()
-          }, 1500)
-        } catch (error) {
-          console.error('结束面试失败:', error)
-        }
+        finishInterviewAndWaitForResult()
       }
     }
   })
@@ -402,6 +479,11 @@ onUnmounted(() => {
     clearInterval(recordingTimer.value)
   }
 
+  // 停止轮询
+  if (pollTimer.value) {
+    clearTimeout(pollTimer.value)
+  }
+
   // 关闭 WebSocket 连接
   if (wsManager.isConnected) {
     wsManager.close()
@@ -411,6 +493,15 @@ onUnmounted(() => {
 
 <template>
   <view class="interview-session-container">
+    <!-- 加载蒙版 - 等待评估完成 -->
+    <view v-if="showReportLoading" class="loading-overlay">
+      <view class="loading-content">
+        <view class="loading-spinner"></view>
+        <text class="loading-text">AI 正在生成评估报告</text>
+        <text class="loading-subtext">请稍候...</text>
+      </view>
+    </view>
+
     <!-- 顶部导航 -->
     <view class="session-header">
       <view class="header-left" @click="goBackToList">
@@ -432,21 +523,11 @@ onUnmounted(() => {
     </view>
 
     <!-- 进度条 -->
-    <view v-if="interviewStatus !== 'completed'" class="progress-bar">
-      <view class="progress-info">
-        <text class="progress-text">面试进度</text>
-        <text class="progress-count">{{ currentIndex + 1 }} / {{ questions.length }}</text>
-      </view>
-      <view class="progress-track">
-        <view class="progress-fill" :style="{ width: progress + '%' }"></view>
-      </view>
-    </view>
-
     <!-- 消息列表 -->
     <scroll-view
       class="message-list"
       scroll-y
-      :scroll-top="99999"
+      :scroll-top="scrollTop"
       :refresher-enabled="false"
     >
       <!-- 欢迎消息 -->
@@ -465,56 +546,62 @@ onUnmounted(() => {
       >
         <!-- 问题消息 -->
         <view v-if="msg.type === 'question'" class="question-bubble">
-          <view class="ai-avatar">
-            <text>&#xe617;</text>
-          </view>
-          <view class="bubble-content">
-            <text class="bubble-text">{{ msg.content }}</text>
-            <view v-if="currentQuestion?.tips" class="bubble-tips">
-              <text class="tips-label">提示：</text>
-              <text class="tips-text">{{ currentQuestion.tips }}</text>
+          <view class="bubble-wrapper">
+            <view class="ai-avatar">
+              <text>&#xe617;</text>
+            </view>
+            <view class="bubble-content">
+              <text class="bubble-text">{{ msg.content }}</text>
+              <view v-if="currentQuestion?.tips" class="bubble-tips">
+                <text class="tips-label">提示：</text>
+                <text class="tips-text">{{ currentQuestion.tips }}</text>
+              </view>
             </view>
           </view>
         </view>
 
         <!-- 回答消息 -->
         <view v-else-if="msg.type === 'answer'" class="answer-bubble">
-          <view class="bubble-content">
-            <text class="bubble-text">{{ msg.content }}</text>
-          </view>
-          <view class="user-avatar">
-            <text>&#xe60a;</text>
+          <view class="bubble-wrapper">
+            <view class="bubble-content">
+              <text class="bubble-text">{{ msg.content }}</text>
+            </view>
+            <view class="user-avatar">
+              <text>&#xe60a;</text>
+            </view>
           </view>
         </view>
 
         <!-- 评价消息 -->
         <view v-else-if="msg.type === 'evaluation'" class="evaluation-bubble">
-          <view class="ai-avatar">
-            <text>&#xe617;</text>
-          </view>
-          <view class="bubble-content">
-            <view class="eval-header">
-              <text class="eval-title">AI 评价</text>
-              <view v-if="msg.evaluation?.score" class="eval-score">
-                {{ msg.evaluation.score }} 分
+          <view class="bubble-wrapper">
+            <view class="ai-avatar">
+              <text>&#xe617;</text>
+            </view>
+            <view class="bubble-content">
+              <view class="eval-header">
+                <text class="eval-title">AI 评价</text>
+                <view v-if="msg.evaluation?.score" class="eval-score">
+                  {{ msg.evaluation.score }} 分
+                </view>
               </view>
-            </view>
-            <view v-if="msg.evaluation?.strengths?.length" class="eval-section">
-              <text class="eval-label">优点：</text>
-              <text v-for="(item, idx) in msg.evaluation.strengths" :key="idx" class="eval-tag strength">
-                {{ item }}
+              <view v-if="msg.evaluation?.strengths?.length" class="eval-section">
+                <text class="eval-label">优点：</text>
+                <text v-for="(item, idx) in msg.evaluation.strengths" :key="idx" class="eval-tag strength">
+                  {{ item }}
+                </text>
+              </view>
+              <view v-if="msg.evaluation?.improvements?.length" class="eval-section">
+                <text class="eval-label">改进：</text>
+                <text v-for="(item, idx) in msg.evaluation.improvements" :key="idx" class="eval-tag improvement">
+                  {{ item }}
+                </text>
+              </view>
+              <text v-if="msg.evaluation?.suggestedAnswer" class="eval-suggested">
+                <text class="suggested-label">参考答案：</text>
+                {{ msg.evaluation.suggestedAnswer }}
               </text>
             </view>
-            <view v-if="msg.evaluation?.improvements?.length" class="eval-section">
-              <text class="eval-label">改进：</text>
-              <text v-for="(item, idx) in msg.evaluation.improvements" :key="idx" class="eval-tag improvement">
-                {{ item }}
-              </text>
-            </view>
-            <text v-if="msg.evaluation?.suggestedAnswer" class="eval-suggested">
-              <text class="suggested-label">参考答案：</text>
-              {{ msg.evaluation.suggestedAnswer }}
-            </text>
           </view>
         </view>
 
@@ -594,46 +681,21 @@ onUnmounted(() => {
     <!-- 回答区域 -->
     <view v-if="interviewStatus !== 'completed'" class="answer-section">
       <!-- 题目导航 -->
-      <view class="question-nav">
-        <view
-          v-for="(q, idx) in questions"
-          :key="q.id"
-          class="nav-dot"
-          :class="{
-            active: idx === currentIndex,
-            answered: q.answerStatus === 'answered' || q.answerStatus === 'evaluated'
-          }"
-          @click="goToQuestion(idx)"
-        >
-          {{ idx + 1 }}
-        </view>
-      </view>
-
       <!-- 输入区域 -->
       <view class="input-area">
-        <textarea
-          v-model="answerText"
-          class="answer-input"
-          placeholder="请输入你的回答..."
-          placeholder-class="input-placeholder"
-          :disabled="interviewStatus === 'evaluating'"
-          :maxlength="2000"
-        />
-        <view class="input-actions">
-          <!-- 录音按钮 -->
-          <view
-            class="action-icon"
-            :class="{ recording: isRecording }"
-            @click="isRecording ? stopRecording() : startRecording()"
-          >
-            <text v-if="!isRecording">&#xe618;</text>
-            <text v-else class="stop-icon">&#xe61c;</text>
-          </view>
-
+        <view class="input-row">
+          <textarea
+            v-model="answerText"
+            class="answer-input"
+            placeholder="请输入你的回答..."
+            placeholder-class="input-placeholder"
+            :disabled="interviewStatus === 'evaluating' || interviewStatus === 'completed'"
+            :maxlength="2000"
+          />
           <!-- 发送按钮 -->
           <view
             class="send-btn"
-            :class="{ disabled: !answerText.trim() || interviewStatus === 'evaluating' }"
+            :class="{ disabled: !answerText.trim() || interviewStatus === 'evaluating' || interviewStatus === 'completed' }"
             @click="submitAnswer"
           >
             <text>发送</text>
@@ -649,7 +711,7 @@ onUnmounted(() => {
 
       <!-- 底部提示 -->
       <view class="bottom-tip">
-        <text>回答完成后点击发送，AI 将实时评价你的回答</text>
+        <text>点击发送将进入下一题</text>
       </view>
     </view>
   </view>
@@ -668,6 +730,55 @@ $bg-color: #f8fafc;
   flex-direction: column;
   height: 100vh;
   background-color: $bg-color;
+  position: relative;
+}
+
+// 加载蒙版
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+
+  .loading-content {
+    background: #fff;
+    border-radius: 24rpx;
+    padding: 60rpx 40rpx;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20rpx;
+  }
+
+  .loading-spinner {
+    width: 60rpx;
+    height: 60rpx;
+    border: 4rpx solid #f0f0f0;
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .loading-text {
+    font-size: 30rpx;
+    color: #333;
+    font-weight: 600;
+  }
+
+  .loading-subtext {
+    font-size: 24rpx;
+    color: #999;
+  }
 }
 
 .session-header {
@@ -715,45 +826,9 @@ $bg-color: #f8fafc;
   }
 }
 
-.progress-bar {
-  padding: 20rpx 30rpx;
-  background-color: #fff;
-}
-
-.progress-info {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 12rpx;
-
-  .progress-text {
-    font-size: 24rpx;
-    color: #999;
-  }
-
-  .progress-count {
-    font-size: 24rpx;
-    color: $primary-color;
-    font-weight: 500;
-  }
-}
-
-.progress-track {
-  height: 8rpx;
-  background-color: #f0f0f0;
-  border-radius: 4rpx;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, $primary-color 0%, $primary-light 100%);
-  border-radius: 4rpx;
-  transition: width 0.3s;
-}
-
 .message-list {
   flex: 1;
-  padding: 30rpx;
+  padding: 20rpx;
   overflow: hidden;
 }
 
@@ -804,13 +879,13 @@ $bg-color: #f8fafc;
 
 .ai-avatar,
 .user-avatar {
-  width: 72rpx;
-  height: 72rpx;
+  width: 60rpx;
+  height: 60rpx;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36rpx;
+  font-size: 28rpx;
   flex-shrink: 0;
 }
 
@@ -823,7 +898,7 @@ $bg-color: #f8fafc;
 .user-avatar {
   background: linear-gradient(135deg, #6366f1 0%, #45a049 100%);
   color: #fff;
-  margin-left: 20rpx;
+  margin-left: 16rpx;
 }
 
 .bubble-content {
@@ -832,29 +907,70 @@ $bg-color: #f8fafc;
 
 .question-bubble,
 .evaluation-bubble {
+  width: 100%;
+  padding-left: 24rpx;
+  box-sizing: border-box;
+
+  .bubble-wrapper {
+    display: flex;
+    align-items: flex-start;
+    max-width: 70%;
+  }
+
+  .ai-avatar {
+    flex-shrink: 0;
+  }
+
   .bubble-content {
     background-color: #fff;
-    border-radius: 24rpx;
-    padding: 24rpx;
-    box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+    border-radius: 16rpx;
+    padding: 16rpx 20rpx;
+    box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+    position: relative;
+    margin-left: 12rpx;
   }
 
   .bubble-text {
     font-size: 28rpx;
     color: #333;
-    line-height: 1.6;
+    line-height: 1.4;
   }
 }
 
 .answer-bubble {
+  display: flex;
+  width: 100%;
+  padding-right: 24rpx;
+  box-sizing: border-box;
+
+  .bubble-wrapper {
+    display: flex;
+    align-items: flex-start;
+    max-width: 70%;
+    margin-left: auto;
+  }
+
   .bubble-content {
     background: linear-gradient(135deg, $primary-color 0%, $primary-light 100%);
-    border-radius: 24rpx;
-    padding: 24rpx;
+    border-radius: 16rpx;
+    padding: 16rpx 20rpx;
+    word-break: break-all;
+    position: relative;
+    margin-right: 12rpx;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 
-    .bubble-text {
-      color: #fff;
-    }
+  .user-avatar {
+    flex-shrink: 0;
+  }
+
+  .bubble-text {
+    color: #fff;
+    font-size: 28rpx;
+    line-height: 1.4;
+    text-align: left;
+    width: 100%;
   }
 }
 
@@ -1161,54 +1277,37 @@ $bg-color: #f8fafc;
   border-top: 1rpx solid #f0f0f0;
 }
 
-.question-nav {
-  display: flex;
-  justify-content: center;
-  gap: 16rpx;
-  padding: 20rpx;
-  border-bottom: 1rpx solid #f0f0f0;
-
-  .nav-dot {
-    width: 48rpx;
-    height: 48rpx;
-    border-radius: 50%;
-    background-color: #f0f0f0;
-    color: #999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24rpx;
-    transition: all 0.3s;
-
-    &.active {
-      background: linear-gradient(135deg, $primary-color 0%, $primary-light 100%);
-      color: #fff;
-      transform: scale(1.1);
-    }
-
-    &.answered {
-      background-color: #eef2ff;
-      color: #6366f1;
-    }
-  }
+.input-area {
+  padding: 16rpx 20rpx;
+  background-color: #f5f5f5;
+  border-top: 1rpx solid #e0e0e0;
 }
 
-.input-area {
-  padding: 20rpx 30rpx;
+.input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16rpx;
 }
 
 .answer-input {
-  width: 100%;
-  min-height: 160rpx;
-  padding: 20rpx;
-  background-color: #f5f5f5;
-  border-radius: 12rpx;
-  font-size: 28rpx;
+  flex: 1;
+  min-height: 72rpx;
+  max-height: 200rpx;
+  padding: 16rpx 20rpx;
+  background-color: #fff;
+  border-radius: 8rpx;
+  border: 1rpx solid #e0e0e0;
+  font-size: 30rpx;
   color: #333;
-  line-height: 1.6;
+  line-height: 1.4;
 
   .input-placeholder {
     color: #999;
+  }
+
+  &:focus {
+    border-color: $primary-color;
+    background-color: #fff;
   }
 }
 
@@ -1252,16 +1351,21 @@ $bg-color: #f8fafc;
 }
 
 .send-btn {
-  padding: 16rpx 48rpx;
-  background: linear-gradient(135deg, $primary-color 0%, $primary-light 100%);
-  border-radius: 36rpx;
+  padding: 16rpx 32rpx;
+  background: linear-gradient(135deg, $primary-color 0%, $primary-dark 100%);
+  border-radius: 8rpx;
   color: #fff;
-  font-size: 28rpx;
+  font-size: 30rpx;
   font-weight: 500;
   transition: all 0.3s;
 
+  &:active:not(.disabled) {
+    opacity: 0.8;
+  }
+
   &.disabled {
     opacity: 0.5;
+    box-shadow: none;
   }
 }
 

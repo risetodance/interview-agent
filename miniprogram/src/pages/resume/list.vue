@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onActivated, onUnmounted } from 'vue'
-import { getResumeList, deleteResume, type Resume, type ResumeListParams } from '../../api/resume'
+import { getResumeList, deleteResume, type Resume, type ResumeListParams, type InterviewStatus } from '../../api/resume'
 
 // 简历列表数据
 const resumeList = ref<Resume[]>([])
@@ -18,6 +18,14 @@ const parseStatusMap: Record<string, { text: string; color: string }> = {
   PROCESSING: { text: '解析中', color: '#E6A23C' },
   COMPLETED: { text: '已完成', color: '#67C23A' },
   FAILED: { text: '解析失败', color: '#F56C6C' }
+}
+
+// 面试状态映射
+const interviewStatusMap: Record<string, { text: string; color: string }> = {
+  CREATED: { text: '待面试', color: '#409EFF' },
+  IN_PROGRESS: { text: '进行中', color: '#E6A23C' },
+  COMPLETED: { text: '已完成', color: '#67C23A' },
+  EVALUATED: { text: '已评估', color: '#67C23A' }
 }
 
 // 加载简历列表
@@ -181,7 +189,7 @@ const formatDate = (date: string): string => {
             </view>
           </view>
           <view class="resume-actions" @click.stop>
-            <text class="delete-btn" @click="handleDelete(item.id, index)">删除</text>
+            <text class="delete-btn" @click.stop="handleDelete(item.id, index)">删除</text>
           </view>
         </view>
 
@@ -205,6 +213,15 @@ const formatDate = (date: string): string => {
                 ></view>
               </view>
             </view>
+          </view>
+          <view class="status-item">
+            <text class="status-label">面试状态</text>
+            <text
+              class="status-value"
+              :style="{ color: interviewStatusMap[item.interviewStatus || 'CREATED']?.color || '#909399' }"
+            >
+              {{ interviewStatusMap[item.interviewStatus || 'CREATED']?.text || '待面试' }}
+            </text>
           </view>
         </view>
 
@@ -324,6 +341,19 @@ $danger: #ef4444;
   display: flex;
   align-items: center;
   margin-bottom: 20rpx;
+
+  .resume-actions {
+    margin-left: auto;
+    margin-right: 16rpx;
+
+    .delete-btn {
+      font-size: 24rpx;
+      color: $danger;
+      padding: 8rpx 16rpx;
+      background: #fef2f2;
+      border-radius: 8rpx;
+    }
+  }
 }
 
 .resume-avatar {
@@ -372,16 +402,6 @@ $danger: #ef4444;
 
   .separator {
     margin: 0 10rpx;
-  }
-}
-
-.resume-actions {
-  .delete-btn {
-    font-size: 24rpx;
-    color: $danger;
-    padding: 8rpx 16rpx;
-    background: #fef2f2;
-    border-radius: 8rpx;
   }
 }
 

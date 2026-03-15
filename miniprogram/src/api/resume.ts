@@ -11,9 +11,13 @@ export interface Resume {
   status: ResumeStatus
   parseStatus: ParseStatus
   parseProgress?: number
+  interviewStatus?: InterviewStatus
   createdAt: string
   updatedAt: string
 }
+
+// 面试状态
+export type InterviewStatus = 'CREATED' | 'IN_PROGRESS' | 'COMPLETED' | 'EVALUATED' | null
 
 // 简历投递状态
 export type ResumeStatus = 'DRAFT' | 'SUBMITTED' | 'REVIEWING' | 'OFFER' | 'REJECTED' | 'WITHDRAWN'
@@ -156,7 +160,9 @@ export const getResumeList = (params?: ResumeListParams) => {
       // 将 analyzeStatus 映射为 parseStatus
       parseStatus: item.analyzeStatus || item.parseStatus || 'PENDING',
       // 将 uploadedAt 映射为 updatedAt
-      updatedAt: item.uploadedAt || item.updatedAt
+      updatedAt: item.uploadedAt || item.updatedAt,
+      // 面试状态
+      interviewStatus: item.interviewStatus || null
     }))
     return {
       list: list,
@@ -254,6 +260,17 @@ export const deleteResume = (id: number) => {
  */
 export const reanalyzeResume = (id: number) => {
   return post(`/api/resumes/${id}/reanalyze`)
+}
+
+/**
+ * 重新上传简历
+ */
+export const reuploadResume = (id: number, filePath: string) => {
+  return uploadFile<any>(filePath, {
+    url: `/api/resumes/${id}/reupload`,
+    name: 'file',
+    showLoading: true
+  })
 }
 
 /**

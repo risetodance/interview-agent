@@ -162,12 +162,38 @@ public class InterviewHistoryService {
 
     /**
      * 获取用户的所有面试会话列表
+     * @param status 状态筛选 (pending/in_progress/completed)，不传则返回全部
      */
-    public List<InterviewSessionListItemDTO> getAllSessions(Long userId) {
+    public List<InterviewSessionListItemDTO> getAllSessions(Long userId, String status) {
         List<InterviewSessionEntity> sessions = interviewPersistenceService.findAllByUserId(userId);
+
+        // 按状态筛选
+        if (status != null && !status.isEmpty()) {
+            InterviewSessionEntity.SessionStatus targetStatus = mapToSessionStatus(status);
+            if (targetStatus != null) {
+                final InterviewSessionEntity.SessionStatus fs = targetStatus;
+                // completed 状态也要匹配 EVALUATED
+                sessions = sessions.stream()
+                    .filter(s -> s.getStatus() == fs || (fs == InterviewSessionEntity.SessionStatus.COMPLETED && s.getStatus() == InterviewSessionEntity.SessionStatus.EVALUATED))
+                    .toList();
+            }
+        }
+
         return sessions.stream()
             .map(this::toListItemDTO)
             .toList();
+    }
+
+    /**
+     * 将前端状态字符串转换为后端枚举
+     */
+    private InterviewSessionEntity.SessionStatus mapToSessionStatus(String status) {
+        return switch (status.toLowerCase()) {
+            case "pending" -> InterviewSessionEntity.SessionStatus.CREATED;
+            case "in_progress" -> InterviewSessionEntity.SessionStatus.IN_PROGRESS;
+            case "completed" -> InterviewSessionEntity.SessionStatus.COMPLETED;
+            default -> null;
+        };
     }
 
     /**

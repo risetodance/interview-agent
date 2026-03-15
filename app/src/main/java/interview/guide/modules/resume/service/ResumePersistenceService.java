@@ -37,23 +37,25 @@ public class ResumePersistenceService {
     private final FileHashService fileHashService;
     
     /**
-     * 检查简历是否已存在（基于文件内容hash）
-     * 
+     * 检查简历是否已存在（基于文件内容hash，按用户）
+     *
      * @param file 上传的文件
+     * @param userId 用户ID
      * @return 如果存在返回已有的简历实体，否则返回空
      */
-    public Optional<ResumeEntity> findExistingResume(MultipartFile file) {
+    public Optional<ResumeEntity> findExistingResume(MultipartFile file, Long userId) {
         try {
             String fileHash = fileHashService.calculateHash(file);
-            Optional<ResumeEntity> existing = resumeRepository.findByFileHash(fileHash);
-            
+            // 按用户ID和文件hash查找，只有同一用户的重复文件才被视为重复
+            Optional<ResumeEntity> existing = resumeRepository.findByUserIdAndFileHash(userId, fileHash);
+
             if (existing.isPresent()) {
-                log.info("检测到重复简历: hash={}", fileHash);
+                log.info("检测到用户重复简历: userId={}, hash={}", userId, fileHash);
                 ResumeEntity resume = existing.get();
                 resume.incrementAccessCount();
                 resumeRepository.save(resume);
             }
-            
+
             return existing;
         } catch (Exception e) {
             log.error("检查简历重复时出错: {}", e.getMessage());

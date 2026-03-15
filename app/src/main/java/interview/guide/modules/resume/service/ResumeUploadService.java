@@ -56,8 +56,8 @@ public class ResumeUploadService {
         String contentType = parseService.detectContentType(file);
         validateContentType(contentType);
 
-        // 3. 检查简历是否已存在（去重）
-        Optional<ResumeEntity> existingResume = persistenceService.findExistingResume(file);
+        // 3. 检查简历是否已存在（去重，按用户）
+        Optional<ResumeEntity> existingResume = persistenceService.findExistingResume(file, userId);
         if (existingResume.isPresent()) {
             return handleDuplicateResume(existingResume.get());
         }
@@ -177,5 +177,74 @@ public class ResumeUploadService {
         analyzeStreamProducer.sendAnalyzeTask(resumeId, resumeText);
 
         log.info("重新分析任务已发送: resumeId={}", resumeId);
+    }
+
+    /**
+     * 重新上传简历文件
+     * 用新文件替换旧文件，并更新时间戳
+     *
+     * @param resumeId 简历ID
+     * @param file     新简历文件
+     * @param userId   用户ID（用于权限校验）
+     * @return 更新后的简历信息
+     */
+    @Transactional
+    public Map<String, Object> reupload(Long resumeId, org.springframework.web.multipart.MultipartFile file, Long userId) {
+        // 1. 验证文件
+        fileValidationService.validateFile(file, MAX_FILE_SIZE, "简历");
+
+        String fileName = file.getOriginalFilename();
+        log.info("收到简历重新上传请求: {}, 大小: {} bytes, resumeId={}", fileName, file.getSize(), resumeId);
+
+        // 2. 验证文件类型
+        String contentType = parseService.detectContentType(file);
+        validateContentType(contentType);
+
+        // 3. 获取简历并校验权限
+        ResumeEntity resume = resumeRepository.findById(resumeId)
+            .filter(r -> r.getUserId().equals(userId))
+            .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND, "简历不存在或无权限"));
+
+        // 4. 解析新简历文本
+        String resumeText = parseService.parseResume(file);
+        if (resumeText == null || resumeText.trim().isEmpty()) {
+            throw new BusinessException(ErrorCode.RESUME_PARSE_FAILED, "无法从文件中提取文本内容，请确保文件不是扫描版PDF");
+        }
+
+        // 5. 上传新文件到存储
+        String fileKey = storageService.uploadResume(file);
+        String fileUrl = storageService.getFileUrl(fileKey);
+        log.info("新简历已存储到RustFS: {}", fileKey);
+
+        // 6. 更新简历实体
+        resume.setOriginalFilename(fileName);
+        resume.setFileSize(file.getSize());
+        resume.setContentType(contentType);
+        resume.setStorageKey(fileKey);
+        resume.setStorageUrl(fileUrl);
+        resume.setResumeText(resumeText);
+        resume.setUploadedAt(java.time.LocalDateTime.now());  // 更新时间戳
+        resume.setAnalyzeStatus(AsyncTaskStatus.PENDING);  // 重置分析状态
+        resume.setAnalyzeError(null);
+        resumeRepository.save(resume);
+
+        // 7. 发送分析任务到 Redis Stream（异步处理）
+        analyzeStreamProducer.sendAnalyzeTask(resumeId, resumeText);
+
+        log.info("简历重新上传完成，分析任务已入队: {}, resumeId={}", fileName, resumeId);
+
+        // 8. 返回结果
+        return Map.of(
+            "resume", Map.of(
+                "id", resume.getId(),
+                "filename", resume.getOriginalFilename(),
+                "uploadedAt", resume.getUploadedAt().toString(),
+                "analyzeStatus", AsyncTaskStatus.PENDING.name()
+            ),
+            "storage", Map.of(
+                "fileKey", fileKey,
+                "fileUrl", fileUrl
+            )
+        );
     }
 }

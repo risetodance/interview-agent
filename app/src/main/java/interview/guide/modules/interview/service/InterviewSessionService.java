@@ -130,13 +130,11 @@ public class InterviewSessionService {
         );
 
         // 保存到数据库（关联用户ID）
-        if (request.resumeId() != null) {
-            try {
-                persistenceService.saveSession(userId, sessionId, request.resumeId(),
-                    request.questionCount(), questions);
-            } catch (Exception e) {
-                log.warn("保存面试会话到数据库失败: {}", e.getMessage());
-            }
+        try {
+            persistenceService.saveSession(userId, sessionId, request.resumeId(),
+                request.questionCount(), questions);
+        } catch (Exception e) {
+            log.warn("保存面试会话到数据库失败: {}", e.getMessage());
         }
 
         return new InterviewSessionDTO(
@@ -189,6 +187,23 @@ public class InterviewSessionService {
             log.warn("用户 {} 尝试访问不属于他的会话 {}", userId, sessionId);
             throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问该面试会话");
         }
+    }
+
+    /**
+     * 获取面试评估状态（轻量级接口）
+     */
+    public InterviewEvaluateStatusDTO getEvaluateStatus(String sessionId) {
+        Optional<InterviewSessionEntity> sessionOpt = persistenceService.findBySessionId(sessionId);
+        if (sessionOpt.isEmpty()) {
+            throw new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND);
+        }
+
+        InterviewSessionEntity session = sessionOpt.get();
+        return new InterviewEvaluateStatusDTO(
+            sessionId,
+            session.getOverallScore(),
+            session.getEvaluateStatus() != null ? session.getEvaluateStatus().name() : null
+        );
     }
 
     /**

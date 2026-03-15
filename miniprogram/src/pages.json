@@ -61,6 +61,13 @@
       }
     },
     {
+      "path": "pages/interview/report",
+      "style": {
+        "navigationBarTitleText": "面试评估报告",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/knowledge/list",
       "style": {
         "navigationBarTitleText": "知识库",

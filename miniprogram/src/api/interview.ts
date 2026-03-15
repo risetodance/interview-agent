@@ -59,23 +59,10 @@ export const getInterviewList = (params?: InterviewListParams) => {
 }
 
 /**
- * 获取面试详情 - 直接返回完整响应
+ * 获取面试详情 - 包含评估报告数据
  */
 export const getInterviewDetail = (sessionId: string | number) => {
-  return new Promise((resolve, reject) => {
-    uni.request({
-      url: `/api/interview/sessions/${sessionId}`,
-      method: 'GET',
-      success: (res: any) => {
-        if (res.data?.code === 200) {
-          resolve(res.data.data)
-        } else {
-          reject(new Error(res.data?.message || '获取面试详情失败'))
-        }
-      },
-      fail: reject
-    })
-  })
+  return get(`/api/interview/sessions/${sessionId}/details`)
 }
 
 /**
@@ -110,27 +97,14 @@ export const startInterview = (sessionId: string | number) => {
  * 结束面试
  */
 export const endInterview = (sessionId: string | number) => {
-  return post(`/api/interview/sessions/${sessionId}/end`)
+  return post(`/api/interview/sessions/${sessionId}/complete`)
 }
 
 /**
- * 获取当前问题 - 直接返回完整响应
+ * 获取面试详情（包含所有问题）
  */
 export const getInterviewQuestions = (sessionId: string | number) => {
-  return new Promise((resolve, reject) => {
-    uni.request({
-      url: `/api/interview/sessions/${sessionId}/questions`,
-      method: 'GET',
-      success: (res: any) => {
-        if (res.data?.code === 200) {
-          resolve(res.data.data)
-        } else {
-          reject(new Error(res.data?.message || '获取面试问题失败'))
-        }
-      },
-      fail: reject
-    })
-  })
+  return get(`/api/interview/sessions/${sessionId}/details`)
 }
 
 /**
@@ -143,9 +117,9 @@ export const getQuestionDetail = (questionId: number) => {
 /**
  * 提交答案
  */
-export const submitAnswer = (sessionId: string | number, questionId: number, answer: string) => {
+export const submitAnswer = (sessionId: string | number, questionIndex: number, answer: string) => {
   return post(`/api/interview/sessions/${sessionId}/answers`, {
-    questionId,
+    questionIndex,
     answer
   })
 }
@@ -181,10 +155,17 @@ export const submitVideoAnswer = (
 }
 
 /**
+ * 获取面试评估状态（轻量级接口）
+ */
+export const getEvaluateStatus = (sessionId: string | number) => {
+  return get(`/api/interview/sessions/${sessionId}/status`)
+}
+
+/**
  * 获取面试结果
  */
 export const getInterviewResult = (sessionId: string | number) => {
-  return get(`/api/interview/sessions/${sessionId}/result`)
+  return get(`/api/interview/sessions/${sessionId}/report`)
 }
 
 /**

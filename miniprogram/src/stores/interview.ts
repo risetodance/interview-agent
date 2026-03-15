@@ -8,6 +8,7 @@ import {
   getInterviewQuestions,
   submitAnswer,
   getInterviewResult,
+  getEvaluateStatus,
   getInterviewHistory
 } from '../api/interview'
 import { wsManager, WebSocketMessageType } from '../utils/websocket'
@@ -27,6 +28,8 @@ export interface Interview {
   totalQuestions?: number
   currentQuestionIndex?: number
   score?: number
+  overallScore?: number // 评估总分
+  evaluateStatus?: string // 评估状态
   feedback?: string
   resumeId?: number
   resumeText?: string
@@ -127,7 +130,12 @@ export const useInterviewStore = defineStore('interview', () => {
     isLoading.value = true
     try {
       const res = await getInterviewList(params)
-      interviewList.value = res.list || res.data || []
+      const list = res.list || res.data || []
+      // 转换每个item的状态
+      interviewList.value = list.map((item: any) => ({
+        ...item,
+        status: mapStatus(item.status)
+      }))
       return interviewList.value
     } finally {
       isLoading.value = false
@@ -150,7 +158,10 @@ export const useInterviewStore = defineStore('interview', () => {
         questionCount: detail.totalQuestions,
         currentQuestionIndex: detail.currentQuestionIndex,
         resumeText: detail.resumeText,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        // 添加评估相关字段，用于轮询检查评估状态
+        overallScore: detail.overallScore,
+        evaluateStatus: detail.evaluateStatus
       }
       currentInterview.value = transformedDetail
       return transformedDetail
@@ -159,12 +170,20 @@ export const useInterviewStore = defineStore('interview', () => {
     }
   }
 
+  /**
+   * 获取面试评估状态（轻量级接口，用于轮询检查评估是否完成）
+   */
+  const fetchEvaluateStatus = async (id: string | number) => {
+    return await getEvaluateStatus(id)
+  }
+
   // 映射后端状态到前端状态
   const mapStatus = (status: string): Interview['status'] => {
     const statusMap: Record<string, Interview['status']> = {
       'CREATED': 'pending',
       'IN_PROGRESS': 'in_progress',
       'COMPLETED': 'completed',
+      'EVALUATED': 'completed',
       'CANCELLED': 'cancelled'
     }
     return statusMap[status] || 'pending'
@@ -211,9 +230,12 @@ export const useInterviewStore = defineStore('interview', () => {
   const fetchQuestions = async (interviewId: string | number) => {
     isLoading.value = true
     try {
-      const questionsData = await getInterviewQuestions(interviewId)
+      const detailData = await getInterviewQuestions(interviewId)
+      // /details 接口返回 InterviewDetailDTO，包含 answers 数组
+      // 使用 answers 数组来构建问题列表
+      const answers = detailData.answers || []
       // 转换后端数据格式为前端格式
-      const transformedQuestions: InterviewQuestion[] = (questionsData.questions || []).map((q: any) => ({
+      const transformedQuestions: InterviewQuestion[] = answers.map((q: any) => ({
         id: q.questionIndex,
         questionIndex: q.questionIndex,
         question: q.question,
@@ -240,7 +262,8 @@ export const useInterviewStore = defineStore('interview', () => {
   const submitQuestionAnswer = async (params: AnswerParams) => {
     isSubmitting.value = true
     try {
-      const result = await submitAnswer(params)
+      // 调用 API，正确传递参数
+      const result = await submitAnswer(params.interviewId, params.questionId, params.answer)
 
       // 更新本地问题状态
       const questionIndex = currentQuestions.value.findIndex(
@@ -397,6 +420,7 @@ export const useInterviewStore = defineStore('interview', () => {
     // Actions
     fetchInterviewList,
     fetchInterviewDetail,
+    fetchEvaluateStatus,
     createNewInterview,
     removeInterview,
     fetchQuestions,

@@ -77,9 +77,11 @@ public class AnswerEvaluationService {
             String qaRecords = buildQARecords(questions);
             
             // 简历摘要（限制长度）
-            String resumeSummary = resumeText.length() > 500 
-                ? resumeText.substring(0, 500) + "..." 
-                : resumeText;
+            String resumeSummary = (resumeText == null || resumeText.isEmpty())
+                ? "无简历信息"
+                : (resumeText.length() > 500
+                    ? resumeText.substring(0, 500) + "..."
+                    : resumeText);
             
             // 加载系统提示词
             String systemPrompt = systemPromptTemplate.render();

@@ -1,6 +1,7 @@
 package interview.guide.modules.resume.model;
 
 import interview.guide.common.model.AsyncTaskStatus;
+import interview.guide.modules.interview.model.InterviewSessionEntity;
 import java.time.LocalDateTime;
 
 /**
@@ -15,6 +16,7 @@ public record ResumeListItemDTO(
     Integer latestScore,
     LocalDateTime lastAnalyzedAt,
     Integer interviewCount,
-    AsyncTaskStatus analyzeStatus
+    AsyncTaskStatus analyzeStatus,
+    InterviewSessionEntity.SessionStatus interviewStatus
 ) {}
 

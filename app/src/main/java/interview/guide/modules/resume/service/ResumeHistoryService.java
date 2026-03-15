@@ -5,12 +5,14 @@ import interview.guide.common.exception.ErrorCode;
 import interview.guide.infrastructure.export.PdfExportService;
 import interview.guide.infrastructure.mapper.InterviewMapper;
 import interview.guide.infrastructure.mapper.ResumeMapper;
+import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.interview.model.ResumeAnalysisResponse;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
 import interview.guide.modules.resume.model.ResumeAnalysisEntity;
 import interview.guide.modules.resume.model.ResumeDetailDTO;
 import interview.guide.modules.resume.model.ResumeEntity;
 import interview.guide.modules.resume.model.ResumeListItemDTO;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -54,8 +56,13 @@ public class ResumeHistoryService {
                 lastAnalyzedAt = analysis.getAnalyzedAt();
             }
 
-            // 获取面试次数
-            int interviewCount = interviewPersistenceService.findByResumeId(resume.getId()).size();
+            // 获取面试次数和最新面试状态
+            List<InterviewSessionEntity> interviews = interviewPersistenceService.findByResumeId(resume.getId());
+            int interviewCount = interviews.size();
+            InterviewSessionEntity.SessionStatus interviewStatus = null;
+            if (!interviews.isEmpty()) {
+                interviewStatus = interviews.get(0).getStatus();
+            }
 
             // 使用 MapStruct 映射
             return new ResumeListItemDTO(
@@ -67,7 +74,8 @@ public class ResumeHistoryService {
                 latestScore,
                 lastAnalyzedAt,
                 interviewCount,
-                resume.getAnalyzeStatus()
+                resume.getAnalyzeStatus(),
+                interviewStatus
             );
         }).toList();
     }

@@ -5,25 +5,13 @@ import { uploadResume, reanalyzeResume, type UploadResumeResult } from '../../ap
 // 简历名称
 const resumeName = ref('')
 
-// 测试模式：自动选择文件
-onMounted(() => {
-  // #ifdef H5
-  // 开发测试用：自动填充测试文件
-  handleFileSelected({
-    name: '简历-开科版.pdf',
-    path: '/static/简历-开科版.pdf',
-    size: 572060,
-    originalFile: null
-  })
-  // #endif
-})
-
 // 选择的文件信息
 const selectedFile = ref<{
   name: string
   path: string
   size: number
   type: string
+  originalFile?: File
 } | null>(null)
 // 上传进度
 const uploadProgress = ref(0)
@@ -162,10 +150,16 @@ const handleUpload = async () => {
     const baseURL = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://api.interview-guide.com'
     const token = uni.getStorageSync('token')
 
-    // 从 static 文件夹获取测试简历文件并上传
-    const fileResponse = await fetch('/static/简历-开科版.pdf')
-    const fileBlob = await fileResponse.blob()
-    const file = new File([fileBlob], '简历-开科版.pdf', { type: 'application/pdf' })
+    // 使用用户选择的文件
+    const file = selectedFile.value?.originalFile
+
+    if (!file) {
+      uni.showToast({
+        title: '请先选择文件',
+        icon: 'none'
+      })
+      return
+    }
 
     const formData = new FormData()
     formData.append('file', file)

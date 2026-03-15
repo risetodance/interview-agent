@@ -14,9 +14,14 @@ import java.util.Optional;
 public interface ResumeRepository extends JpaRepository<ResumeEntity, Long> {
 
     /**
-     * 根据文件哈希查找简历（用于去重）
+     * 根据文件哈希查找简历（用于去重，全局）
      */
     Optional<ResumeEntity> findByFileHash(String fileHash);
+
+    /**
+     * 根据用户ID和文件哈希查找简历（用于去重，按用户）
+     */
+    Optional<ResumeEntity> findByUserIdAndFileHash(Long userId, String fileHash);
 
     /**
      * 检查文件哈希是否存在
