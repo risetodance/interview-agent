@@ -63,8 +63,7 @@
     {
       "path": "pages/interview/report",
       "style": {
-        "navigationBarTitleText": "面试评估报告",
-        "navigationStyle": "custom"
+        "navigationBarTitleText": "面试评估报告"
       }
     },
     {

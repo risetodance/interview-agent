@@ -55,11 +55,6 @@ const toggleQuestion = (index: number) => {
   }
 }
 
-// 返回列表页面
-const goBack = () => {
-  uni.navigateBack()
-}
-
 // 格式化日期
 const formatDate = (dateStr: string) => {
   if (!dateStr) return ''
@@ -87,15 +82,6 @@ const progressOffset = computed(() => {
 
 <template>
   <view class="report-page">
-    <!-- 顶部导航 -->
-    <view class="nav-header">
-      <view class="header-left" @click="goBack">
-        <text class="back-icon">‹</text>
-      </view>
-      <text class="nav-title">面试评估报告</text>
-      <view class="header-right"></view>
-    </view>
-
     <view v-if="loading" class="loading">
       <text>加载中...</text>
     </view>
@@ -238,36 +224,6 @@ $text-secondary: #909399;
   min-height: 100vh;
   background: #f5f7fa;
   overflow-x: hidden;
-}
-
-.nav-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20rpx 30rpx;
-  background: #fff;
-  border-bottom: 1rpx solid #eee;
-
-  .header-left {
-    width: 80rpx;
-
-    .back-icon {
-      font-size: 40rpx;
-      color: #333;
-    }
-  }
-
-  .nav-title {
-    font-size: 34rpx;
-    font-weight: 600;
-    color: $text-primary;
-    text-align: center;
-    flex: 1;
-  }
-
-  .header-right {
-    width: 80rpx;
-  }
 }
 
 .loading, .empty {

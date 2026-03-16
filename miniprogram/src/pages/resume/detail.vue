@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import {
   getResumeDetail,
   reanalyzeResume,
@@ -14,11 +14,20 @@ const loading = ref(false)
 const analyzing = ref(false)
 const polling = ref(false) // 正在轮询等待分析完成
 
+// 页面是否处于活动状态
+let pageActive = true
+
+// 页面卸载时停止轮询
+onBeforeUnmount(() => {
+  pageActive = false
+})
+
 // 从 URL 获取简历 ID
 const resumeId = ref<number>(0)
 
 // 页面加载时获取 ID 并加载数据
 onMounted(() => {
+  pageActive = true
   // 从页面参数获取简历 ID
   const pages = getCurrentPages()
   const currentPage = pages[pages.length - 1] as any
@@ -92,7 +101,17 @@ const pollAnalysisStatus = async () => {
   const intervalMs = 2000 // 每次间隔2秒
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (!pageActive) {
+      polling.value = false
+      return
+    }
+
     await new Promise(resolve => setTimeout(resolve, intervalMs))
+
+    if (!pageActive) {
+      polling.value = false
+      return
+    }
 
     try {
       // 获取最新状态
@@ -304,22 +323,10 @@ const formatAnalysisItem = (item: any): string => {
   }
   return String(item)
 }
-
-// 返回上一页
-const goBack = () => {
-  uni.navigateBack()
-}
 </script>
 
 <template>
   <view class="resume-detail-container">
-    <!-- 顶部导航 -->
-    <view class="nav-bar">
-      <text class="back-btn" @click="goBack">返回</text>
-      <text class="title">简历详情</text>
-      <text class="action-btn" @click="handleShare">分享</text>
-    </view>
-
     <!-- 加载中 -->
     <view v-if="loading" class="loading">
       <text>加载中...</text>

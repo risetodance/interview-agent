@@ -273,18 +273,18 @@ onShow(() => {
           </view>
           <view class="action-btns">
             <view
-              v-if="item.status !== 'completed'"
-              class="action-btn start"
-              @click="goToSession(item)"
-            >
-              {{ item.status === 'pending' ? '开始面试' : '继续面试' }}
-            </view>
-            <view
-              v-else
+              v-if="item.status === 'completed' && item.score !== undefined && item.score !== null"
               class="action-btn view"
               @click="goToReport(item)"
             >
               查看报告
+            </view>
+            <view
+              v-else-if="item.status !== 'completed'"
+              class="action-btn start"
+              @click="goToSession(item)"
+            >
+              {{ item.status === 'pending' ? '开始面试' : '继续面试' }}
             </view>
             <view
               class="action-btn delete"

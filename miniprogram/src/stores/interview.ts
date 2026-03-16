@@ -373,10 +373,11 @@ export const useInterviewStore = defineStore('interview', () => {
 
     wsManager.on(WebSocketMessageType.INTERVIEW_COMPLETE, (data) => {
       // 面试完成
-      if (currentInterview.value?.id === data.interviewId) {
-        currentInterview.value.status = 'completed'
-        currentInterview.value.score = data.score
-        currentInterview.value.feedback = data.feedback
+      const interview = currentInterview.value
+      if (interview && interview.id === data.interviewId) {
+        interview.status = 'completed'
+        interview.score = data.score
+        interview.feedback = data.feedback
       }
     })
   }

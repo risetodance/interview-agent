@@ -508,8 +508,8 @@ const goBack = () => {
 }
 
 .progress-section {
-  margin: 0 30rpx 30rpx;
   padding: 30rpx;
+  margin: 0 30rpx 30rpx;
   background-color: #fff;
   border-radius: 16rpx;
 }
@@ -534,6 +534,7 @@ const goBack = () => {
 
 .progress-bar {
   height: 12rpx;
+  width: 100%;
   background-color: #f5f5f5;
   border-radius: 6rpx;
   overflow: hidden;
