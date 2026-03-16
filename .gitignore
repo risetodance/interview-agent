@@ -1,0 +1,15 @@
+# Ignore Gradle project-specific cache directory
+.gradle
+
+# Ignore Gradle build output directory
+build
+/.claude
+/.idea
+/app/bin
+# Environment variables
+.env
+# IDEA code analysis
+qodana.yaml
+
+app/src/main/resources/application-dev.yml
+/docs
