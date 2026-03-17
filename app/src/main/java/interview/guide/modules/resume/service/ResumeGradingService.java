@@ -1,5 +1,6 @@
 package interview.guide.modules.resume.service;
 
+import interview.guide.common.ai.StructuredOutputInvoker;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import interview.guide.common.exception.BusinessException;
@@ -11,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -36,13 +38,45 @@ public class ResumeGradingService {
     private final PromptTemplate userPromptTemplate;
     private final ObjectMapper objectMapper;
 
+    private final BeanOutputConverter<ResumeAnalysisResponseDTO> outputConverter;
+    private final StructuredOutputInvoker structuredOutputInvoker;
+
+    // 中间DTO用于接收AI响应
+    private record ResumeAnalysisResponseDTO(
+        int overallScore,
+        ScoreDetailDTO scoreDetail,
+        String summary,
+        List<String> strengths,
+        // 匹配的岗位列表
+        List<String> matchedPositions,
+        List<SuggestionDTO> suggestions
+    ) {}
+
+    private record ScoreDetailDTO(
+        int contentScore,
+        int structureScore,
+        int skillMatchScore,
+        int expressionScore,
+        int projectScore
+    ) {}
+
+    private record SuggestionDTO(
+        String category,
+        String priority,
+        String issue,
+        String recommendation
+    ) {}
+
     public ResumeGradingService(
             ChatClient.Builder chatClientBuilder,
+            StructuredOutputInvoker structuredOutputInvoker,
             @Value("classpath:prompts/resume-analysis-system.st") Resource systemPromptResource,
             @Value("classpath:prompts/resume-analysis-user.st") Resource userPromptResource) throws IOException {
         this.chatClient = chatClientBuilder.build();
+        this.structuredOutputInvoker = structuredOutputInvoker;
         this.systemPromptTemplate = new PromptTemplate(systemPromptResource.getContentAsString(StandardCharsets.UTF_8));
         this.userPromptTemplate = new PromptTemplate(userPromptResource.getContentAsString(StandardCharsets.UTF_8));
+        this.outputConverter = new BeanOutputConverter<>(ResumeAnalysisResponseDTO.class);
         this.objectMapper = new ObjectMapper();
     }
 
@@ -64,26 +98,30 @@ public class ResumeGradingService {
             variables.put("resumeText", resumeText);
             String userPrompt = userPromptTemplate.render(variables);
 
-            // JSON格式指令
-            String jsonFormat = """
-                请严格按照以下JSON格式返回，不要包含任何其他内容：
-                {"overallScore": 0-100的整数, "scoreDetail": {"contentScore": 0-100, "structureScore": 0-100, "skillMatchScore": 0-100, "expressionScore": 0-100, "projectScore": 0-100}, "summary": "摘要内容", "strengths": ["优势1", "优势2"], "suggestions": [{"category": "类别", "priority": "优先级", "issue": "问题描述", "recommendation": "建议内容"}], "matchedPositions": ["岗位1", "岗位2"]}
-                """;
+            // 添加格式指令到系统提示词
+            String systemPromptWithFormat = systemPrompt + "\n\n" + outputConverter.getFormat();
 
-            // 调用AI，获取原始字符串响应
-            String aiResponse;
+            // 调用AI
+            ResumeAnalysisResponseDTO dto;
             try {
-                // 构建完整的prompt
-                String fullPrompt = systemPrompt + "\n\n" + jsonFormat + "\n\n" + userPrompt;
-                aiResponse = chatClient.prompt(fullPrompt).call().content();
-                log.debug("AI原始响应: {}", aiResponse);
+                dto = structuredOutputInvoker.invoke(
+                    chatClient,
+                    systemPromptWithFormat,
+                    userPrompt,
+                    outputConverter,
+                    ErrorCode.RESUME_ANALYSIS_FAILED,
+                    "简历分析失败：",
+                    "简历分析",
+                    log
+                );
+                log.debug("AI响应解析成功: overallScore={}", dto.overallScore());
             } catch (Exception e) {
                 log.error("简历分析AI调用失败: {}", e.getMessage(), e);
                 throw new BusinessException(ErrorCode.RESUME_ANALYSIS_FAILED, "简历分析失败：" + e.getMessage());
             }
 
-            // 手动解析JSON响应
-            ResumeAnalysisResponse result = parseAiResponse(aiResponse, resumeText);
+            // 转换为业务对象
+            ResumeAnalysisResponse result = convertToResponse(dto, resumeText);
             log.info("简历分析完成，总分: {}", result.overallScore());
 
             return result;
@@ -93,65 +131,36 @@ public class ResumeGradingService {
             return createErrorResponse(resumeText, e.getMessage());
         }
     }
-    
+
+
+
     /**
-     * 解析AI响应为业务对象
+     * 转换DTO为业务对象
      */
-    private ResumeAnalysisResponse parseAiResponse(String aiResponse, String originalText) {
-        // 提取并尝试修复JSON
-        String jsonStr = extractJson(aiResponse);
-        JsonNode root;
+    private ResumeAnalysisResponse convertToResponse(ResumeAnalysisResponseDTO dto, String originalText) {
+        ScoreDetail scoreDetail = new ScoreDetail(
+                dto.scoreDetail().contentScore(),
+                dto.scoreDetail().structureScore(),
+                dto.scoreDetail().skillMatchScore(),
+                dto.scoreDetail().expressionScore(),
+                dto.scoreDetail().projectScore()
+        );
 
-        try {
-            root = objectMapper.readTree(jsonStr);
-        } catch (Exception e) {
-            log.warn("JSON解析失败，尝试修复: {}", e.getMessage());
-            // 尝试修复常见的JSON问题
-            jsonStr = fixJson(jsonStr);
-            try {
-                root = objectMapper.readTree(jsonStr);
-            } catch (Exception ex) {
-                // 修复也失败，使用默认响应
-                log.error("JSON修复失败，使用默认响应: {}", ex.getMessage());
-                return createDefaultResponse(originalText);
-            }
-        }
+        List<Suggestion> suggestions = dto.suggestions().stream()
+                .map(s -> new Suggestion(s.category(), s.priority(), s.issue(), s.recommendation()))
+                .toList();
 
-        try {
-            // 提取各项数据
-            int overallScore = root.has("overallScore") ? root.get("overallScore").asInt() : 0;
-
-            // 提取分数详情
-            int contentScore = 0, structureScore = 0, skillMatchScore = 0, expressionScore = 0, projectScore = 0;
-            if (root.has("scoreDetail") && root.get("scoreDetail").isObject()) {
-                JsonNode sd = root.get("scoreDetail");
-                contentScore = safeGetInt(sd, "contentScore");
-                structureScore = safeGetInt(sd, "structureScore");
-                skillMatchScore = safeGetInt(sd, "skillMatchScore");
-                expressionScore = safeGetInt(sd, "expressionScore");
-                projectScore = safeGetInt(sd, "projectScore");
-            }
-            ScoreDetail scoreDetail = new ScoreDetail(contentScore, structureScore, skillMatchScore, expressionScore, projectScore);
-
-            // 提取summary
-            String summary = root.has("summary") ? root.get("summary").asText("") : "";
-
-            // 提取strengths
-            List<String> strengths = safeGetStringList(root, "strengths");
-
-            // 提取suggestions
-            List<Suggestion> suggestions = safeGetSuggestions(root);
-
-            // 提取matchedPositions
-            List<String> matchedPositions = safeGetStringList(root, "matchedPositions");
-
-            return new ResumeAnalysisResponse(overallScore, scoreDetail, summary, strengths, suggestions, matchedPositions, originalText);
-
-        } catch (Exception e) {
-            log.error("解析AI响应字段失败，使用默认响应: {}", e.getMessage());
-            return createDefaultResponse(originalText);
-        }
+        return new ResumeAnalysisResponse(
+                dto.overallScore(),
+                scoreDetail,
+                dto.summary(),
+                dto.strengths(),
+                suggestions,
+                dto.matchedPositions(),
+                originalText
+        );
     }
+
 
     /**
      * 安全获取整数

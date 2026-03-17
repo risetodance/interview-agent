@@ -1,10 +1,10 @@
 package interview.guide.modules.interview.listener;
 
+import interview.guide.common.async.AbstractStreamProducer;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
 import interview.guide.common.model.AsyncTaskStatus;
 import interview.guide.infrastructure.redis.RedisService;
 import interview.guide.modules.interview.repository.InterviewSessionRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -16,11 +16,14 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
-public class EvaluateStreamProducer {
+public class EvaluateStreamProducer extends AbstractStreamProducer<String> {
 
-    private final RedisService redisService;
     private final InterviewSessionRepository sessionRepository;
+
+    public EvaluateStreamProducer(RedisService redisService, InterviewSessionRepository sessionRepository) {
+        super(redisService);
+        this.sessionRepository = sessionRepository;
+    }
 
     /**
      * 发送评估任务到 Redis Stream
@@ -28,23 +31,35 @@ public class EvaluateStreamProducer {
      * @param sessionId 面试会话ID
      */
     public void sendEvaluateTask(String sessionId) {
-        try {
-            Map<String, String> message = Map.of(
-                AsyncTaskStreamConstants.FIELD_SESSION_ID, sessionId,
-                AsyncTaskStreamConstants.FIELD_RETRY_COUNT, "0"
-            );
+        sendTask(sessionId);
+    }
 
-            String messageId = redisService.streamAdd(
-                AsyncTaskStreamConstants.INTERVIEW_EVALUATE_STREAM_KEY,
-                message,
-                AsyncTaskStreamConstants.STREAM_MAX_LEN
-            );
+    @Override
+    protected String taskDisplayName() {
+        return "评估";
+    }
 
-            log.info("评估任务已发送到Stream: sessionId={}, messageId={}", sessionId, messageId);
-        } catch (Exception e) {
-            log.error("发送评估任务失败: sessionId={}, error={}", sessionId, e.getMessage(), e);
-            updateEvaluateStatus(sessionId, AsyncTaskStatus.FAILED, "任务入队失败: " + e.getMessage());
-        }
+    @Override
+    protected String streamKey() {
+        return AsyncTaskStreamConstants.INTERVIEW_EVALUATE_STREAM_KEY;
+    }
+
+    @Override
+    protected Map<String, String> buildMessage(String sessionId) {
+        return Map.of(
+            AsyncTaskStreamConstants.FIELD_SESSION_ID, sessionId,
+            AsyncTaskStreamConstants.FIELD_RETRY_COUNT, "0"
+        );
+    }
+
+    @Override
+    protected String payloadIdentifier(String sessionId) {
+        return "sessionId=" + sessionId;
+    }
+
+    @Override
+    protected void onSendFailed(String sessionId, String error) {
+        updateEvaluateStatus(sessionId, AsyncTaskStatus.FAILED, truncateError(error));
     }
 
     /**

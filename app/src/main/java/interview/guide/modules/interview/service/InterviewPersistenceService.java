@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
@@ -153,16 +154,22 @@ public class InterviewPersistenceService {
         if (sessionOpt.isEmpty()) {
             throw new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND);
         }
-        
-        InterviewAnswerEntity answer = new InterviewAnswerEntity();
-        answer.setSession(sessionOpt.get());
-        answer.setQuestionIndex(questionIndex);
+
+        InterviewAnswerEntity answer = answerRepository
+            .findBySession_SessionIdAndQuestionIndex(sessionId, questionIndex)
+            .orElseGet(() -> {
+                InterviewAnswerEntity created = new InterviewAnswerEntity();
+                created.setSession(sessionOpt.get());
+                created.setQuestionIndex(questionIndex);
+                return created;
+            });
+
         answer.setQuestion(question);
         answer.setCategory(category);
         answer.setUserAnswer(userAnswer);
         answer.setScore(score);
         answer.setFeedback(feedback);
-        
+
         InterviewAnswerEntity saved = answerRepository.save(answer);
         log.info("面试答案已保存: sessionId={}, questionIndex={}, score={}", 
                 sessionId, questionIndex, score);
@@ -194,7 +201,7 @@ public class InterviewPersistenceService {
             sessionRepository.save(session);
 
             // 查询已存在的答案，建立索引
-            List<InterviewAnswerEntity> existingAnswers = answerRepository.findBySessionSessionIdOrderByQuestionIndex(sessionId);
+            List<InterviewAnswerEntity> existingAnswers = answerRepository.findBySession_SessionIdOrderByQuestionIndex(sessionId);
             java.util.Map<Integer, InterviewAnswerEntity> answerMap = existingAnswers.stream()
                 .collect(java.util.stream.Collectors.toMap(
                     InterviewAnswerEntity::getQuestionIndex,
@@ -318,6 +325,34 @@ public class InterviewPersistenceService {
      * 根据会话ID查找所有答案
      */
     public List<InterviewAnswerEntity> findAnswersBySessionId(String sessionId) {
-        return answerRepository.findBySessionSessionIdOrderByQuestionIndex(sessionId);
+        return answerRepository.findBySession_SessionIdOrderByQuestionIndex(sessionId);
+    }
+
+    /**
+     * 获取简历的历史提问列表（限制最近的 N 条）
+     */
+    public List<String> getHistoricalQuestionsByResumeId(Long resumeId) {
+        // 只查询最近的 10 个会话，避免加载过多历史数据
+        List<InterviewSessionEntity> sessions = sessionRepository.findTop10ByResumeIdOrderByCreatedAtDesc(resumeId);
+        
+        return sessions.stream()
+            .map(InterviewSessionEntity::getQuestionsJson)
+            .filter(json -> json != null && !json.isEmpty())
+            .flatMap(json -> {
+                try {
+                    List<InterviewQuestionDTO> questions = objectMapper.readValue(json, 
+                        new TypeReference<List<InterviewQuestionDTO>>() {});
+                    // 过滤掉追问，只保留主问题作为历史参考
+                    return questions.stream()
+                        .filter(q -> !q.isFollowUp())
+                        .map(InterviewQuestionDTO::question);
+                } catch (Exception e) {
+                    log.error("解析历史问题JSON失败", e);
+                    return java.util.stream.Stream.empty();
+                }
+            })
+            .distinct()
+            .limit(30) // 核心改动：只保留最近的 30 道题
+            .toList();
     }
 }

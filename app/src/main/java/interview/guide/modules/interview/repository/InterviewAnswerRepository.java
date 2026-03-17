@@ -3,11 +3,10 @@ package interview.guide.modules.interview.repository;
 import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 面试答案Repository
@@ -28,6 +27,10 @@ public interface InterviewAnswerRepository extends JpaRepository<InterviewAnswer
     /**
      * 根据会话 sessionId 字符串查找所有答案
      */
-    @Query("SELECT a FROM InterviewAnswerEntity a WHERE a.session.sessionId = :sessionId ORDER BY a.questionIndex")
-    List<InterviewAnswerEntity> findBySessionSessionIdOrderByQuestionIndex(@Param("sessionId") String sessionId);
+    List<InterviewAnswerEntity> findBySession_SessionIdOrderByQuestionIndex(String sessionId);
+
+    /**
+     * 根据会话 sessionId 和问题索引查找单条答案（用于 upsert）
+     */
+    Optional<InterviewAnswerEntity> findBySession_SessionIdAndQuestionIndex(String sessionId, Integer questionIndex);
 }

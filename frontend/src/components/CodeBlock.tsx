@@ -1,7 +1,11 @@
-import { useState } from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { useState, lazy, Suspense } from 'react';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Check, Copy } from 'lucide-react';
+
+// Lazy load SyntaxHighlighter
+const SyntaxHighlighter = lazy(() =>
+  import('react-syntax-highlighter/dist/esm/prism').then(module => ({ default: module.default }))
+);
 
 interface CodeBlockProps {
   language?: string;
@@ -51,23 +55,29 @@ export default function CodeBlock({ language, children }: CodeBlockProps) {
       </div>
 
       {/* 代码内容 */}
-      <SyntaxHighlighter
-        language={language || 'text'}
-        style={oneDark}
-        customStyle={{
-          margin: 0,
-          borderTopLeftRadius: 0,
-          borderTopRightRadius: 0,
-          borderBottomLeftRadius: '0.75rem',
-          borderBottomRightRadius: '0.75rem',
-          fontSize: '0.875rem',
-          lineHeight: '1.5',
-        }}
-        showLineNumbers={code.split('\n').length > 3}
-        wrapLines
-      >
-        {code}
-      </SyntaxHighlighter>
+      <div className="bg-[#282c34] rounded-b-xl text-sm leading-6">
+        <Suspense fallback={
+          <div className="p-4 text-slate-400 font-mono text-xs">Loading code...</div>
+        }>
+          <SyntaxHighlighter
+            language={language || 'text'}
+            style={oneDark}
+            customStyle={{
+              margin: 0,
+              borderTopLeftRadius: 0,
+              borderTopRightRadius: 0,
+              borderBottomLeftRadius: '0.75rem',
+              borderBottomRightRadius: '0.75rem',
+              fontSize: '0.875rem',
+              lineHeight: '1.5',
+            }}
+            showLineNumbers={code.split('\n').length > 3}
+            wrapLines
+          >
+            {code}
+          </SyntaxHighlighter>
+        </Suspense>
+      </div>
     </div>
   );
 }

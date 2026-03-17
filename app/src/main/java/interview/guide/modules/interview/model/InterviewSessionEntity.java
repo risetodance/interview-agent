@@ -12,7 +12,10 @@ import java.util.List;
  * 面试会话实体
  */
 @Entity
-@Table(name = "interview_sessions")
+@Table(name = "interview_sessions", indexes = {
+    @Index(name = "idx_interview_session_resume_created", columnList = "resume_id,created_at"),
+    @Index(name = "idx_interview_session_resume_status_created", columnList = "resume_id,status,created_at")
+})
 public class InterviewSessionEntity {
     
     @Id

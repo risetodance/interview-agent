@@ -1,24 +1,16 @@
 package interview.guide.modules.knowledgebase.listener;
 
+import interview.guide.common.async.AbstractStreamConsumer;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
 import interview.guide.infrastructure.redis.RedisService;
 import interview.guide.modules.knowledgebase.model.VectorStatus;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
-import interview.guide.modules.notification.enums.NotificationType;
-import interview.guide.modules.notification.service.NotificationSenderService;
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.stream.StreamMessageId;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 知识库向量化 Stream 消费者
@@ -26,139 +18,88 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
-public class VectorizeStreamConsumer {
+public class VectorizeStreamConsumer extends AbstractStreamConsumer<VectorizeStreamConsumer.VectorizePayload> {
 
-    private final RedisService redisService;
     private final KnowledgeBaseVectorService vectorService;
     private final KnowledgeBaseRepository knowledgeBaseRepository;
-    private final NotificationSenderService notificationSenderService;
 
-    private final AtomicBoolean running = new AtomicBoolean(false);
-    private ExecutorService executorService;
-    private String consumerName;
-
-    @PostConstruct
-    public void init() {
-        // 生成唯一的消费者名称（支持多实例部署）
-        this.consumerName = AsyncTaskStreamConstants.KB_VECTORIZE_CONSUMER_PREFIX + UUID.randomUUID().toString().substring(0, 8);
-
-        // 创建消费者组（如果不存在）
-        try {
-            redisService.createStreamGroup(
-                AsyncTaskStreamConstants.KB_VECTORIZE_STREAM_KEY,
-                AsyncTaskStreamConstants.KB_VECTORIZE_GROUP_NAME
-            );
-            log.info("Redis Stream 消费者组已创建或已存在: {}", AsyncTaskStreamConstants.KB_VECTORIZE_GROUP_NAME);
-        } catch (Exception e) {
-            log.warn("创建消费者组时发生异常（可能已存在）: {}", e.getMessage());
-        }
-
-        // 启动消费者线程
-        this.executorService = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "vectorize-consumer");
-            t.setDaemon(true);
-            return t;
-        });
-
-        running.set(true);
-        executorService.submit(this::consumeLoop);
-
-        log.info("向量化消费者已启动: consumerName={}", consumerName);
+    public VectorizeStreamConsumer(
+        RedisService redisService,
+        KnowledgeBaseVectorService vectorService,
+        KnowledgeBaseRepository knowledgeBaseRepository
+    ) {
+        super(redisService);
+        this.vectorService = vectorService;
+        this.knowledgeBaseRepository = knowledgeBaseRepository;
     }
 
-    @PreDestroy
-    public void shutdown() {
-        running.set(false);
-        if (executorService != null) {
-            executorService.shutdown();
-        }
-        log.info("向量化消费者已关闭: consumerName={}", consumerName);
+    record VectorizePayload(Long kbId, String content) {}
+
+    @Override
+    protected String taskDisplayName() {
+        return "向量化";
     }
 
-    /**
-     * 消费循环
-     */
-    private void consumeLoop() {
-        while (running.get()) {
-            try {
-                redisService.streamConsumeMessages(
-                    AsyncTaskStreamConstants.KB_VECTORIZE_STREAM_KEY,
-                    AsyncTaskStreamConstants.KB_VECTORIZE_GROUP_NAME,
-                    consumerName,
-                    AsyncTaskStreamConstants.BATCH_SIZE,
-                    AsyncTaskStreamConstants.POLL_INTERVAL_MS,
-                    this::processMessage
-                );
-            } catch (Exception e) {
-                if (Thread.currentThread().isInterrupted()) {
-                    log.info("消费者线程被中断");
-                    break;
-                }
-                log.error("消费消息时发生错误: {}", e.getMessage(), e);
-            }
-        }
+    @Override
+    protected String streamKey() {
+        return AsyncTaskStreamConstants.KB_VECTORIZE_STREAM_KEY;
     }
 
-    /**
-     * 处理单条消息
-     */
-    private void processMessage(StreamMessageId messageId, Map<String, String> data) {
+    @Override
+    protected String groupName() {
+        return AsyncTaskStreamConstants.KB_VECTORIZE_GROUP_NAME;
+    }
+
+    @Override
+    protected String consumerPrefix() {
+        return AsyncTaskStreamConstants.KB_VECTORIZE_CONSUMER_PREFIX;
+    }
+
+    @Override
+    protected String threadName() {
+        return "vectorize-consumer";
+    }
+
+    @Override
+    protected VectorizePayload parsePayload(StreamMessageId messageId, Map<String, String> data) {
         String kbIdStr = data.get(AsyncTaskStreamConstants.FIELD_KB_ID);
         String content = data.get(AsyncTaskStreamConstants.FIELD_CONTENT);
-        String retryCountStr = data.getOrDefault(AsyncTaskStreamConstants.FIELD_RETRY_COUNT, "0");
-
         if (kbIdStr == null || content == null) {
             log.warn("消息格式错误，跳过: messageId={}", messageId);
-            ackMessage(messageId);
-            return;
+            return null;
         }
-
-        Long kbId = Long.parseLong(kbIdStr);
-        int retryCount = Integer.parseInt(retryCountStr);
-
-        log.info("开始处理向量化任务: kbId={}, messageId={}, retryCount={}", kbId, messageId, retryCount);
-
-        try {
-            // 1. 更新状态为 PROCESSING
-            updateVectorStatus(kbId, VectorStatus.PROCESSING, null);
-
-            // 2. 执行向量化
-            vectorService.vectorizeAndStore(kbId, content);
-
-            // 3. 更新状态为 COMPLETED
-            updateVectorStatus(kbId, VectorStatus.COMPLETED, null);
-
-            // 4. 发送通知
-            sendNotification(kbId);
-
-            // 5. 确认消息
-            ackMessage(messageId);
-
-            log.info("向量化任务完成: kbId={}", kbId);
-
-        } catch (Exception e) {
-            log.error("向量化任务失败: kbId={}, error={}", kbId, e.getMessage(), e);
-
-            // 判断是否需要重试
-            if (retryCount < AsyncTaskStreamConstants.MAX_RETRY_COUNT) {
-                // 重新入队（增加重试计数）
-                retryMessage(kbId, content, retryCount + 1);
-            } else {
-                // 超过最大重试次数，标记为失败
-                String errorMsg = truncateError("向量化失败(已重试" + retryCount + "次): " + e.getMessage());
-                updateVectorStatus(kbId, VectorStatus.FAILED, errorMsg);
-            }
-
-            // 确认原消息（无论成功失败都要确认，否则会重复消费）
-            ackMessage(messageId);
-        }
+        return new VectorizePayload(Long.parseLong(kbIdStr), content);
     }
 
-    /**
-     * 重试消息（重新发送到 Stream）
-     */
-    private void retryMessage(Long kbId, String content, int retryCount) {
+    @Override
+    protected String payloadIdentifier(VectorizePayload payload) {
+        return "kbId=" + payload.kbId();
+    }
+
+    @Override
+    protected void markProcessing(VectorizePayload payload) {
+        updateVectorStatus(payload.kbId(), VectorStatus.PROCESSING, null);
+    }
+
+    @Override
+    protected void processBusiness(VectorizePayload payload) {
+        vectorService.vectorizeAndStore(payload.kbId(), payload.content());
+    }
+
+    @Override
+    protected void markCompleted(VectorizePayload payload) {
+        updateVectorStatus(payload.kbId(), VectorStatus.COMPLETED, null);
+    }
+
+    @Override
+    protected void markFailed(VectorizePayload payload, String error) {
+        updateVectorStatus(payload.kbId(), VectorStatus.FAILED, error);
+    }
+
+    @Override
+    protected void retryMessage(VectorizePayload payload, int retryCount) {
+        Long kbId = payload.kbId();
+        String content = payload.content();
         try {
             Map<String, String> message = Map.of(
                 AsyncTaskStreamConstants.FIELD_KB_ID, kbId.toString(),
@@ -166,7 +107,7 @@ public class VectorizeStreamConsumer {
                 AsyncTaskStreamConstants.FIELD_RETRY_COUNT, String.valueOf(retryCount)
             );
 
-            redisService.streamAdd(
+            redisService().streamAdd(
                 AsyncTaskStreamConstants.KB_VECTORIZE_STREAM_KEY,
                 message,
                 AsyncTaskStreamConstants.STREAM_MAX_LEN
@@ -176,21 +117,6 @@ public class VectorizeStreamConsumer {
         } catch (Exception e) {
             log.error("重试入队失败: kbId={}, error={}", kbId, e.getMessage(), e);
             updateVectorStatus(kbId, VectorStatus.FAILED, truncateError("重试入队失败: " + e.getMessage()));
-        }
-    }
-
-    /**
-     * 确认消息
-     */
-    private void ackMessage(StreamMessageId messageId) {
-        try {
-            redisService.streamAck(
-                AsyncTaskStreamConstants.KB_VECTORIZE_STREAM_KEY,
-                AsyncTaskStreamConstants.KB_VECTORIZE_GROUP_NAME,
-                messageId
-            );
-        } catch (Exception e) {
-            log.error("确认消息失败: messageId={}, error={}", messageId, e.getMessage(), e);
         }
     }
 
@@ -210,36 +136,4 @@ public class VectorizeStreamConsumer {
         }
     }
 
-    /**
-     * 截断错误信息，避免超过数据库字段长度
-     */
-    private String truncateError(String error) {
-        if (error == null) return null;
-        return error.length() > 500 ? error.substring(0, 500) : error;
-    }
-
-    /**
-     * 发送知识库向量化完成通知
-     */
-    private void sendNotification(Long kbId) {
-        try {
-            knowledgeBaseRepository.findById(kbId).ifPresent(kb -> {
-                Long userId = kb.getUserId();
-                String kbName = kb.getName();
-                String title = "知识库处理完成";
-                String content = String.format("您的知识库「%s」已处理完成，现在可以在面试中使用。", kbName);
-                notificationSenderService.sendInAppNotification(
-                    userId,
-                    NotificationType.KB_COMPLETE,
-                    title,
-                    content,
-                    kbId,
-                    "KNOWLEDGEBASE"
-                );
-                log.info("知识库向量化完成通知已发送: kbId={}, userId={}", kbId, userId);
-            });
-        } catch (Exception e) {
-            log.error("发送知识库向量化完成通知失败: kbId={}, error={}", kbId, e.getMessage(), e);
-        }
-    }
 }

@@ -36,6 +36,7 @@
 - `type` 字段仅限上述 8 种枚举值
 - 每道题目必须具有区分度，避免过于简单或过于偏门
 - 项目类问题必须结合简历中的具体项目描述
+- 每个主问题都必须提供追问，写入 `followUps` 字段（数组）
 
 # Output Format
 请直接输出一个 JSON 对象，不要包含 Markdown 代码块标签（如 ```json ）。
@@ -45,5 +46,6 @@ JSON 结构必须严格包含以下字段：
   - question: 字符串，面试问题内容（必须是完整的问句）
   - type: 字符串，问题类型（必须是 PROJECT, JAVA_BASIC, JAVA_COLLECTION, JAVA_CONCURRENT, MYSQL, REDIS, SPRING, SPRING_BOOT 之一）
   - category: 字符串，细分类别（如：Redis - 分布式锁、Java并发 - 线程池）
+  - followUps: 字符串数组，当前主问题的追问列表（每条都必须是完整问句）
 
 注意：只需要返回问题列表，不需要包含 questionIndex、referenceAnswer、keyPoints、userAnswer、score、feedback 等字段。

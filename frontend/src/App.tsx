@@ -1,13 +1,6 @@
-import {BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams} from 'react-router-dom';
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import Layout from './components/Layout';
-import UploadPage from './pages/UploadPage';
-import HistoryList from './pages/HistoryPage';
-import ResumeDetailPage from './pages/ResumeDetailPage';
-import Interview from './pages/InterviewPage';
-import InterviewHistoryPage from './pages/InterviewHistoryPage';
-import KnowledgeBaseQueryPage from './pages/KnowledgeBaseQueryPage';
-import KnowledgeBaseUploadPage from './pages/KnowledgeBaseUploadPage';
-import KnowledgeBaseManagePage from './pages/KnowledgeBaseManagePage';
+import { useEffect, useState, Suspense, lazy } from 'react';
 import PublicKnowledgeBasePage from './pages/PublicKnowledgeBasePage';
 import ProfilePage from './pages/profile/ProfilePage';
 import LoginPage from './pages/auth/LoginPage';
@@ -26,9 +19,8 @@ import DashboardPage from './pages/admin/DashboardPage';
 import UserManagementPage from './pages/admin/UserManagementPage';
 import SystemConfigPage from './pages/admin/SystemConfigPage';
 import AuditLogPage from './pages/admin/AuditLogPage';
-import {historyApi} from './api/history';
-import {useEffect, useState} from 'react';
-import type {UploadKnowledgeBaseResponse} from './api/knowledgebase';
+import { historyApi } from './api/history';
+import type { UploadKnowledgeBaseResponse } from './api/knowledgebase';
 import {UserProvider, useUser} from './store/user';
 
 // 通用登录路由守卫（用于需要登录才能访问的页面）
@@ -69,6 +61,23 @@ function AdminRouteGuard() {
   );
 }
 
+// Lazy load components
+const UploadPage = lazy(() => import('./pages/UploadPage'));
+const HistoryList = lazy(() => import('./pages/HistoryPage'));
+const ResumeDetailPage = lazy(() => import('./pages/ResumeDetailPage'));
+const Interview = lazy(() => import('./pages/InterviewPage'));
+const InterviewHistoryPage = lazy(() => import('./pages/InterviewHistoryPage'));
+const KnowledgeBaseQueryPage = lazy(() => import('./pages/KnowledgeBaseQueryPage'));
+const KnowledgeBaseUploadPage = lazy(() => import('./pages/KnowledgeBaseUploadPage'));
+const KnowledgeBaseManagePage = lazy(() => import('./pages/KnowledgeBaseManagePage'));
+
+// Loading component
+const Loading = () => (
+  <div className="flex items-center justify-center min-h-[50vh]">
+    <div className="w-10 h-10 border-3 border-slate-200 border-t-primary-500 rounded-full animate-spin" />
+  </div>
+);
+
 // 上传页面包装器
 function UploadPageWrapper() {
   const navigate = useNavigate();
@@ -84,11 +93,11 @@ function UploadPageWrapper() {
 // 历史记录列表包装器
 function HistoryListWrapper() {
   const navigate = useNavigate();
-  
+
   const handleSelectResume = (id: number) => {
     navigate(`/history/${id}`);
   };
-  
+
   return <HistoryList onSelectResume={handleSelectResume} />;
 }
 
@@ -96,19 +105,19 @@ function HistoryListWrapper() {
 function ResumeDetailWrapper() {
   const { resumeId } = useParams<{ resumeId: string }>();
   const navigate = useNavigate();
-  
+
   if (!resumeId) {
     return <Navigate to="/history" replace />;
   }
-  
+
   const handleBack = () => {
     navigate('/history');
   };
-  
+
   const handleStartInterview = (resumeText: string, resumeId: number) => {
     navigate(`/interview/${resumeId}`, { state: { resumeText } });
   };
-  
+
   return (
     <ResumeDetailPage
       resumeId={parseInt(resumeId, 10)}
@@ -187,6 +196,7 @@ function App() {
   return (
     <UserProvider>
       <BrowserRouter>
+        <Suspense fallback={<Loading />}>
         <Routes>
           {/* 登录注册页面（不需要Layout） */}
           <Route path="/login" element={<LoginPage />} />
@@ -250,7 +260,7 @@ function App() {
             <Route path="config" element={<SystemConfigPage />} />
             <Route path="audit-logs" element={<AuditLogPage />} />
           </Route>
-        </Routes>
+        </Routes></Suspense>
     </BrowserRouter>
     </UserProvider>
   );
@@ -259,16 +269,16 @@ function App() {
 // 面试记录页面包装器
 function InterviewHistoryWrapper() {
   const navigate = useNavigate();
-  
+
   const handleBack = () => {
     navigate('/upload');
   };
-  
+
   const handleViewInterview = async (sessionId: string, resumeId?: number) => {
     if (resumeId) {
       // 如果有简历ID，跳转到简历详情页的面试详情
-      navigate(`/history/${resumeId}`, { 
-        state: { viewInterview: sessionId } 
+      navigate(`/history/${resumeId}`, {
+        state: { viewInterview: sessionId }
       });
     } else {
       // 否则尝试从面试详情中获取简历ID
@@ -282,7 +292,7 @@ function InterviewHistoryWrapper() {
       }
     }
   };
-  
+
   return <InterviewHistoryPage onBack={handleBack} onViewInterview={handleViewInterview} />;
 }
 
@@ -306,7 +316,7 @@ function KnowledgeBaseQueryPageWrapper() {
   const navigate = useNavigate();
   const location = useLocation();
   const isChatMode = location.pathname === '/knowledgebase/chat';
-  
+
   const handleBack = () => {
     if (isChatMode) {
       navigate('/knowledgebase');
@@ -314,11 +324,11 @@ function KnowledgeBaseQueryPageWrapper() {
       navigate('/upload');
     }
   };
-  
+
   const handleUpload = () => {
     navigate('/knowledgebase/upload');
   };
-  
+
   return <KnowledgeBaseQueryPage onBack={handleBack} onUpload={handleUpload} />;
 }
 
@@ -334,7 +344,7 @@ function KnowledgeBaseUploadPageWrapper() {
   const handleBack = () => {
     navigate('/knowledgebase');
   };
-  
+
   return <KnowledgeBaseUploadPage onUploadComplete={handleUploadComplete} onBack={handleBack} />;
 }
 

@@ -10,7 +10,9 @@ public record InterviewQuestionDTO(
     String category,      // 问题类别：项目经历、Java基础、集合、并发、MySQL、Redis、Spring、SpringBoot
     String userAnswer,    // 用户回答
     Integer score,        // 单题得分 (0-100)
-    String feedback       // 单题反馈
+    String feedback,      // 单题反馈
+    boolean isFollowUp,   // 是否为追问
+    Integer parentQuestionIndex // 追问关联的主问题索引
 ) {
     public enum QuestionType {
         PROJECT,          // 项目经历
@@ -27,20 +29,35 @@ public record InterviewQuestionDTO(
      * 创建新问题（未回答状态）
      */
     public static InterviewQuestionDTO create(int index, String question, QuestionType type, String category) {
-        return new InterviewQuestionDTO(index, question, type, category, null, null, null);
+        return new InterviewQuestionDTO(index, question, type, category, null, null, null, false, null);
+    }
+
+    /**
+     * 创建新问题（支持追问标记）
+     */
+    public static InterviewQuestionDTO create(
+            int index,
+            String question,
+            QuestionType type,
+            String category,
+            boolean isFollowUp,
+            Integer parentQuestionIndex) {
+        return new InterviewQuestionDTO(index, question, type, category, null, null, null, isFollowUp, parentQuestionIndex);
     }
     
     /**
      * 添加用户回答
      */
     public InterviewQuestionDTO withAnswer(String answer) {
-        return new InterviewQuestionDTO(questionIndex, question, type, category, answer, score, feedback);
+        return new InterviewQuestionDTO(
+            questionIndex, question, type, category, answer, score, feedback, isFollowUp, parentQuestionIndex);
     }
     
     /**
      * 添加评分和反馈
      */
     public InterviewQuestionDTO withEvaluation(int score, String feedback) {
-        return new InterviewQuestionDTO(questionIndex, question, type, category, userAnswer, score, feedback);
+        return new InterviewQuestionDTO(
+            questionIndex, question, type, category, userAnswer, score, feedback, isFollowUp, parentQuestionIndex);
     }
 }

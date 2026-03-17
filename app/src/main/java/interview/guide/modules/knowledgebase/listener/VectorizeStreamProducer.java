@@ -1,10 +1,10 @@
 package interview.guide.modules.knowledgebase.listener;
 
+import interview.guide.common.async.AbstractStreamProducer;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
 import interview.guide.infrastructure.redis.RedisService;
 import interview.guide.modules.knowledgebase.model.VectorStatus;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -16,11 +16,16 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
-public class VectorizeStreamProducer {
+public class VectorizeStreamProducer extends AbstractStreamProducer<VectorizeStreamProducer.VectorizeTaskPayload> {
 
-    private final RedisService redisService;
     private final KnowledgeBaseRepository knowledgeBaseRepository;
+
+    record VectorizeTaskPayload(Long kbId, String content) {}
+
+    public VectorizeStreamProducer(RedisService redisService, KnowledgeBaseRepository knowledgeBaseRepository) {
+        super(redisService);
+        this.knowledgeBaseRepository = knowledgeBaseRepository;
+    }
 
     /**
      * 发送向量化任务到 Redis Stream
@@ -29,24 +34,36 @@ public class VectorizeStreamProducer {
      * @param content 文档内容
      */
     public void sendVectorizeTask(Long kbId, String content) {
-        try {
-            Map<String, String> message = Map.of(
-                AsyncTaskStreamConstants.FIELD_KB_ID, kbId.toString(),
-                AsyncTaskStreamConstants.FIELD_CONTENT, content,
-                AsyncTaskStreamConstants.FIELD_RETRY_COUNT, "0"
-            );
+        sendTask(new VectorizeTaskPayload(kbId, content));
+    }
 
-            String messageId = redisService.streamAdd(
-                AsyncTaskStreamConstants.KB_VECTORIZE_STREAM_KEY,
-                message,
-                AsyncTaskStreamConstants.STREAM_MAX_LEN
-            );
+    @Override
+    protected String taskDisplayName() {
+        return "向量化";
+    }
 
-            log.info("向量化任务已发送到Stream: kbId={}, messageId={}", kbId, messageId);
-        } catch (Exception e) {
-            log.error("发送向量化任务失败: kbId={}, error={}", kbId, e.getMessage(), e);
-            updateVectorStatus(kbId, VectorStatus.FAILED, "任务入队失败: " + e.getMessage());
-        }
+    @Override
+    protected String streamKey() {
+        return AsyncTaskStreamConstants.KB_VECTORIZE_STREAM_KEY;
+    }
+
+    @Override
+    protected Map<String, String> buildMessage(VectorizeTaskPayload payload) {
+        return Map.of(
+            AsyncTaskStreamConstants.FIELD_KB_ID, payload.kbId().toString(),
+            AsyncTaskStreamConstants.FIELD_CONTENT, payload.content(),
+            AsyncTaskStreamConstants.FIELD_RETRY_COUNT, "0"
+        );
+    }
+
+    @Override
+    protected String payloadIdentifier(VectorizeTaskPayload payload) {
+        return "kbId=" + payload.kbId();
+    }
+
+    @Override
+    protected void onSendFailed(VectorizeTaskPayload payload, String error) {
+        updateVectorStatus(payload.kbId(), VectorStatus.FAILED, truncateError(error));
     }
 
     /**

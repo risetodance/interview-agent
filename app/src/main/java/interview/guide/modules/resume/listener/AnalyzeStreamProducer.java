@@ -1,10 +1,10 @@
 package interview.guide.modules.resume.listener;
 
+import interview.guide.common.async.AbstractStreamProducer;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
 import interview.guide.common.model.AsyncTaskStatus;
 import interview.guide.infrastructure.redis.RedisService;
 import interview.guide.modules.resume.repository.ResumeRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -16,11 +16,16 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
-public class AnalyzeStreamProducer {
+public class AnalyzeStreamProducer extends AbstractStreamProducer<AnalyzeStreamProducer.AnalyzeTaskPayload> {
 
-    private final RedisService redisService;
     private final ResumeRepository resumeRepository;
+
+    record AnalyzeTaskPayload(Long resumeId, String content) {}
+
+    public AnalyzeStreamProducer(RedisService redisService, ResumeRepository resumeRepository) {
+        super(redisService);
+        this.resumeRepository = resumeRepository;
+    }
 
     /**
      * 发送分析任务到 Redis Stream
@@ -29,24 +34,36 @@ public class AnalyzeStreamProducer {
      * @param content  简历内容
      */
     public void sendAnalyzeTask(Long resumeId, String content) {
-        try {
-            Map<String, String> message = Map.of(
-                AsyncTaskStreamConstants.FIELD_RESUME_ID, resumeId.toString(),
-                AsyncTaskStreamConstants.FIELD_CONTENT, content,
-                AsyncTaskStreamConstants.FIELD_RETRY_COUNT, "0"
-            );
+        sendTask(new AnalyzeTaskPayload(resumeId, content));
+    }
 
-            String messageId = redisService.streamAdd(
-                AsyncTaskStreamConstants.RESUME_ANALYZE_STREAM_KEY,
-                message,
-                AsyncTaskStreamConstants.STREAM_MAX_LEN
-            );
+    @Override
+    protected String taskDisplayName() {
+        return "分析";
+    }
 
-            log.info("分析任务已发送到Stream: resumeId={}, messageId={}", resumeId, messageId);
-        } catch (Exception e) {
-            log.error("发送分析任务失败: resumeId={}, error={}", resumeId, e.getMessage(), e);
-            updateAnalyzeStatus(resumeId, AsyncTaskStatus.FAILED, "任务入队失败: " + e.getMessage());
-        }
+    @Override
+    protected String streamKey() {
+        return AsyncTaskStreamConstants.RESUME_ANALYZE_STREAM_KEY;
+    }
+
+    @Override
+    protected Map<String, String> buildMessage(AnalyzeTaskPayload payload) {
+        return Map.of(
+            AsyncTaskStreamConstants.FIELD_RESUME_ID, payload.resumeId().toString(),
+            AsyncTaskStreamConstants.FIELD_CONTENT, payload.content(),
+            AsyncTaskStreamConstants.FIELD_RETRY_COUNT, "0"
+        );
+    }
+
+    @Override
+    protected String payloadIdentifier(AnalyzeTaskPayload payload) {
+        return "resumeId=" + payload.resumeId();
+    }
+
+    @Override
+    protected void onSendFailed(AnalyzeTaskPayload payload, String error) {
+        updateAnalyzeStatus(payload.resumeId(), AsyncTaskStatus.FAILED, truncateError(error));
     }
 
     /**

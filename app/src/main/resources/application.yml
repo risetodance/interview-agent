@@ -8,6 +8,12 @@ spring:
   application:
     name: ai-interview-platform
 
+  # 启用虚拟线程 (Java 21+)
+  # 显著提升 I/O 密集型场景的并发能力，特别适合 AI 调用和 SSE 长连接
+  threads:
+    virtual:
+      enabled: true
+
   # PostgreSQL数据库配置
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:interview_guide}
@@ -52,7 +58,7 @@ spring:
       chat:
         options:
           model: ${AI_MODEL:MiniMax-M2.5}
-          temperature: 0.7
+          temperature: 0.2
       # Embedding模型配置 - 使用text-embedding-v3
       embedding:
         options:
@@ -88,6 +94,25 @@ app:
     # 空闲超时时间（分钟），用户多长时间不操作后需要重新登录，默认 30 分钟
     idle-timeout-minutes: ${SESSION_IDLE_TIMEOUT_MINUTES:30}
 
+  ai:
+    # 结构化输出重试次数（用于 BeanOutputConverter 解析失败时的业务层重试）
+    structured-max-attempts: ${APP_AI_STRUCTURED_MAX_ATTEMPTS:2}
+    # 重试时是否将上次错误原因注入提示词，帮助模型定向修复输出
+    structured-include-last-error: ${APP_AI_STRUCTURED_INCLUDE_LAST_ERROR:true}
+    rag:
+      rewrite:
+        enabled: ${APP_AI_RAG_REWRITE_ENABLED:true}
+      search:
+        short-query-length: ${APP_AI_RAG_SHORT_QUERY_LENGTH:4}
+        topk-short: ${APP_AI_RAG_TOPK_SHORT:20}
+        topk-medium: ${APP_AI_RAG_TOPK_MEDIUM:12}
+        topk-long: ${APP_AI_RAG_TOPK_LONG:8}
+        min-score-short: ${APP_AI_RAG_MIN_SCORE_SHORT:0.18}
+        min-score-default: ${APP_AI_RAG_MIN_SCORE_DEFAULT:0.28}
+  interview:
+    follow-up-count: ${APP_INTERVIEW_FOLLOW_UP_COUNT:1}
+    evaluation:
+      batch-size: ${APP_INTERVIEW_EVALUATION_BATCH_SIZE:8}
   resume:
     upload-dir: ${java.io.tmpdir}/ai-interview/resumes
     allowed-types:

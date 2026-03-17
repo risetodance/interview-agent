@@ -8,7 +8,13 @@ import java.time.LocalDateTime;
  * 面试答案实体
  */
 @Entity
-@Table(name = "interview_answers")
+@Table(name = "interview_answers",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_interview_answer_session_question", columnNames = {"session_id", "question_index"})
+    },
+    indexes = {
+        @Index(name = "idx_interview_answer_session_question", columnList = "session_id,question_index")
+    })
 public class InterviewAnswerEntity {
     
     @Id
@@ -21,6 +27,7 @@ public class InterviewAnswerEntity {
     private InterviewSessionEntity session;
     
     // 问题索引
+    @Column(name = "question_index")
     private Integer questionIndex;
     
     // 问题内容

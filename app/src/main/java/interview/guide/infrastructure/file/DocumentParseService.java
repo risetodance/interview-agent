@@ -124,9 +124,10 @@ public class DocumentParseService {
         // 6. 禁用嵌入文档解析（关键：避免提取图片引用和临时文件路径）
         context.set(EmbeddedDocumentExtractor.class, new NoOpEmbeddedDocumentExtractor());
 
-        // 7. PDF 专用配置：关闭图片提取
+        // 7. PDF 专用配置：关闭图片提取，按位置排序文本
         PDFParserConfig pdfConfig = new PDFParserConfig();
         pdfConfig.setExtractInlineImages(false);
+        pdfConfig.setSortByPosition(true); // 按 x/y 坐标排序文本，改善多栏布局解析顺序
         // 注意：Tika 2.9.2 中 setExtractAnnotations 方法可能不存在，关闭图片提取已足够
         context.set(PDFParserConfig.class, pdfConfig);
 
