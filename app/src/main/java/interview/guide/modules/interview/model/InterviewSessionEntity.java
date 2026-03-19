@@ -26,9 +26,9 @@ public class InterviewSessionEntity {
     @Column(nullable = false, unique = true, length = 36)
     private String sessionId;
     
-    // 关联的简历
+    // 关联的简历（可选，用于通用面试模式）
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "resume_id", nullable = false)
+    @JoinColumn(name = "resume_id", nullable = true)
     private ResumeEntity resume;
     
     // 问题总数
@@ -98,6 +98,17 @@ public class InterviewSessionEntity {
 
     // 提醒是否已发送
     private Boolean reminderSent = false;
+
+    // 当前难度等级 (BASIC, ADVANCED, EXPERT)
+    @Column(length = 20)
+    private String currentDifficulty = "BASIC";
+
+    // 分类得分 (JSON格式, 存储如: {"Java基础": {"totalScore": 80, "count": 2, "avgScore": 80}})
+    @Column(columnDefinition = "TEXT")
+    private String categoryScores;
+
+    // 已生成的问题数量
+    private Integer questionsGenerated = 0;
 
     public enum SessionStatus {
         CREATED,      // 会话已创建
@@ -278,6 +289,30 @@ public class InterviewSessionEntity {
 
     public void setReminderSent(Boolean reminderSent) {
         this.reminderSent = reminderSent;
+    }
+
+    public String getCurrentDifficulty() {
+        return currentDifficulty;
+    }
+
+    public void setCurrentDifficulty(String currentDifficulty) {
+        this.currentDifficulty = currentDifficulty;
+    }
+
+    public String getCategoryScores() {
+        return categoryScores;
+    }
+
+    public void setCategoryScores(String categoryScores) {
+        this.categoryScores = categoryScores;
+    }
+
+    public Integer getQuestionsGenerated() {
+        return questionsGenerated;
+    }
+
+    public void setQuestionsGenerated(Integer questionsGenerated) {
+        this.questionsGenerated = questionsGenerated;
     }
 
     public void addAnswer(InterviewAnswerEntity answer) {

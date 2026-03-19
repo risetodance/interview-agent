@@ -228,3 +228,89 @@ export const getQuestionCategories = () => {
 export const getQuestionsByCategory = (bankId: number, params?: { page?: number; pageSize?: number }) => {
   return get(`/api/questions/bank/${bankId}`, params)
 }
+
+/**
+ * 能力画像类型定义
+ */
+export interface CategoryScore {
+  category: string
+  totalScore: number
+  count: number
+  avgScore: number
+}
+
+export interface AbilityProfile {
+  categoryScores: Record<string, CategoryScore>
+  overallScore: number
+  strengths: string[]
+  weaknesses: string[]
+}
+
+/**
+ * 获取能力画像
+ */
+export const getAbilityProfile = (sessionId: string | number) => {
+  return get<AbilityProfile>(`/api/interview/sessions/${sessionId}/profile`)
+}
+
+// ========== 自适应难度面试 API ==========
+
+/**
+ * 当前问题 DTO 类型
+ */
+export interface CurrentQuestionDTO {
+  questionIndex: number
+  question: string
+  category: string
+  difficulty: string
+  knowledgeBaseId: number
+  knowledgeBaseName: string
+  referenceContext?: string
+}
+
+/**
+ * 面试问题 DTO 类型 (InterviewQuestionDTO)
+ */
+export interface InterviewQuestionDTO {
+  questionIndex: number
+  question: string
+  type: string
+  category: string
+  userAnswer?: string | null
+  score?: number | null
+  feedback?: string | null
+  isFollowUp: boolean
+  parentQuestionIndex?: number | null
+}
+
+/**
+ * 提交答案响应类型
+ */
+export interface SubmitAnswerResponse {
+  hasNextQuestion: boolean
+  nextQuestion?: InterviewQuestionDTO
+  newIndex: number
+  questionsGenerated: number
+  currentScore: number
+  categoryScores: Record<string, CategoryScore>
+  nextDifficulty: string
+}
+
+/**
+ * 获取当前问题（自适应难度版本）
+ * GET /api/interview/sessions/{sessionId}/current
+ */
+export const getCurrentQuestion = (sessionId: string | number) => {
+  return get<CurrentQuestionDTO>(`/api/interview/sessions/${sessionId}/current`)
+}
+
+/**
+ * 提交答案（自适应难度版本）
+ * POST /api/interview/sessions/{sessionId}/answer
+ */
+export const submitAnswerAdaptive = (sessionId: string | number, questionIndex: number, answer: string) => {
+  return post<SubmitAnswerResponse>(`/api/interview/sessions/${sessionId}/answer`, {
+    questionIndex,
+    answer
+  })
+}

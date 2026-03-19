@@ -2,6 +2,7 @@ package interview.guide.modules.interview.model;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 面试详情DTO
@@ -19,9 +20,10 @@ public record InterviewDetailDTO(
     LocalDateTime completedAt,
     List<Object> questions,
     List<String> strengths,
-    List<String> improvements,
+    List<String> weaknesses,
     List<Object> referenceAnswers,
-    List<AnswerDetailDTO> answers
+    List<AnswerDetailDTO> answers,
+    Map<String, CategoryScoreDTO> categoryScores
 ) {
     /**
      * 答案详情DTO

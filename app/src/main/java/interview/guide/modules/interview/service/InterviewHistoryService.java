@@ -7,6 +7,7 @@ import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.infrastructure.export.PdfExportService;
 import interview.guide.infrastructure.mapper.InterviewMapper;
+import interview.guide.modules.interview.model.CategoryScoreDTO;
 import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewDetailDTO;
 import interview.guide.modules.interview.model.InterviewQuestionDTO;
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -49,6 +51,7 @@ public class InterviewHistoryService {
         List<String> strengths = parseJson(session.getStrengthsJson(), new TypeReference<>() {});
         List<String> improvements = parseJson(session.getImprovementsJson(), new TypeReference<>() {});
         List<Object> referenceAnswers = parseJson(session.getReferenceAnswersJson(), new TypeReference<>() {});
+        Map<String, CategoryScoreDTO> categoryScores = parseCategoryScores(session.getCategoryScores());
 
         // 解析所有题目（用于构建完整的答案列表）
         List<InterviewQuestionDTO> allQuestions = parseJson(
@@ -70,8 +73,25 @@ public class InterviewHistoryService {
             strengths,
             improvements,
             referenceAnswers,
-            answerList
+            answerList,
+            categoryScores
         );
+    }
+
+    /**
+     * 解析分类得分 JSON
+     */
+    private Map<String, CategoryScoreDTO> parseCategoryScores(String categoryScoresJson) {
+        if (categoryScoresJson == null || categoryScoresJson.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(categoryScoresJson,
+                new TypeReference<Map<String, CategoryScoreDTO>>() {});
+        } catch (Exception e) {
+            log.warn("解析分类得分失败: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**

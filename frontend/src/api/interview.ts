@@ -1,7 +1,8 @@
 import { request } from './request';
 import type {
+  AbilityProfileDTO,
   CreateInterviewRequest,
-  CurrentQuestionResponse,
+  CurrentQuestionDTO,
   InterviewReport,
   InterviewSession,
   ScoreTrend,
@@ -29,8 +30,8 @@ export const interviewApi = {
   /**
    * 获取当前问题
    */
-  async getCurrentQuestion(sessionId: string): Promise<CurrentQuestionResponse> {
-    return request.get<CurrentQuestionResponse>(`/api/interview/sessions/${sessionId}/question`);
+  async getCurrentQuestion(sessionId: string): Promise<CurrentQuestionDTO> {
+    return request.get<CurrentQuestionDTO>(`/api/interview/sessions/${sessionId}/current`);
   },
 
   /**
@@ -100,5 +101,12 @@ export const interviewApi = {
    */
   async getScoreTrend(): Promise<ScoreTrend> {
     return request.get<ScoreTrend>('/api/interview/score-trend');
+  },
+
+  /**
+   * 获取能力画像（面试结束后）
+   */
+  async getAbilityProfile(sessionId: string): Promise<AbilityProfileDTO> {
+    return request.get<AbilityProfileDTO>(`/api/interview/sessions/${sessionId}/ability-profile`);
   },
 };

@@ -4,7 +4,7 @@ import {interviewApi} from '../api/interview';
 import ConfirmDialog from '../components/ConfirmDialog';
 import InterviewConfigPanel from '../components/InterviewConfigPanel';
 import InterviewChatPanel from '../components/InterviewChatPanel';
-import type {InterviewQuestion, InterviewSession} from '../types/interview';
+import type {CurrentQuestionDTO, InterviewSession} from '../types/interview';
 
 type InterviewStage = 'config' | 'interview';
 
@@ -13,6 +13,8 @@ interface Message {
   content: string;
   category?: string;
   questionIndex?: number;
+  difficulty?: string;
+  knowledgeBaseName?: string | null;
 }
 
 interface InterviewProps {
@@ -26,7 +28,7 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
   const [stage, setStage] = useState<InterviewStage>('config');
   const [questionCount, setQuestionCount] = useState(8);
   const [session, setSession] = useState<InterviewSession | null>(null);
-  const [currentQuestion, setCurrentQuestion] = useState<InterviewQuestion | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<CurrentQuestionDTO | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [answer, setAnswer] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,10 +63,10 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
     }
   };
   
-  const handleContinueUnfinished = () => {
+  const handleContinueUnfinished = async () => {
     if (!unfinishedSession) return;
     setForceCreateNew(false);  // 重置强制创建标志
-    restoreSession(unfinishedSession);
+    await restoreSession(unfinishedSession);
     setUnfinishedSession(null);
   };
   
@@ -73,19 +75,14 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
     setForceCreateNew(true);  // 标记需要强制创建新会话
   };
   
-  const restoreSession = (sessionToRestore: InterviewSession) => {
+  const restoreSession = async (sessionToRestore: InterviewSession) => {
     setSession(sessionToRestore);
-    
-    // 恢复当前问题
-    const currentQ = sessionToRestore.questions[sessionToRestore.currentQuestionIndex];
-    if (currentQ) {
+
+    // 调用 getCurrentQuestion 获取当前问题
+    try {
+      const currentQ = await interviewApi.getCurrentQuestion(sessionToRestore.sessionId);
       setCurrentQuestion(currentQ);
-      
-      // 如果当前问题已有答案，显示在输入框中
-      if (currentQ.userAnswer) {
-        setAnswer(currentQ.userAnswer);
-      }
-      
+
       // 恢复消息历史
       const restoredMessages: Message[] = [];
       for (let i = 0; i <= sessionToRestore.currentQuestionIndex; i++) {
@@ -104,15 +101,24 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
         }
       }
       setMessages(restoredMessages);
+
+      // 如果当前问题已有答案，显示在输入框中
+      const currentQuestionData = sessionToRestore.questions[sessionToRestore.currentQuestionIndex];
+      if (currentQuestionData?.userAnswer) {
+        setAnswer(currentQuestionData.userAnswer);
+      }
+    } catch (err) {
+      console.error('恢复会话获取当前问题失败', err);
+      setError('恢复面试失败，请重新开始');
     }
-    
+
     setStage('interview');
   };
   
   const startInterview = async () => {
     setIsCreating(true);
     setError('');
-    
+
     try {
       // 创建新面试（如果 forceCreateNew 为 true，则强制创建新会话）
       const newSession = await interviewApi.createSession({
@@ -121,34 +127,29 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
         resumeId,
         forceCreate: forceCreateNew
       });
-      
+
       // 重置强制创建标志
       setForceCreateNew(false);
-      
-      // 如果返回的是未完成的会话（currentQuestionIndex > 0 或已有答案），恢复它
-      const hasProgress = newSession.currentQuestionIndex > 0 || 
-                          newSession.questions.some(q => q.userAnswer) ||
-                          newSession.status === 'IN_PROGRESS';
-      
-      if (hasProgress) {
-        // 这是恢复的会话
-        restoreSession(newSession);
-      } else {
-        // 全新的会话
-        setSession(newSession);
-        
-        if (newSession.questions.length > 0) {
-          const firstQuestion = newSession.questions[0];
-          setCurrentQuestion(firstQuestion);
-          setMessages([{
-            type: 'interviewer',
-            content: firstQuestion.question,
-            category: firstQuestion.category,
-            questionIndex: 0
-          }]);
-        }
-        
-        setStage('interview');
+
+      setSession(newSession);
+      setStage('interview');
+
+      // 调用 getCurrentQuestion 获取第一题
+      try {
+        const firstQuestion = await interviewApi.getCurrentQuestion(newSession.sessionId);
+        setCurrentQuestion(firstQuestion);
+        setMessages([{
+          type: 'interviewer',
+          content: firstQuestion.question,
+          category: firstQuestion.category,
+          questionIndex: firstQuestion.questionIndex,
+          difficulty: firstQuestion.difficulty,
+          knowledgeBaseName: firstQuestion.knowledgeBaseName
+        }]);
+      } catch (questionErr) {
+        console.error('获取第一题失败', questionErr);
+        setError('获取面试问题失败，请重试');
+        setStage('config');
       }
     } catch (err) {
       setError('创建面试失败，请重试');
@@ -162,30 +163,34 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
   const handleSubmitAnswer = async () => {
     if (!answer.trim() || !session || !currentQuestion) return;
 
+    const submittedAnswer = answer.trim();
     setIsSubmitting(true);
 
     const userMessage: Message = {
       type: 'user',
-      content: answer
+      content: submittedAnswer
     };
     setMessages(prev => [...prev, userMessage]);
+    setAnswer(''); // 先清空输入框
 
     try {
       const response = await interviewApi.submitAnswer({
         sessionId: session.sessionId,
         questionIndex: currentQuestion.questionIndex,
-        answer: answer.trim()
+        answer: submittedAnswer
       });
 
-      setAnswer('');
-
       if (response.hasNextQuestion && response.nextQuestion) {
-        setCurrentQuestion(response.nextQuestion);
+        // 使用 submitAnswerResponse 返回的 nextQuestion
+        const nextQ = response.nextQuestion;
+        setCurrentQuestion(nextQ);
         setMessages(prev => [...prev, {
           type: 'interviewer',
-          content: response.nextQuestion!.question,
-          category: response.nextQuestion!.category,
-          questionIndex: response.nextQuestion!.questionIndex
+          content: nextQ.question,
+          category: nextQ.category,
+          questionIndex: nextQ.questionIndex,
+          difficulty: nextQ.difficulty,
+          knowledgeBaseName: nextQ.knowledgeBaseName
         }]);
       } else {
         // 面试已完成，评估将在后台进行，跳转到面试记录页

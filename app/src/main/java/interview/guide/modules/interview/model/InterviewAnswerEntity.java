@@ -59,10 +59,25 @@ public class InterviewAnswerEntity {
     // 回答时间
     @Column(nullable = false)
     private LocalDateTime answeredAt;
-    
+
+    // 难度等级 (BASIC, ADVANCED, EXPERT)
+    @Column(length = 20)
+    private String difficulty = "BASIC";
+
+    // 关联的知识库ID
+    private Long knowledgeBaseId;
+
+    // 参考上下文（AI生成问题时的参考内容）
+    @Column(columnDefinition = "TEXT")
+    private String referenceContext;
+
+    // 问题生成时间
+    private LocalDateTime generatedAt;
+
     @PrePersist
     protected void onCreate() {
         answeredAt = LocalDateTime.now();
+        generatedAt = LocalDateTime.now();
     }
     
     // Getters and Setters
@@ -152,5 +167,37 @@ public class InterviewAnswerEntity {
     
     public void setAnsweredAt(LocalDateTime answeredAt) {
         this.answeredAt = answeredAt;
+    }
+
+    public String getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(String difficulty) {
+        this.difficulty = difficulty;
+    }
+
+    public Long getKnowledgeBaseId() {
+        return knowledgeBaseId;
+    }
+
+    public void setKnowledgeBaseId(Long knowledgeBaseId) {
+        this.knowledgeBaseId = knowledgeBaseId;
+    }
+
+    public String getReferenceContext() {
+        return referenceContext;
+    }
+
+    public void setReferenceContext(String referenceContext) {
+        this.referenceContext = referenceContext;
+    }
+
+    public LocalDateTime getGeneratedAt() {
+        return generatedAt;
+    }
+
+    public void setGeneratedAt(LocalDateTime generatedAt) {
+        this.generatedAt = generatedAt;
     }
 }

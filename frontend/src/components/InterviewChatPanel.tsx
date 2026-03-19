@@ -1,10 +1,11 @@
 import { useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
-import type { InterviewQuestion, InterviewSession } from '../types/interview';
+import type { CurrentQuestionDTO, DifficultyLevel, InterviewSession } from '../types/interview';
 import {
   Send,
-  User
+  User,
+  BookOpen
 } from 'lucide-react';
 
 interface Message {
@@ -12,11 +13,13 @@ interface Message {
   content: string;
   category?: string;
   questionIndex?: number;
+  difficulty?: string;
+  knowledgeBaseName?: string | null;
 }
 
 interface InterviewChatPanelProps {
   session: InterviewSession;
-  currentQuestion: InterviewQuestion | null;
+  currentQuestion: CurrentQuestionDTO | null;
   messages: Message[];
   answer: string;
   onAnswerChange: (answer: string) => void;
@@ -26,6 +29,20 @@ interface InterviewChatPanelProps {
   showCompleteConfirm: boolean;
   onShowCompleteConfirm: (show: boolean) => void;
 }
+
+// 难度等级颜色映射
+const difficultyColors: Record<DifficultyLevel, { bg: string; text: string; border: string }> = {
+  BASIC: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  ADVANCED: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+  EXPERT: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' }
+};
+
+// 难度等级标签映射
+const difficultyLabels: Record<DifficultyLevel, string> = {
+  BASIC: '基础',
+  ADVANCED: '进阶',
+  EXPERT: '专家'
+};
 
 /**
  * 面试聊天面板组件
@@ -148,6 +165,9 @@ export default function InterviewChatPanel({
 // 消息气泡组件
 function MessageBubble({ message }: { message: Message }) {
   if (message.type === 'interviewer') {
+    const difficulty = message.difficulty as DifficultyLevel | undefined;
+    const difficultyStyle = difficulty ? difficultyColors[difficulty] : null;
+
     return (
       <motion.div
         initial={{ opacity: 0, x: -20 }}
@@ -158,14 +178,25 @@ function MessageBubble({ message }: { message: Message }) {
           <User className="w-4 h-4 text-primary-600" />
         </div>
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-sm font-semibold text-slate-700">面试官</span>
             {message.category && (
               <span className="px-2 py-0.5 bg-primary-50 text-primary-600 text-xs rounded-full">
                 {message.category}
               </span>
             )}
+            {difficultyStyle && difficulty && (
+              <span className={`px-2 py-0.5 ${difficultyStyle.bg} ${difficultyStyle.text} text-xs rounded-full border ${difficultyStyle.border}`}>
+                {difficultyLabels[difficulty]}
+              </span>
+            )}
           </div>
+          {message.knowledgeBaseName && (
+            <div className="flex items-center gap-1 mb-2 text-xs text-slate-500">
+              <BookOpen className="w-3 h-3" />
+              <span>{message.knowledgeBaseName}</span>
+            </div>
+          )}
           <div className="bg-slate-100 rounded-2xl rounded-tl-none p-4 text-slate-800 leading-relaxed">
             {message.content}
           </div>

@@ -39,11 +39,11 @@ public class InterviewController {
      */
     @PostMapping("/api/interview/sessions")
     @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL, RateLimit.Dimension.IP}, count = 5)
-    public Result<InterviewSessionDTO> createSession(
+    public Result<InterviewSessionBasicDTO> createSession(
             @CurrentUser Long userId,
             @RequestBody CreateInterviewRequest request) {
         log.info("创建面试会话，用户: {}, 题目数量: {}", userId, request.questionCount());
-        InterviewSessionDTO session = sessionService.createSession(userId, request);
+        InterviewSessionBasicDTO session = sessionService.createSession(userId, request);
         return Result.success(session);
     }
 
@@ -63,26 +63,28 @@ public class InterviewController {
      * 获取会话信息
      */
     @GetMapping("/api/interview/sessions/{sessionId}")
-    public Result<InterviewSessionDTO> getSession(
+    public Result<InterviewSessionBasicDTO> getSession(
             @CurrentUser Long userId,
             @PathVariable String sessionId) {
-        InterviewSessionDTO session = sessionService.getSession(userId, sessionId);
+        InterviewSessionBasicDTO session = sessionService.getSession(userId, sessionId);
         return Result.success(session);
     }
     
     /**
-     * 获取当前问题
+     * 获取当前问题（返回完整字段：difficulty, knowledgeBaseId, knowledgeBaseName, referenceContext）
      */
     @GetMapping("/api/interview/sessions/{sessionId}/question")
-    public Result<Map<String, Object>> getCurrentQuestion(
+    public Result<CurrentQuestionDTO> getCurrentQuestion(
             @CurrentUser Long userId,
             @PathVariable String sessionId) {
+        log.info("获取当前问题: 用户{}, 会话{}", userId, sessionId);
         sessionService.validateSessionOwnership(userId, sessionId);
-        return Result.success(sessionService.getCurrentQuestionResponse(sessionId));
+        CurrentQuestionDTO question = sessionService.getCurrentQuestionForAdaptive(sessionId);
+        return Result.success(question);
     }
 
     /**
-     * 提交答案
+     * 提交答案（自适应难度版本）
      */
     @PostMapping("/api/interview/sessions/{sessionId}/answers")
     @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL}, count = 10)
@@ -94,8 +96,7 @@ public class InterviewController {
         Integer questionIndex = (Integer) body.get("questionIndex");
         String answer = (String) body.get("answer");
         log.info("提交答案: 用户{}, 会话{}, 问题{}", userId, sessionId, questionIndex);
-        SubmitAnswerRequest request = new SubmitAnswerRequest(sessionId, questionIndex, answer);
-        SubmitAnswerResponse response = sessionService.submitAnswer(request);
+        SubmitAnswerResponse response = sessionService.submitAnswerForAdaptive(sessionId, questionIndex, answer);
         return Result.success(response);
     }
 
@@ -129,7 +130,7 @@ public class InterviewController {
      * GET /api/interview/sessions/unfinished/{resumeId}
      */
     @GetMapping("/api/interview/sessions/unfinished/{resumeId}")
-    public Result<InterviewSessionDTO> findUnfinishedSession(
+    public Result<InterviewSessionBasicDTO> findUnfinishedSession(
             @CurrentUser Long userId,
             @PathVariable Long resumeId) {
         return Result.success(sessionService.findUnfinishedSessionOrThrow(userId, resumeId));
@@ -219,13 +220,13 @@ public class InterviewController {
      * 会根据新的知识库重新生成未回答的问题
      */
     @PutMapping("/api/interview/sessions/{sessionId}/knowledge-base")
-    public Result<InterviewSessionDTO> switchKnowledgeBase(
+    public Result<InterviewSessionBasicDTO> switchKnowledgeBase(
             @CurrentUser Long userId,
             @PathVariable String sessionId,
             @RequestBody SwitchKnowledgeBaseRequest request) {
         log.info("切换面试知识库: 用户{}, 会话{}, 知识库IDs={}", userId, sessionId, request.knowledgeBaseIds());
         sessionService.validateSessionOwnership(userId, sessionId);
-        InterviewSessionDTO session = sessionService.switchKnowledgeBase(userId, sessionId, request.knowledgeBaseIds());
+        InterviewSessionBasicDTO session = sessionService.switchKnowledgeBase(userId, sessionId, request.knowledgeBaseIds());
         return Result.success(session);
     }
 
@@ -239,5 +240,51 @@ public class InterviewController {
         log.info("获取评分趋势: 用户{}", userId);
         interview.guide.modules.interview.model.ScoreTrendDTO trend = scoreTrendService.getScoreTrend(userId);
         return Result.success(trend);
+    }
+
+    /**
+     * 获取当前问题（自适应难度版本）
+     * GET /api/interview/sessions/{sessionId}/current
+     */
+    @GetMapping("/api/interview/sessions/{sessionId}/current")
+    public Result<CurrentQuestionDTO> getCurrentQuestionAdaptive(
+            @CurrentUser Long userId,
+            @PathVariable String sessionId) {
+        log.info("获取当前问题: 用户{}, 会话{}", userId, sessionId);
+        sessionService.validateSessionOwnership(userId, sessionId);
+        CurrentQuestionDTO question = sessionService.getCurrentQuestionForAdaptive(sessionId);
+        return Result.success(question);
+    }
+
+    /**
+     * 提交答案（自适应难度版本）
+     * POST /api/interview/sessions/{sessionId}/answer
+     */
+    @PostMapping("/api/interview/sessions/{sessionId}/answer")
+    @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL}, count = 10)
+    public Result<SubmitAnswerResponse> submitAnswerAdaptive(
+            @CurrentUser Long userId,
+            @PathVariable String sessionId,
+            @RequestBody Map<String, Object> body) {
+        sessionService.validateSessionOwnership(userId, sessionId);
+        Integer questionIndex = (Integer) body.get("questionIndex");
+        String answer = (String) body.get("answer");
+        log.info("提交答案: 用户{}, 会话{}, 问题{}", userId, sessionId, questionIndex);
+        SubmitAnswerResponse response = sessionService.submitAnswerForAdaptive(sessionId, questionIndex, answer);
+        return Result.success(response);
+    }
+
+    /**
+     * 获取能力画像
+     * GET /api/interview/sessions/{sessionId}/profile
+     */
+    @GetMapping("/api/interview/sessions/{sessionId}/profile")
+    public Result<AbilityProfileDTO> getAbilityProfile(
+            @CurrentUser Long userId,
+            @PathVariable String sessionId) {
+        log.info("获取能力画像: 用户{}, 会话{}", userId, sessionId);
+        sessionService.validateSessionOwnership(userId, sessionId);
+        AbilityProfileDTO profile = sessionService.getAbilityProfile(sessionId);
+        return Result.success(profile);
     }
 }

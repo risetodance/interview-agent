@@ -23,7 +23,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update #首次启动用 create，表创建成功后，改回 update
+      ddl-auto: create #首次启动用 create，表创建成功后，改回 update
     show-sql: false
     properties:
       hibernate:

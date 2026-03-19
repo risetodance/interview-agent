@@ -1,5 +1,6 @@
 package interview.guide.infrastructure.mapper;
 
+import interview.guide.modules.interview.model.CategoryScoreDTO;
 import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewDetailDTO;
 import interview.guide.modules.interview.model.InterviewReportDTO;
@@ -7,6 +8,7 @@ import interview.guide.modules.interview.model.InterviewSessionEntity;
 import org.mapstruct.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 面试相关的对象映射器
@@ -63,23 +65,25 @@ public interface InterviewMapper {
 
     /**
      * InterviewSessionEntity 转换为 InterviewDetailDTO
-     * 注意：questions, strengths, improvements, referenceAnswers, answers 需要在 Service 层处理
+     * 注意：questions, strengths, weaknesses, referenceAnswers, answers, categoryScores 需要在 Service 层处理
      */
     @Mapping(target = "status", expression = "java(session.getStatus().toString())")
     @Mapping(target = "evaluateStatus", expression = "java(session.getEvaluateStatus() != null ? session.getEvaluateStatus().name() : null)")
     @Mapping(target = "evaluateError", source = "session.evaluateError")
     @Mapping(target = "questions", source = "questions")
     @Mapping(target = "strengths", source = "strengths")
-    @Mapping(target = "improvements", source = "improvements")
+    @Mapping(target = "weaknesses", source = "improvements")
     @Mapping(target = "referenceAnswers", source = "referenceAnswers")
     @Mapping(target = "answers", source = "answers")
+    @Mapping(target = "categoryScores", source = "categoryScores")
     InterviewDetailDTO toDetailDTO(
         InterviewSessionEntity session,
         List<Object> questions,
         List<String> strengths,
         List<String> improvements,
         List<Object> referenceAnswers,
-        List<InterviewDetailDTO.AnswerDetailDTO> answers
+        List<InterviewDetailDTO.AnswerDetailDTO> answers,
+        Map<String, CategoryScoreDTO> categoryScores
     );
 
     // ========== InterviewSessionEntity 更新映射 ==========
@@ -101,6 +105,9 @@ public interface InterviewMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "completedAt", ignore = true)
+    @Mapping(target = "categoryScores", ignore = true)
+    @Mapping(target = "currentDifficulty", ignore = true)
+    @Mapping(target = "questionsGenerated", ignore = true)
     void updateSessionFromReport(InterviewReportDTO report, @MappingTarget InterviewSessionEntity session);
 
     // ========== 面试历史列表项映射 ==========

@@ -1,7 +1,8 @@
 import {useMemo, useState} from 'react';
 import {AnimatePresence, motion} from 'framer-motion';
+import {Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer} from 'recharts';
 import {getScoreColor} from '../utils/score';
-import type {InterviewDetail} from '../api/history';
+import type {CategoryScoreDTO, InterviewDetail} from '../api/history';
 
 interface InterviewDetailPanelProps {
   interview: InterviewDetail;
@@ -40,20 +41,37 @@ export default function InterviewDetailPanel({ interview }: InterviewDetailPanel
     return { scorePercent: percent, circumference: circ, strokeDashoffset: offset };
   }, [interview.overallScore]);
 
+  // 准备雷达图数据（后端返回 Map 格式）
+  const radarData = useMemo(() => {
+    if (!interview.categoryScores || Object.keys(interview.categoryScores).length === 0) {
+      return null;
+    }
+    return Object.values(interview.categoryScores).map((cs: CategoryScoreDTO) => ({
+      category: cs.category,
+      score: cs.avgScore,
+      fullMark: 100
+    }));
+  }, [interview.categoryScores]);
+
   return (
-    <motion.div 
+    <motion.div
       className="space-y-6"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
     >
       {/* 评分卡片 */}
-      <ScoreCard 
+      <ScoreCard
         score={interview.overallScore}
         feedback={interview.overallFeedback}
         scorePercent={scorePercent}
         circumference={circumference}
         strokeDashoffset={strokeDashoffset}
       />
+
+      {/* 能力画像雷达图 */}
+      {radarData && radarData.length > 0 && (
+        <AbilityProfileSection radarData={radarData} />
+      )}
 
       {/* 表现优势 */}
       {interview.strengths && interview.strengths.length > 0 && (
@@ -66,11 +84,56 @@ export default function InterviewDetailPanel({ interview }: InterviewDetailPanel
       )}
 
       {/* 问答记录详情 */}
-      <QuestionsSection 
+      <QuestionsSection
         answers={interview.answers || []}
         expandedQuestions={expandedQuestions}
         toggleQuestion={toggleQuestion}
       />
+    </motion.div>
+  );
+}
+
+// 能力画像雷达图组件
+function AbilityProfileSection({ radarData }: { radarData: any[] }) {
+  return (
+    <motion.div
+      className="bg-white rounded-2xl p-6 shadow-sm"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.15 }}
+    >
+      <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+        <svg className="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        能力画像
+      </h4>
+      <div className="h-80">
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+            <PolarGrid stroke="#e2e8f0" />
+            <PolarAngleAxis
+              dataKey="category"
+              tick={{ fill: '#64748b', fontSize: 12 }}
+            />
+            <PolarRadiusAxis
+              angle={30}
+              domain={[0, 100]}
+              tick={{ fill: '#94a3b8', fontSize: 10 }}
+            />
+            <Radar
+              name="得分"
+              dataKey="score"
+              stroke="#8b5cf6"
+              fill="#8b5cf6"
+              fillOpacity={0.3}
+              strokeWidth={2}
+            />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
     </motion.div>
   );
 }

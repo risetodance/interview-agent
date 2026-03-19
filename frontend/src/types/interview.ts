@@ -1,5 +1,19 @@
 // 面试相关类型定义
 
+// 难度等级
+export type DifficultyLevel = 'BASIC' | 'ADVANCED' | 'EXPERT';
+
+// 当前问题 DTO
+export interface CurrentQuestionDTO {
+  questionIndex: number;
+  question: string;
+  category: string;
+  difficulty: DifficultyLevel;
+  knowledgeBaseId: number | null;
+  knowledgeBaseName: string | null;
+  referenceContext: string | null;
+}
+
 export interface InterviewSession {
   sessionId: string;
   resumeText: string;
@@ -17,6 +31,8 @@ export interface InterviewQuestion {
   userAnswer: string | null;
   score: number | null;
   feedback: string | null;
+  isFollowUp?: boolean;
+  parentQuestionIndex?: number | null;
 }
 
 export type QuestionType = 
@@ -46,7 +62,7 @@ export interface SubmitAnswerRequest {
 
 export interface SubmitAnswerResponse {
   hasNextQuestion: boolean;
-  nextQuestion: InterviewQuestion | null;
+  nextQuestion: CurrentQuestionDTO | null;
   currentIndex: number;
   totalQuestions: number;
 }
@@ -113,4 +129,20 @@ export interface ScoreStatistics {
 // 切换知识库请求
 export interface SwitchKnowledgeBaseRequest {
   knowledgeBaseIds: number[];
+}
+
+// 能力画像 DTO
+export interface AbilityProfileDTO {
+  overallScore: number;
+  categoryScores: Record<string, CategoryScoreDTO>;
+  strengths: string[];
+  weaknesses: string[];
+}
+
+// 后端 CategoryScoreDTO 格式 (Map 格式)
+export interface CategoryScoreDTO {
+  category: string;
+  totalScore: number;
+  count: number;
+  avgScore: number;
 }

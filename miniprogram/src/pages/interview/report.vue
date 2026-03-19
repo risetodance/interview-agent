@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { getInterviewDetail } from '../../api/interview'
+import { ref, onMounted, computed, nextTick } from 'vue'
+import { getInterviewDetail, getAbilityProfile, type AbilityProfile } from '../../api/interview'
 
 // 路由参数
 const pageId = ref<string>('')
 
 // 面试详情数据
 const interview = ref<any>(null)
+const abilityProfile = ref<AbilityProfile | null>(null)
 const loading = ref(true)
+const abilityLoading = ref(true)
 const expandedQuestions = ref<Set<number>>(new Set())
 
 // 页面参数
@@ -24,6 +26,7 @@ onMounted(() => {
 // 加载面试详情
 const loadInterviewDetail = async () => {
   loading.value = true
+  abilityLoading.value = true
   try {
     // 加载基本信息（details接口已包含完整数据）
     const detailRes = await getInterviewDetail(pageId.value)
@@ -36,11 +39,162 @@ const loadInterviewDetail = async () => {
         expandedQuestions.value.add(idx)
       })
     }
+
+    // 加载能力画像数据
+    try {
+      const profileRes = await getAbilityProfile(pageId.value)
+      abilityProfile.value = profileRes
+      // 绘制雷达图
+      await nextTick()
+      drawRadarChart()
+    } catch (e) {
+      console.error('获取能力画像失败:', e)
+    } finally {
+      abilityLoading.value = false
+    }
   } catch (error) {
     console.error('获取面试详情失败:', error)
   } finally {
     loading.value = false
   }
+}
+
+// 绘制雷达图
+const drawRadarChart = () => {
+  if (!abilityProfile.value || !abilityProfile.value.categoryScores) return
+
+  const categoryScores = abilityProfile.value.categoryScores
+  const categories = Object.keys(categoryScores)
+
+  if (categories.length === 0) return
+
+  // categoryScores 是 Map 格式
+  const data = categories.map(key => ({
+    name: key,
+    score: categoryScores[key].avgScore || 0
+  }))
+
+  // 创建 canvas 上下文
+  const ctx = uni.createCanvasContext('radarChart')
+
+  // 画布参数
+  const canvasWidth = 600
+  const canvasHeight = 500
+  const centerX = canvasWidth / 2
+  const centerY = canvasHeight / 2 + 30
+  const radius = 180
+  const angleStep = (2 * Math.PI) / data.length
+  const startAngle = -Math.PI / 2
+
+  // 绘制背景网格
+  ctx.setStrokeStyle('#e5e7eb')
+  ctx.setLineWidth(1)
+
+  // 绘制3个同心圆
+  for (let i = 1; i <= 3; i++) {
+    const r = (radius / 3) * i
+    ctx.beginPath()
+    for (let j = 0; j <= data.length; j++) {
+      const angle = startAngle + angleStep * (j % data.length)
+      const x = centerX + r * Math.cos(angle)
+      const y = centerY + r * Math.sin(angle)
+      if (j === 0) {
+        ctx.moveTo(x, y)
+      } else {
+        ctx.lineTo(x, y)
+      }
+    }
+    ctx.closePath()
+    ctx.stroke()
+  }
+
+  // 绘制轴线
+  for (let i = 0; i < data.length; i++) {
+    const angle = startAngle + angleStep * i
+    ctx.beginPath()
+    ctx.moveTo(centerX, centerY)
+    ctx.lineTo(
+      centerX + radius * Math.cos(angle),
+      centerY + radius * Math.sin(angle)
+    )
+    ctx.stroke()
+  }
+
+  // 绘制数据区域
+  ctx.beginPath()
+  ctx.setFillStyle('rgba(139, 92, 246, 0.3)')
+  ctx.setStrokeStyle('#8b5cf6')
+  ctx.setLineWidth(2)
+
+  for (let i = 0; i <= data.length; i++) {
+    const idx = i % data.length
+    const angle = startAngle + angleStep * idx
+    const score = data[idx].score / 100
+    const r = radius * score
+    const x = centerX + r * Math.cos(angle)
+    const y = centerY + r * Math.sin(angle)
+
+    if (i === 0) {
+      ctx.moveTo(x, y)
+    } else {
+      ctx.lineTo(x, y)
+    }
+  }
+  ctx.closePath()
+  ctx.fill()
+  ctx.stroke()
+
+  // 绘制数据点
+  for (let i = 0; i < data.length; i++) {
+    const angle = startAngle + angleStep * i
+    const score = data[i].score / 100
+    const r = radius * score
+    const x = centerX + r * Math.cos(angle)
+    const y = centerY + r * Math.sin(angle)
+
+    ctx.beginPath()
+    ctx.setFillStyle('#8b5cf6')
+    ctx.arc(x, y, 6, 0, 2 * Math.PI)
+    ctx.fill()
+  }
+
+  // 绘制标签
+  ctx.setFillStyle('#64748b')
+  ctx.setFontSize(24)
+
+  for (let i = 0; i < data.length; i++) {
+    const angle = startAngle + angleStep * i
+    const labelRadius = radius + 35
+    const x = centerX + labelRadius * Math.cos(angle)
+    const y = centerY + labelRadius * Math.sin(angle)
+
+    ctx.setTextAlign('center')
+    ctx.setTextBaseline('middle')
+
+    // 简化标签（如果太长）
+    let label = data[i].name
+    if (label.length > 4) {
+      label = label.substring(0, 4) + '...'
+    }
+    ctx.fillText(label, x, y)
+  }
+
+  // 绘制分数
+  for (let i = 0; i < data.length; i++) {
+    const angle = startAngle + angleStep * i
+    const score = data[i].score / 100
+    const scoreRadius = radius * score
+    const x = centerX + scoreRadius * Math.cos(angle)
+    const y = centerY + scoreRadius * Math.sin(angle)
+
+    ctx.setFillStyle('#8b5cf6')
+    ctx.setFontSize(20)
+    ctx.setTextAlign('center')
+    ctx.setTextBaseline('middle')
+    ctx.fillText(String(Math.round(data[i].score)), x, y - 20)
+  }
+
+  ctx.draw()
 }
 
 // 获取答案列表（从interview中获取）
@@ -128,6 +282,17 @@ const progressOffset = computed(() => {
         </view>
         <view class="score-feedback" v-if="interview.overallFeedback">
           <text class="feedback-text">{{ interview.overallFeedback }}</text>
+        </view>
+      </view>
+
+      <!-- 能力画像雷达图 -->
+      <view v-if="abilityProfile && !abilityLoading" class="section-card ability-profile">
+        <view class="section-header">
+          <text class="section-icon">&#xe605;</text>
+          <text class="section-title">能力画像</text>
+        </view>
+        <view class="radar-container">
+          <canvas canvas-id="radarChart" class="radar-canvas"></canvas>
         </view>
       </view>
 
@@ -359,6 +524,25 @@ $text-secondary: #909399;
 
   .bullet-point {
     color: $primary;
+  }
+}
+
+.ability-profile {
+  .section-icon {
+    color: $primary;
+    font-weight: 600;
+  }
+
+  .radar-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20rpx 0;
+  }
+
+  .radar-canvas {
+    width: 600rpx;
+    height: 500rpx;
   }
 }
 

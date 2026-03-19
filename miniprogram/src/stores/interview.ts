@@ -7,11 +7,12 @@ import {
   deleteInterview,
   getInterviewQuestions,
   submitAnswer,
+  submitAnswerAdaptive,
+  getCurrentQuestion,
   getInterviewResult,
   getEvaluateStatus,
   getInterviewHistory
 } from '../api/interview'
-import { wsManager, WebSocketMessageType } from '../utils/websocket'
 
 // 面试类型定义
 export interface Interview {
@@ -98,9 +99,6 @@ export const useInterviewStore = defineStore('interview', () => {
     averageScore: 0,
     totalDuration: 0
   })
-
-  // WebSocket 连接状态
-  const wsConnected = computed(() => wsManager.isConnected)
 
   // 当前问题
   const currentQuestion = computed(() => {
@@ -257,13 +255,13 @@ export const useInterviewStore = defineStore('interview', () => {
   }
 
   /**
-   * 提交答案
+   * 提交答案（自适应难度版本）
    */
   const submitQuestionAnswer = async (params: AnswerParams) => {
     isSubmitting.value = true
     try {
-      // 调用 API，正确传递参数
-      const result = await submitAnswer(params.interviewId, params.questionId, params.answer)
+      // 使用自适应难度 API 提交答案
+      const result = await submitAnswerAdaptive(params.interviewId, params.questionId, params.answer)
 
       // 更新本地问题状态
       const questionIndex = currentQuestions.value.findIndex(
@@ -271,15 +269,52 @@ export const useInterviewStore = defineStore('interview', () => {
       )
       if (questionIndex > -1) {
         currentQuestions.value[questionIndex].answer = params.answer
-        currentQuestions.value[questionIndex].answerStatus = 'evaluated'
-        if (result.evaluation) {
-          currentQuestions.value[questionIndex].evaluation = result.evaluation
-        }
+        currentQuestions.value[questionIndex].answerStatus = 'answered'
+      }
+
+      // 如果有下一题，更新当前问题索引
+      if (result.hasNextQuestion && result.nextQuestion) {
+        currentQuestionIndex.value = result.newIndex
+        // 添加下一题到问题列表
+        currentQuestions.value.push({
+          id: result.nextQuestion.questionIndex,
+          questionIndex: result.nextQuestion.questionIndex,
+          question: result.nextQuestion.question,
+          content: result.nextQuestion.question,
+          category: result.nextQuestion.category,
+          type: result.nextQuestion.type as 'text' | 'audio' | 'video',
+          answerStatus: 'pending'
+        })
       }
 
       return result
     } finally {
       isSubmitting.value = false
+    }
+  }
+
+  /**
+   * 获取当前问题（自适应难度版本）
+   */
+  const fetchCurrentQuestion = async (sessionId: string | number) => {
+    isLoading.value = true
+    try {
+      const question = await getCurrentQuestion(sessionId)
+      // 更新当前问题
+      if (currentQuestions.value.length === 0 || currentQuestionIndex.value === 0) {
+        currentQuestions.value.push({
+          id: question.questionIndex,
+          questionIndex: question.questionIndex,
+          question: question.question,
+          content: question.question,
+          category: question.category,
+          difficulty: question.difficulty as 'easy' | 'medium' | 'hard',
+          answerStatus: 'pending'
+        })
+      }
+      return question
+    } finally {
+      isLoading.value = false
     }
   }
 
@@ -345,48 +380,19 @@ export const useInterviewStore = defineStore('interview', () => {
   }
 
   /**
-   * 开始面试（连接 WebSocket）
+   * 开始面试（设置当前面试）
    */
   const startInterview = (interviewId: string | number) => {
-    if (!wsManager.isConnected) {
-      wsManager.connect()
+    // 设置当前面试 ID
+    if (currentInterview.value) {
+      currentInterview.value.status = 'in_progress'
     }
-
-    // 监听 WebSocket 消息
-    wsManager.on(WebSocketMessageType.INTERVIEW_QUESTION, (data) => {
-      // 收到新问题
-      if (data.questions) {
-        currentQuestions.value = data.questions
-      }
-    })
-
-    wsManager.on(WebSocketMessageType.AI_EVALUATION, (data) => {
-      // 收到 AI 评价
-      const questionIndex = currentQuestions.value.findIndex(
-        q => q.id === data.questionId
-      )
-      if (questionIndex > -1) {
-        currentQuestions.value[questionIndex].evaluation = data.evaluation
-        currentQuestions.value[questionIndex].answerStatus = 'evaluated'
-      }
-    })
-
-    wsManager.on(WebSocketMessageType.INTERVIEW_COMPLETE, (data) => {
-      // 面试完成
-      const interview = currentInterview.value
-      if (interview && interview.id === data.interviewId) {
-        interview.status = 'completed'
-        interview.score = data.score
-        interview.feedback = data.feedback
-      }
-    })
   }
 
   /**
    * 结束面试
    */
   const finishInterview = () => {
-    wsManager.close()
     currentInterview.value = null
     currentQuestions.value = []
     currentQuestionIndex.value = 0
@@ -414,7 +420,6 @@ export const useInterviewStore = defineStore('interview', () => {
     statistics,
 
     // Getters
-    wsConnected,
     currentQuestion,
     progress,
 
@@ -425,14 +430,13 @@ export const useInterviewStore = defineStore('interview', () => {
     createNewInterview,
     removeInterview,
     fetchQuestions,
+    fetchCurrentQuestion,
     submitQuestionAnswer,
     fetchInterviewResult,
     fetchStatistics,
     nextQuestion,
     prevQuestion,
     goToQuestion,
-    startInterview,
-    finishInterview,
     reset
   }
 })

@@ -85,6 +85,16 @@ export interface InterviewDetail extends InterviewItem {
   evaluateStatus?: EvaluateStatus;
   evaluateError?: string;
   answers: AnswerItem[];
+  // 后端返回 Map 格式
+  categoryScores?: Record<string, CategoryScoreDTO>;
+}
+
+// 后端 CategoryScoreDTO 格式
+export interface CategoryScoreDTO {
+  category: string;
+  totalScore: number;
+  count: number;
+  avgScore: number;
 }
 
 export const historyApi = {

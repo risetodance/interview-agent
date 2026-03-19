@@ -18,11 +18,7 @@ import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -41,6 +37,9 @@ public class InterviewSessionService {
     private final ObjectMapper objectMapper;
     private final EvaluateStreamProducer evaluateStreamProducer;
     private final KnowledgeBaseVectorService knowledgeBaseVectorService;
+    private final DifficultyAdjustmentService difficultyAdjustmentService;
+    private final QuestionGenerationService questionGenerationService;
+    private final SingleAnswerEvaluationService singleAnswerEvaluationService;
 
     @Lazy
     private QuestionService questionServiceForBank;
@@ -50,10 +49,10 @@ public class InterviewSessionService {
      * 注意：如果已有未完成的会话，不会创建新的，而是返回现有会话
      * 前端应该先调用 findUnfinishedSession 检查，或者使用 forceCreate 参数强制创建
      */
-    public InterviewSessionDTO createSession(Long userId, CreateInterviewRequest request) {
+    public InterviewSessionBasicDTO createSession(Long userId, CreateInterviewRequest request) {
         // 如果指定了resumeId且未强制创建，检查是否有未完成的会话
         if (request.resumeId() != null && !Boolean.TRUE.equals(request.forceCreate())) {
-            Optional<InterviewSessionDTO> unfinishedOpt = findUnfinishedSession(userId, request.resumeId());
+            Optional<InterviewSessionBasicDTO> unfinishedOpt = findUnfinishedSession(userId, request.resumeId());
             if (unfinishedOpt.isPresent()) {
                 log.info("检测到未完成的面试会话，返回现有会话: userId={}, resumeId={}, sessionId={}",
                         userId, request.resumeId(), unfinishedOpt.get().sessionId());
@@ -63,101 +62,40 @@ public class InterviewSessionService {
 
         String sessionId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 
-        log.info("创建新面试会话: userId={}, sessionId={}, 题目数量: {}, resumeId: {}, questionBankIds: {}, knowledgeBaseIds: {}",
-                userId, sessionId, request.questionCount(), request.resumeId(), request.questionBankIds(), request.knowledgeBaseIds());
+        log.info("创建新面试会话: userId={}, sessionId={}, 题目数量: {}, resumeId: {}, knowledgeBaseIds: {}",
+                userId, sessionId, request.questionCount(), request.resumeId(), request.knowledgeBaseIds());
 
-        // 获取知识库内容（如果有指定知识库）
-        String knowledgeBaseContext = null;
+        // 自适应难度模式：始终不批量生成问题，问题在 getCurrentQuestionForAdaptive 中实时生成
+        // 保存知识库ID列表到会话
+        String knowledgeBaseIdsJson = null;
         if (request.knowledgeBaseIds() != null && !request.knowledgeBaseIds().isEmpty()) {
-            knowledgeBaseContext = retrieveKnowledgeBaseContext(request.knowledgeBaseIds());
-            log.info("已从知识库获取上下文内容，长度: {}", knowledgeBaseContext != null ? knowledgeBaseContext.length() : 0);
-        }
-
-        // 获取历史问题
-        List<String> historicalQuestions = null;
-        if (request.resumeId() != null) {
-            historicalQuestions = persistenceService.getHistoricalQuestionsByResumeId(request.resumeId());
-        }
-
-        // 生成面试问题
-        List<InterviewQuestionDTO> questions;
-
-        // 如果没有简历文本，使用默认值
-        String resumeText = request.resumeText();
-        if (resumeText == null || resumeText.isBlank()) {
-            resumeText = "通用面试，无特定简历内容";
-            log.info("未提供简历文本，使用默认通用面试");
-        }
-
-        // 如果指定了题库，从题库获取题目；否则使用 AI 生成
-        if (request.questionBankIds() != null && !request.questionBankIds().isEmpty()) {
-            log.info("从题库获取题目: bankIds={}", request.questionBankIds());
-            var bankQuestions = questionServiceForBank.getRandomQuestionsFromBanks(
-                    request.questionBankIds(),
-                    request.questionCount()
-            );
-            var questionList = bankQuestions.getData();
-            questions = new java.util.ArrayList<InterviewQuestionDTO>();
-            for (int i = 0; i < questionList.size(); i++) {
-                var q = questionList.get(i);
-                InterviewQuestionDTO dto = InterviewQuestionDTO.create(
-                        i,
-                        q.getContent(),
-                        InterviewQuestionDTO.QuestionType.JAVA_BASIC,
-                        q.getDifficulty() != null ? q.getDifficulty().name() : "MEDIUM"
-                );
-                questions.add(dto);
+            try {
+                knowledgeBaseIdsJson = objectMapper.writeValueAsString(request.knowledgeBaseIds());
+            } catch (Exception e) {
+                log.warn("序列化知识库ID失败: {}", e.getMessage());
             }
-        } else if (knowledgeBaseContext != null) {
-            // 使用知识库内容生成问题
-            log.info("使用知识库内容生成面试问题");
-            questions = questionService.generateQuestionsWithContext(
-                    resumeText,
-                    request.questionCount(),
-                    knowledgeBaseContext,
-                    historicalQuestions
-            );
-        } else {
-            // 使用 AI 生成题目
-            questions = questionService.generateQuestions(
-                    resumeText,
-                    request.questionCount());
         }
 
-        // 保存到 Redis 缓存（包含知识库ID）
-        sessionCache.saveSession(
+        // 保存到数据库（不生成问题）
+        persistenceService.saveAdaptiveSession(userId, sessionId, request.resumeId(),
+                request.questionCount(), knowledgeBaseIdsJson);
+
+        return new InterviewSessionBasicDTO(
                 sessionId,
                 request.resumeText(),
-                request.resumeId(),
-                questions,
+                request.questionCount(),
                 0,
-                SessionStatus.CREATED,
-                request.knowledgeBaseIds()
-        );
-
-        // 保存到数据库（关联用户ID）
-        try {
-            persistenceService.saveSession(userId, sessionId, request.resumeId(),
-                    questions.size(), questions);
-        } catch (Exception e) {
-            log.warn("保存面试会话到数据库失败: {}", e.getMessage());
-        }
-
-        return new InterviewSessionDTO(
-                sessionId,
-                request.resumeText(),
-                questions.size(),
-                0,
-                questions,
-                SessionStatus.CREATED,
-                request.knowledgeBaseIds()
+                "CREATED",
+                "BASIC",
+                null,
+                0
         );
     }
 
     /**
      * 获取会话信息（优先从缓存获取，缓存未命中则从数据库恢复）
      */
-    public InterviewSessionDTO getSession(Long userId, String sessionId) {
+    public InterviewSessionBasicDTO getSession(Long userId, String sessionId) {
         // 验证会话所有权
         validateSessionOwnership(userId, sessionId);
 
@@ -215,7 +153,7 @@ public class InterviewSessionService {
     /**
      * 查找并恢复未完成的面试会话
      */
-    public Optional<InterviewSessionDTO> findUnfinishedSession(Long userId, Long resumeId) {
+    public Optional<InterviewSessionBasicDTO> findUnfinishedSession(Long userId, Long resumeId) {
         try {
             // 1. 先从 Redis 缓存查找
             Optional<String> cachedSessionIdOpt = sessionCache.findUnfinishedSessionId(resumeId);
@@ -257,7 +195,7 @@ public class InterviewSessionService {
     /**
      * 查找并恢复未完成的面试会话，如果不存在则抛出异常
      */
-    public InterviewSessionDTO findUnfinishedSessionOrThrow(Long userId, Long resumeId) {
+    public InterviewSessionBasicDTO findUnfinishedSessionOrThrow(Long userId, Long resumeId) {
         return findUnfinishedSession(userId, resumeId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND, "未找到未完成的面试会话"));
     }
@@ -425,9 +363,12 @@ public class InterviewSessionService {
 
         return new SubmitAnswerResponse(
                 hasNextQuestion,
-                nextQuestion,
+                null,
                 newIndex,
-                result.questions().size()
+                result.questions().size(),
+                0,
+                Map.of(),
+                "BASIC"
         );
     }
 
@@ -576,18 +517,29 @@ public class InterviewSessionService {
     }
 
     /**
-     * 将缓存会话转换为 DTO
+     * 将缓存会话转换为 DTO（不包含问题列表）
      */
-    private InterviewSessionDTO toDTO(CachedSession session) {
-        List<InterviewQuestionDTO> questions = session.getQuestions(objectMapper);
-        return new InterviewSessionDTO(
+    private InterviewSessionBasicDTO toDTO(CachedSession session) {
+        // 从 questionsJson 获取问题数量
+        int totalQuestions = 0;
+        try {
+            if (session.getQuestionsJson() != null && !session.getQuestionsJson().isBlank()) {
+                List<InterviewQuestionDTO> questions = session.getQuestions(objectMapper);
+                totalQuestions = questions.size();
+            }
+        } catch (Exception e) {
+            log.warn("解析问题列表失败: {}", e.getMessage());
+        }
+
+        return new InterviewSessionBasicDTO(
                 session.getSessionId(),
                 session.getResumeText(),
-                questions.size(),
+                totalQuestions,
                 session.getCurrentIndex(),
-                questions,
-                session.getStatus(),
-                session.getKnowledgeBaseIds()
+                session.getStatus().name(),
+                "BASIC",
+                null,
+                0
         );
     }
 
@@ -595,7 +547,7 @@ public class InterviewSessionService {
      * 切换面试知识库
      * 会根据新的知识库重新生成所有未回答的问题
      */
-    public InterviewSessionDTO switchKnowledgeBase(Long userId, String sessionId, List<Long> knowledgeBaseIds) {
+    public InterviewSessionBasicDTO switchKnowledgeBase(Long userId, String sessionId, List<Long> knowledgeBaseIds) {
         // 验证会话所有权
         validateSessionOwnership(userId, sessionId);
 
@@ -700,4 +652,257 @@ public class InterviewSessionService {
             return null;
         }
     }
+
+    /**
+     * 获取当前问题（自适应难度版本）
+     * 实时生成问题并入库，返回 CurrentQuestionDTO
+     */
+    public CurrentQuestionDTO getCurrentQuestionForAdaptive(String sessionId) {
+        // 获取会话实体
+        InterviewSessionEntity session = persistenceService.findBySessionId(sessionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND));
+
+        // 获取当前简历文本（可能没有简历）
+        String resumeText = null;
+        if (session.getResume() != null) {
+            resumeText = session.getResume().getResumeText();
+        }
+        if (resumeText == null || resumeText.isBlank()) {
+            resumeText = "通用面试，无特定简历内容";
+        }
+
+        // 计算当前问题索引
+        int questionIndex = session.getCurrentQuestionIndex() != null ? session.getCurrentQuestionIndex() : 0;
+
+        // 判断是否已超出总题数
+        if (session.getTotalQuestions() != null && questionIndex >= session.getTotalQuestions()) {
+            return null; // 所有问题已回答完毕
+        }
+
+        // 确定问题分类（轮询各个分类）
+        String category = getNextCategory(questionIndex);
+
+        // 生成问题
+        CurrentQuestionDTO questionDTO = questionGenerationService.generateSingleQuestion(
+                session, questionIndex, resumeText, category);
+
+        // 保存生成的问题到数据库（userAnswer为null，等待用户回答后更新）
+        persistenceService.saveAnswerWithDifficulty(
+                sessionId,
+                questionIndex,
+                questionDTO.getQuestion(),
+                category,
+                null, // userAnswer为null，等待用户回答后更新
+                questionDTO.getDifficulty(),
+                questionDTO.getKnowledgeBaseId(),
+                questionDTO.getReferenceContext(),
+                0,  // 初始评分为0，等待用户回答后更新
+                null // 初始反馈为null
+        );
+
+        // 更新会话状态
+        if (session.getStatus() == InterviewSessionEntity.SessionStatus.CREATED) {
+            session.setStatus(InterviewSessionEntity.SessionStatus.IN_PROGRESS);
+            persistenceService.updateSessionStatus(sessionId, InterviewSessionEntity.SessionStatus.IN_PROGRESS);
+        }
+
+        log.info("获取当前问题: sessionId={}, index={}, category={}, difficulty={}",
+                sessionId, questionIndex, category, questionDTO.getDifficulty());
+
+        return questionDTO;
+    }
+
+    /**
+     * 获取下一个问题分类
+     */
+    private String getNextCategory(int questionIndex) {
+        String[] categories = {
+                "Java基础", "Java集合", "Java并发",
+                "MySQL", "Redis", "Spring", "项目经历"
+        };
+        return categories[questionIndex % categories.length];
+    }
+
+    /**
+     * 提交答案（自适应难度版本）
+     * 保存答案 -> AI评估 -> 更新分类得分 -> 调整难度 -> 返回下一题
+     */
+    public SubmitAnswerResponse submitAnswerForAdaptive(String sessionId, Integer questionIndex, String answer) {
+        // 获取会话实体
+        InterviewSessionEntity session = persistenceService.findBySessionId(sessionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND));
+
+        // 获取当前问题
+        List<InterviewAnswerEntity> existingAnswers = persistenceService.findAnswersBySessionId(sessionId);
+        InterviewAnswerEntity currentAnswer = existingAnswers.stream()
+                .filter(a -> a.getQuestionIndex().equals(questionIndex))
+                .findFirst()
+                .orElse(null);
+
+        if (currentAnswer == null) {
+            throw new BusinessException(ErrorCode.INTERVIEW_QUESTION_NOT_FOUND, "问题不存在");
+        }
+
+        String resumeText = session.getResume().getResumeText();
+        if (resumeText == null || resumeText.isBlank()) {
+            resumeText = "通用面试，无特定简历内容";
+        }
+
+        // 评估答案
+        SingleAnswerEvaluationService.EvaluationResult evaluationResult = singleAnswerEvaluationService.evaluateAnswer(
+                currentAnswer.getQuestion(),
+                currentAnswer.getCategory(),
+                currentAnswer.getDifficulty(),
+                answer,
+                resumeText,
+                currentAnswer.getReferenceContext()
+        );
+
+        // 保存答案（含评估结果）
+        persistenceService.saveAnswerWithDifficulty(
+                sessionId,
+                questionIndex,
+                currentAnswer.getQuestion(),
+                currentAnswer.getCategory(),
+                answer,
+                currentAnswer.getDifficulty(),
+                currentAnswer.getKnowledgeBaseId(),
+                currentAnswer.getReferenceContext(),
+                evaluationResult.score(),
+                evaluationResult.feedback()
+        );
+
+        // 更新分类得分
+        Map<String, CategoryScoreDTO> categoryScores = calculateCategoryScores(sessionId);
+        try {
+            session.setCategoryScores(objectMapper.writeValueAsString(categoryScores));
+            persistenceService.updateCategoryScores(sessionId, session.getCategoryScores());
+        } catch (Exception e) {
+            log.warn("序列化分类得分失败: {}", e.getMessage());
+        }
+
+        // 计算当前总分
+        int currentScore = calculateOverallScore(categoryScores);
+
+        // 调整难度
+        String currentDifficulty = session.getCurrentDifficulty() != null ? session.getCurrentDifficulty() : "BASIC";
+        String nextDifficulty = difficultyAdjustmentService.adjustDifficulty(currentDifficulty, evaluationResult.score());
+        session.setCurrentDifficulty(nextDifficulty);
+        persistenceService.updateCurrentDifficulty(sessionId, nextDifficulty);
+
+        // 更新问题索引
+        int newIndex = questionIndex + 1;
+        boolean hasNextQuestion = session.getTotalQuestions() == null || newIndex < session.getTotalQuestions();
+
+        // 更新会话状态
+        persistenceService.updateCurrentQuestionIndex(sessionId, newIndex);
+
+        CurrentQuestionDTO nextQuestion = null;
+        if (hasNextQuestion) {
+            // 生成下一题
+            session.setCurrentQuestionIndex(newIndex);
+            nextQuestion = questionGenerationService.generateSingleQuestion(
+                    session, newIndex, resumeText, getNextCategory(newIndex));
+        } else {
+            // 面试完成，触发评估
+            session.setStatus(InterviewSessionEntity.SessionStatus.COMPLETED);
+            persistenceService.updateSessionStatus(sessionId, InterviewSessionEntity.SessionStatus.COMPLETED);
+            persistenceService.updateEvaluateStatus(sessionId, AsyncTaskStatus.PENDING, null);
+            evaluateStreamProducer.sendEvaluateTask(sessionId);
+            log.info("会话 {} 已完成所有问题，评估任务已入队", sessionId);
+        }
+
+        // 更新已生成问题数量
+        int generated = session.getQuestionsGenerated() != null ? session.getQuestionsGenerated() : 0;
+        persistenceService.updateQuestionsGenerated(sessionId, generated);
+
+        log.info("提交答案完成: sessionId={}, questionIndex={}, score={}, nextDifficulty={}, hasNext={}",
+                sessionId, questionIndex, evaluationResult.score(), nextDifficulty, hasNextQuestion);
+
+        return new SubmitAnswerResponse(
+                hasNextQuestion,
+                nextQuestion,
+                newIndex,
+                generated,
+                currentScore,
+                categoryScores,
+                nextDifficulty
+        );
+    }
+
+    /**
+     * 计算分类得分（返回Map格式）
+     */
+    private Map<String, CategoryScoreDTO> calculateCategoryScores(String sessionId) {
+        List<InterviewAnswerEntity> scoredAnswers = persistenceService.findScoredAnswersBySessionId(sessionId);
+
+        Map<String, List<Integer>> categoryScoresMap = new LinkedHashMap<>();
+        for (InterviewAnswerEntity answer : scoredAnswers) {
+            String category = answer.getCategory();
+            if (category != null && !category.isBlank()) {
+                // 提取基础分类（去掉追问标记）
+                String baseCategory = category.contains("（追问") ?
+                        category.substring(0, category.indexOf("（追问")) : category;
+
+                categoryScoresMap.computeIfAbsent(baseCategory, k -> new ArrayList<>())
+                        .add(answer.getScore());
+            }
+        }
+
+        Map<String, CategoryScoreDTO> result = new LinkedHashMap<>();
+        for (Map.Entry<String, List<Integer>> entry : categoryScoresMap.entrySet()) {
+            List<Integer> scores = entry.getValue();
+            int total = scores.stream().mapToInt(Integer::intValue).sum();
+            int avg = (int) scores.stream().mapToInt(Integer::intValue).average().orElse(0);
+            result.put(entry.getKey(), new CategoryScoreDTO(entry.getKey(), total, scores.size(), avg));
+        }
+
+        return result;
+    }
+
+    /**
+     * 计算总分（适配Map格式）
+     */
+    private int calculateOverallScore(Map<String, CategoryScoreDTO> categoryScores) {
+        if (categoryScores == null || categoryScores.isEmpty()) {
+            return 0;
+        }
+        return (int) categoryScores.values().stream()
+                .mapToInt(CategoryScoreDTO::getAvgScore)
+                .average()
+                .orElse(0);
+    }
+
+    /**
+     * 获取能力画像
+     */
+    public AbilityProfileDTO getAbilityProfile(String sessionId) {
+        InterviewSessionEntity session = persistenceService.findBySessionId(sessionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND));
+
+        // 计算分类得分
+        Map<String, CategoryScoreDTO> categoryScores = calculateCategoryScores(sessionId);
+
+        // 计算总分
+        int overallScore = calculateOverallScore(categoryScores);
+
+        // 提取优势和劣势
+        List<String> strengths = new ArrayList<>();
+        List<String> weaknesses = new ArrayList<>();
+
+        for (CategoryScoreDTO cs : categoryScores.values()) {
+            int score = cs.getAvgScore();
+            if (score >= 80) {
+                strengths.add(cs.getCategory());
+            } else if (score < 60) {
+                weaknesses.add(cs.getCategory());
+            }
+        }
+
+        log.info("获取能力画像: sessionId={}, overallScore={}, categoryCount={}",
+                sessionId, overallScore, categoryScores.size());
+
+        return new AbilityProfileDTO(categoryScores, overallScore, strengths, weaknesses);
+    }
+
 }

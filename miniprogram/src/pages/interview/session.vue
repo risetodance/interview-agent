@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useInterviewStore, type InterviewQuestion, type QuestionEvaluation } from '../../stores/interview'
-import { wsManager, WebSocketMessageType, sendInterviewAnswer, requestNextQuestion } from '../../utils/websocket'
 import { endInterview } from '../../api/interview'
 
 // 路由参数
@@ -81,14 +80,9 @@ const initInterview = async () => {
     console.log('[Session] detail fetched')
 
     // 检查面试是否已完成，如果已完成则设置为 completed 状态
-    if (detail.status === 'completed' || detail.status === 'EVALUATED') {
+    if (detail.status === 'completed') {
       interviewStatus.value = 'completed'
     }
-
-    // 获取问题列表
-    console.log('[Session] fetching questions...')
-    await interviewStore.fetchQuestions(pageId.value)
-    console.log('[Session] questions fetched')
 
     // 如果是结果模式或面试已结束，获取结果
     if (pageMode.value === 'result' || interviewStatus.value === 'completed') {
@@ -98,9 +92,16 @@ const initInterview = async () => {
       interviewStatus.value = 'completed'
       console.log('[Session] result mode ready')
     } else {
-      // 连接 WebSocket 开始面试
-      console.log('[Session] starting websocket...')
-      startWebSocket()
+      // 使用自适应难度 API 获取当前问题
+      console.log('[Session] fetching current question...')
+      const currentQ = await interviewStore.fetchCurrentQuestion(pageId.value)
+      console.log('[Session] current question fetched:', currentQ)
+
+      // 直接显示第一道题（使用 HTTP API）
+      console.log('[Session] starting interview with HTTP API...')
+      interviewStatus.value = 'answering'
+      addSystemMessage('面试开始')
+      showCurrentQuestion()
     }
     console.log('[Session] initInterview done')
   } catch (error) {
@@ -110,64 +111,6 @@ const initInterview = async () => {
       icon: 'none'
     })
   }
-}
-
-// 连接 WebSocket（带 REST API fallback）
-const startWebSocket = () => {
-  if (!wsManager.isConnected) {
-    wsManager.connect()
-  }
-
-  // 监听连接成功
-  wsManager.onConnect(() => {
-    interviewStatus.value = 'connected'
-    addSystemMessage('已连接面试系统')
-
-    // 请求第一个问题
-    if (questions.value.length > 0 && !currentQuestion.value?.answer) {
-      showCurrentQuestion()
-    }
-  })
-
-  // WebSocket 连接失败时，使用 REST API fallback
-  const checkConnection = () => {
-    setTimeout(() => {
-      if (interviewStatus.value === 'idle' && questions.value.length > 0) {
-        // WebSocket 未连接，使用 REST API 模式
-        interviewStatus.value = 'connected'
-        addSystemMessage('使用 REST API 模式')
-
-        // 显示第一道题
-        if (!currentQuestion.value?.answer) {
-          showCurrentQuestion()
-        }
-      }
-    }, 3000) // 等待 3 秒后如果还是 idle 状态，则使用 REST API
-  }
-  checkConnection()
-
-  // 监听问题
-  wsManager.on(WebSocketMessageType.INTERVIEW_QUESTION, (data) => {
-    if (data.questions) {
-      interviewStore.fetchQuestions(pageId.value)
-    }
-    interviewStatus.value = 'answering'
-  })
-
-  // 监听答案评价
-  wsManager.on(WebSocketMessageType.AI_EVALUATION, (data) => {
-    handleEvaluation(data)
-  })
-
-  // 监听面试完成
-  wsManager.on(WebSocketMessageType.INTERVIEW_COMPLETE, (data) => {
-    handleInterviewComplete(data)
-  })
-
-  // 监听错误
-  wsManager.on(WebSocketMessageType.ERROR, (data) => {
-    addSystemMessage(data.message || '系统错误')
-  })
 }
 
 // 显示当前问题
@@ -286,17 +229,12 @@ const submitAnswer = async () => {
   interviewStatus.value = 'evaluating'
 
   try {
-    // 提交答案到后端
+    // 提交答案到后端 API
     await interviewStore.submitQuestionAnswer({
       interviewId: pageId.value,
       questionId,
       answer
     })
-
-    // 如果 WebSocket 连接正常，通过 WebSocket 发送
-    if (wsManager.isConnected) {
-      sendInterviewAnswer(answer, String(questionId))
-    }
 
     // 立即进入下一题（不等待评价完成）
     if (currentIndex.value < questions.value.length - 1) {
@@ -395,11 +333,6 @@ const finishInterviewAndWaitForResult = async () => {
     // 调用后端接口结束面试
     await endInterview(pageId.value)
 
-    // 关闭 WebSocket
-    if (wsManager.isConnected) {
-      wsManager.close()
-    }
-
     // 显示加载蒙版，等待评估完成
     interviewStatus.value = 'evaluating'
     showReportLoading.value = true
@@ -449,8 +382,7 @@ const finishInterview = () => {
 
 // 返回列表
 const goBackToList = () => {
-  wsManager.close()
-  interviewStore.finishInterview()
+  interviewStore.reset()
   uni.navigateBack()
 }
 
@@ -483,11 +415,6 @@ onUnmounted(() => {
   if (pollTimer.value) {
     clearTimeout(pollTimer.value)
   }
-
-  // 关闭 WebSocket 连接
-  if (wsManager.isConnected) {
-    wsManager.close()
-  }
 })
 </script>
 
@@ -510,8 +437,7 @@ onUnmounted(() => {
       <view class="header-center">
         <text class="interview-title">{{ interview?.title || 'AI 模拟面试' }}</text>
         <text v-if="interviewStatus !== 'completed'" class="interview-status">
-          {{ interviewStatus === 'connected' ? '已连接' :
-             interviewStatus === 'answering' ? '回答中' :
+          {{ interviewStatus === 'answering' ? '回答中' :
              interviewStatus === 'evaluating' ? 'AI 评价中' : '准备中' }}
         </text>
       </view>
