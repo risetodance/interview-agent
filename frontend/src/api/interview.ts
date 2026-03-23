@@ -6,6 +6,7 @@ import type {
   InterviewReport,
   InterviewSession,
   ScoreTrend,
+  SessionProgressDTO,
   SubmitAnswerRequest,
   SubmitAnswerResponse,
 } from '../types/interview';
@@ -32,6 +33,13 @@ export const interviewApi = {
    */
   async getCurrentQuestion(sessionId: string): Promise<CurrentQuestionDTO> {
     return request.get<CurrentQuestionDTO>(`/api/interview/sessions/${sessionId}/current`);
+  },
+
+  /**
+   * 获取会话进度
+   */
+  async getSessionProgress(sessionId: string): Promise<SessionProgressDTO> {
+    return request.get<SessionProgressDTO>(`/api/interview/sessions/${sessionId}/progress`);
   },
 
   /**

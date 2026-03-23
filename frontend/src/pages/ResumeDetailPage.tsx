@@ -1,5 +1,5 @@
-import {useEffect, useState, useCallback} from 'react';
-import {useLocation} from 'react-router-dom';
+import {useEffect, useState, useCallback, useRef} from 'react';
+import {useLocation, useNavigate} from 'react-router-dom';
 import {AnimatePresence, motion} from 'framer-motion';
 import {historyApi, InterviewDetail, ResumeDetail} from '../api/history';
 import AnalysisPanel from '../components/AnalysisPanel';
@@ -26,6 +26,7 @@ type DetailViewType = 'list' | 'interviewDetail';
 
 export default function ResumeDetailPage({ resumeId, onBack, onStartInterview }: ResumeDetailPageProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [resume, setResume] = useState<ResumeDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('analysis');
@@ -35,6 +36,9 @@ export default function ResumeDetailPage({ resumeId, onBack, onStartInterview }:
   const [selectedInterview, setSelectedInterview] = useState<InterviewDetail | null>(null);
   const [loadingInterview, setLoadingInterview] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
+
+  // 防止重复加载面试详情的 ref
+  const hasLoadedViewInterview = useRef(false);
 
   // 静默加载数据（用于轮询）
   const loadResumeDetailSilent = useCallback(async () => {
@@ -96,7 +100,8 @@ export default function ResumeDetailPage({ resumeId, onBack, onStartInterview }:
   // 检查是否需要自动打开面试详情
   useEffect(() => {
     const viewInterview = (location.state as { viewInterview?: string })?.viewInterview;
-    if (viewInterview && resume) {
+    if (viewInterview && resume && !hasLoadedViewInterview.current) {
+      hasLoadedViewInterview.current = true;
       // 切换到面试标签页
       setActiveTab('interview');
       // 加载并显示面试详情
@@ -158,6 +163,16 @@ export default function ResumeDetailPage({ resumeId, onBack, onStartInterview }:
     setLoadingInterview(true);
     try {
       const detail = await historyApi.getInterviewDetail(sessionId);
+
+      // 如果是进行中的面试，跳转到面试页面继续
+      if (detail.status === 'IN_PROGRESS' || detail.status === 'CREATED') {
+        navigate(`/interview/${resumeId}`, {
+          state: { sessionId, resumeId }
+        });
+        return;
+      }
+
+      // 否则显示详情面板
       setSelectedInterview(detail);
       setDetailView('interviewDetail');
     } catch (err) {

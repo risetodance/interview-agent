@@ -162,12 +162,25 @@ export default function InterviewHistoryPage({ onBack: _onBack, onViewInterview 
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [deleteItem, setDeleteItem] = useState<InterviewWithResume | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
-  const pollingRef = useRef<number | null>(null);
+  const pollingTimerRef = useRef<number | null>(null);
+  const interviewsRef = useRef<InterviewWithResume[]>([]);
+
+  // 比较两个面试列表是否有状态变化
+  const hasStatusChanged = (oldList: InterviewWithResume[], newList: InterviewWithResume[]): boolean => {
+    if (oldList.length !== newList.length) return true;
+    const oldMap = new Map(oldList.map(i => [i.sessionId, i]));
+    for (const newItem of newList) {
+      const oldItem = oldMap.get(newItem.sessionId);
+      if (!oldItem) return true;
+      // 比较关键状态字段
+      if (oldItem.status !== newItem.status || oldItem.evaluateStatus !== newItem.evaluateStatus || oldItem.overallScore !== newItem.overallScore) {
+        return true;
+      }
+    }
+    return false;
+  };
 
   const loadAllInterviews = useCallback(async (isPolling = false) => {
-    if (!isPolling) {
-      setLoading(true);
-    }
     try {
       const resumes = await historyApi.getResumes();
       const allInterviews: InterviewWithResume[] = [];
@@ -190,52 +203,62 @@ export default function InterviewHistoryPage({ onBack: _onBack, onViewInterview 
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
 
-      setInterviews(allInterviews);
-
-      // 计算统计信息（只统计评估已完成的面试）
-      const evaluated = allInterviews.filter(i => isEvaluateCompleted(i));
-      const totalScore = evaluated.reduce((sum, i) => sum + (i.overallScore || 0), 0);
-      setStats({
-        totalCount: allInterviews.length,
-        completedCount: evaluated.length,
-        averageScore: evaluated.length > 0 ? Math.round(totalScore / evaluated.length) : 0,
-      });
-    } catch (err) {
-      console.error('加载面试记录失败', err);
-    } finally {
-      if (!isPolling) {
+      // 轮询时：只有状态变化了才更新
+      if (isPolling) {
+        if (hasStatusChanged(interviewsRef.current, allInterviews)) {
+          interviewsRef.current = allInterviews;
+          setInterviews(allInterviews);
+          updateStats(allInterviews);
+        }
+      } else {
+        setLoading(true);
+        interviewsRef.current = allInterviews;
+        setInterviews(allInterviews);
+        updateStats(allInterviews);
         setLoading(false);
       }
+    } catch (err) {
+      console.error('加载面试记录失败', err);
     }
   }, []);
 
+  const updateStats = (allInterviews: InterviewWithResume[]) => {
+    const evaluated = allInterviews.filter(i => isEvaluateCompleted(i));
+    const totalScore = evaluated.reduce((sum, i) => sum + (i.overallScore || 0), 0);
+    setStats({
+      totalCount: allInterviews.length,
+      completedCount: evaluated.length,
+      averageScore: evaluated.length > 0 ? Math.round(totalScore / evaluated.length) : 0,
+    });
+  };
+
   // 初始加载
   useEffect(() => {
-    loadAllInterviews();
-  }, [loadAllInterviews]);
+    loadAllInterviews(false);
+  }, []);
 
   // 轮询检查评估状态
   useEffect(() => {
+    // 清除之前的轮询定时器
+    if (pollingTimerRef.current) {
+      clearInterval(pollingTimerRef.current);
+      pollingTimerRef.current = null;
+    }
+
     // 检查是否有正在评估的面试
     const hasEvaluating = interviews.some(i => isEvaluating(i));
 
     if (hasEvaluating) {
       // 启动轮询
-      pollingRef.current = window.setInterval(() => {
+      pollingTimerRef.current = window.setInterval(() => {
         loadAllInterviews(true);
-      }, 3000); // 每3秒轮询一次
-    } else {
-      // 停止轮询
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
+      }, 3000);
     }
 
     return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
+      if (pollingTimerRef.current) {
+        clearInterval(pollingTimerRef.current);
+        pollingTimerRef.current = null;
       }
     };
   }, [interviews, loadAllInterviews]);

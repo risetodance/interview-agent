@@ -12,6 +12,27 @@ export interface CurrentQuestionDTO {
   knowledgeBaseId: number | null;
   knowledgeBaseName: string | null;
   referenceContext: string | null;
+  isFollowUp?: boolean;
+  relatedIndex?: number;
+  relatedQuestion?: string;
+}
+
+// 会话进度 DTO
+export interface SessionProgressDTO {
+  sessionId: string;
+  currentQuestionIndex: number;
+  totalQuestions: number;
+  currentQuestion: CurrentQuestionDTO | null;
+  history: AnswerHistoryDTO[];
+}
+
+// 历史答题记录 DTO
+export interface AnswerHistoryDTO {
+  questionIndex: number;
+  question: string;
+  category: string;
+  difficulty: DifficultyLevel;
+  userAnswer: string;
 }
 
 export interface InterviewSession {

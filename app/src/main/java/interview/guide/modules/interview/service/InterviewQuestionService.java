@@ -4,7 +4,6 @@ import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.interview.model.InterviewQuestionDTO;
-import interview.guide.modules.interview.model.InterviewQuestionDTO.QuestionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -213,62 +212,50 @@ public class InterviewQuestionService {
             if (q == null || q.question() == null || q.question().isBlank()) {
                 continue;
             }
-            QuestionType type = parseQuestionType(q.type());
             int mainQuestionIndex = index;
-            questions.add(InterviewQuestionDTO.create(index++, q.question(), type, q.category(), false, null));
+            questions.add(InterviewQuestionDTO.create(index++, q.question(), q.category(), false, null));
 
             List<String> followUps = sanitizeFollowUps(q.followUps());
             for (int i = 0; i < followUps.size(); i++) {
                 questions.add(InterviewQuestionDTO.create(
                     index++,
                     followUps.get(i),
-                    type,
                     buildFollowUpCategory(q.category(), i + 1),
                     true,
                     mainQuestionIndex
                 ));
             }
         }
-        
+
         return questions;
     }
-    
-    private QuestionType parseQuestionType(String typeStr) {
-        try {
-            return QuestionType.valueOf(typeStr.toUpperCase());
-        } catch (Exception e) {
-            return QuestionType.JAVA_BASIC;
-        }
-    }
-    
+
     /**
      * 生成默认问题（备用）
      */
     private List<InterviewQuestionDTO> generateDefaultQuestions(int count) {
         List<InterviewQuestionDTO> questions = new ArrayList<>();
-        
+
         String[][] defaultQuestions = {
-            {"请介绍一下你在简历中提到的最重要的项目，你在其中承担了什么角色？", "PROJECT", "项目经历"},
-            {"MySQL的索引有哪些类型？B+树索引的原理是什么？", "MYSQL", "MySQL"},
-            {"Redis支持哪些数据结构？各自的使用场景是什么？", "REDIS", "Redis"},
-            {"Java中HashMap的底层实现原理是什么？JDK8做了哪些优化？", "JAVA_COLLECTION", "Java集合"},
-            {"synchronized和ReentrantLock有什么区别？", "JAVA_CONCURRENT", "Java并发"},
-            {"Spring的IoC和AOP原理是什么？", "SPRING", "Spring"},
-            {"MySQL事务的ACID特性是什么？隔离级别有哪些？", "MYSQL", "MySQL"},
-            {"Redis的持久化机制有哪些？RDB和AOF的区别？", "REDIS", "Redis"},
-            {"Java的垃圾回收机制是怎样的？常见的GC算法有哪些？", "JAVA_BASIC", "Java基础"},
-            {"线程池的核心参数有哪些？如何合理配置？", "JAVA_CONCURRENT", "Java并发"},
+            {"请介绍一下你在简历中提到的最重要的项目，你在其中承担了什么角色？", "项目经历"},
+            {"MySQL的索引有哪些类型？B+树索引的原理是什么？", "MySQL"},
+            {"Redis支持哪些数据结构？各自的使用场景是什么？", "Redis"},
+            {"Java中HashMap的底层实现原理是什么？JDK8做了哪些优化？", "Java集合"},
+            {"synchronized和ReentrantLock有什么区别？", "Java并发"},
+            {"Spring的IoC和AOP原理是什么？", "Spring"},
+            {"MySQL事务的ACID特性是什么？隔离级别有哪些？", "MySQL"},
+            {"Redis的持久化机制有哪些？RDB和AOF的区别？", "Redis"},
+            {"Java的垃圾回收机制是怎样的？常见的GC算法有哪些？", "Java基础"},
+            {"线程池的核心参数有哪些？如何合理配置？", "Java并发"},
         };
-        
+
         int index = 0;
         for (int i = 0; i < Math.min(count, defaultQuestions.length); i++) {
             String mainQuestion = defaultQuestions[i][0];
-            QuestionType type = QuestionType.valueOf(defaultQuestions[i][1]);
-            String category = defaultQuestions[i][2];
+            String category = defaultQuestions[i][1];
             questions.add(InterviewQuestionDTO.create(
                 index++,
                 mainQuestion,
-                type,
                 category,
                 false,
                 null
@@ -279,14 +266,13 @@ public class InterviewQuestionService {
                 questions.add(InterviewQuestionDTO.create(
                     index++,
                     buildDefaultFollowUp(mainQuestion, j + 1),
-                    type,
                     buildFollowUpCategory(category, j + 1),
                     true,
                     mainQuestionIndex
                 ));
             }
         }
-        
+
         return questions;
     }
 

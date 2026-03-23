@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { historyApi, ResumeListItem, ResumeStats, AnalyzeStatus } from '../api/history';
 import DeleteConfirmDialog from './DeleteConfirmDialog';
@@ -121,59 +121,82 @@ export default function HistoryList({ onSelectResume }: HistoryListProps) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteItem, setDeleteItem] = useState<ResumeListItem | null>(null);
   const [reanalyzingId, setReanalyzingId] = useState<number | null>(null);
+  const pollingTimerRef = useRef<number | null>(null);
+  const resumesRef = useRef<ResumeListItem[]>([]);
 
-  // 静默加载数据（用于轮询）
-  const loadDataSilent = useCallback(async () => {
-    try {
-      const [resumeData, statsData] = await Promise.all([
-        historyApi.getResumes(),
-        historyApi.getStatistics(),
-      ]);
-      setResumes(resumeData);
-      setStats(statsData);
-    } catch (err) {
-      console.error('加载数据失败', err);
+  // 比较两个简历列表是否有状态变化
+  const hasDataChanged = (oldList: ResumeListItem[], newList: ResumeListItem[]): boolean => {
+    if (oldList.length !== newList.length) return true;
+    const oldMap = new Map(oldList.map(r => [r.id, r]));
+    for (const newItem of newList) {
+      const oldItem = oldMap.get(newItem.id);
+      if (!oldItem) return true;
+      // 比较关键状态字段
+      if (oldItem.analyzeStatus !== newItem.analyzeStatus || oldItem.latestScore !== newItem.latestScore) {
+        return true;
+      }
     }
-  }, []);
+    return false;
+  };
 
   // 加载数据
-  const loadResumes = useCallback(async () => {
-    setLoading(true);
+  const loadResumes = useCallback(async (isPolling = false) => {
     try {
       const [resumeData, statsData] = await Promise.all([
         historyApi.getResumes(),
         historyApi.getStatistics(),
       ]);
-      setResumes(resumeData);
-      setStats(statsData);
+
+      // 轮询时：只有状态变化了才更新
+      if (isPolling) {
+        if (hasDataChanged(resumesRef.current, resumeData)) {
+          resumesRef.current = resumeData;
+          setResumes(resumeData);
+          setStats(statsData);
+        }
+      } else {
+        setLoading(true);
+        resumesRef.current = resumeData;
+        setResumes(resumeData);
+        setStats(statsData);
+        setLoading(false);
+      }
     } catch (err) {
       console.error('加载数据失败', err);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadResumes();
-  }, [loadResumes]);
+    loadResumes(false);
+  }, []);
 
   // 轮询：当有待处理项时，每5秒刷新一次
   // 待处理判断：显式的 PENDING/PROCESSING 状态，或状态未定义且无分数
   useEffect(() => {
+    if (pollingTimerRef.current) {
+      clearInterval(pollingTimerRef.current);
+      pollingTimerRef.current = null;
+    }
+
     const hasPendingItems = resumes.some(
       r => r.analyzeStatus === 'PENDING' ||
         r.analyzeStatus === 'PROCESSING' ||
         (r.analyzeStatus === undefined && r.latestScore === undefined)
     );
 
-    if (hasPendingItems && !loading) {
-      const timer = setInterval(() => {
-        loadDataSilent();
-      }, 5000);
+    if (!hasPendingItems || loading) return;
 
-      return () => clearInterval(timer);
-    }
-  }, [resumes, loading, loadDataSilent]);
+    pollingTimerRef.current = window.setInterval(() => {
+      loadResumes(true);
+    }, 5000);
+
+    return () => {
+      if (pollingTimerRef.current) {
+        clearInterval(pollingTimerRef.current);
+        pollingTimerRef.current = null;
+      }
+    };
+  }, [resumes, loading, loadResumes]);
 
   // 下载简历
   const handleDownload = (resume: ResumeListItem, e: React.MouseEvent) => {
@@ -194,7 +217,7 @@ export default function HistoryList({ onSelectResume }: HistoryListProps) {
     try {
       setReanalyzingId(id);
       await historyApi.reanalyze(id);
-      await loadDataSilent();
+      await loadResumes();
     } catch (err) {
       console.error('重新分析失败', err);
     } finally {

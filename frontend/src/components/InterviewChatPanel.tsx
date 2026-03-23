@@ -15,6 +15,9 @@ interface Message {
   questionIndex?: number;
   difficulty?: string;
   knowledgeBaseName?: string | null;
+  isFollowUp?: boolean;
+  relatedIndex?: number;
+  relatedQuestion?: string;
 }
 
 interface InterviewChatPanelProps {
@@ -26,6 +29,7 @@ interface InterviewChatPanelProps {
   onSubmit: () => void;
   onCompleteEarly: () => void;
   isSubmitting: boolean;
+  isLoadingQuestion?: boolean;
   showCompleteConfirm: boolean;
   onShowCompleteConfirm: (show: boolean) => void;
 }
@@ -56,13 +60,14 @@ export default function InterviewChatPanel({
   onSubmit,
   // onCompleteEarly, // 暂时未使用
   isSubmitting,
+  isLoadingQuestion,
   // showCompleteConfirm, // 暂时未使用
   onShowCompleteConfirm
 }: InterviewChatPanelProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
 
   const progress = useMemo(() => {
-    if (!session || !currentQuestion) return 0;
+    if (!session || !currentQuestion || !session.totalQuestions) return 0;
     return ((currentQuestion.questionIndex + 1) / session.totalQuestions) * 100;
   }, [session, currentQuestion]);
 
@@ -78,7 +83,7 @@ export default function InterviewChatPanel({
       <div className="bg-white rounded-2xl p-6 mb-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-semibold text-slate-700">
-            题目 {currentQuestion ? currentQuestion.questionIndex + 1 : 0} / {session.totalQuestions}
+            题目 {currentQuestion ? currentQuestion.questionIndex + 1 : 0}{session.totalQuestions ? ` / ${session.totalQuestions}` : ''}
           </span>
           <span className="text-sm text-slate-500">
             {Math.round(progress)}%
@@ -119,24 +124,24 @@ export default function InterviewChatPanel({
               placeholder="输入你的回答... (Ctrl/Cmd + Enter 提交)"
               className="flex-1 px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
               rows={3}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isLoadingQuestion}
             />
             <div className="flex flex-col gap-2">
               <motion.button
                 onClick={onSubmit}
-                disabled={!answer.trim() || isSubmitting}
+                disabled={!answer.trim() || isSubmitting || isLoadingQuestion}
                 className="px-6 py-3 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                whileHover={{ scale: isSubmitting || !answer.trim() ? 1 : 1.02 }}
-                whileTap={{ scale: isSubmitting || !answer.trim() ? 1 : 0.98 }}
+                whileHover={{ scale: isSubmitting || isLoadingQuestion || !answer.trim() ? 1 : 1.02 }}
+                whileTap={{ scale: isSubmitting || isLoadingQuestion || !answer.trim() ? 1 : 0.98 }}
               >
-                {isSubmitting ? (
+                {isSubmitting || isLoadingQuestion ? (
                   <>
                     <motion.div
                       className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
                       animate={{ rotate: 360 }}
                       transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                     />
-                    提交中
+                    {isLoadingQuestion ? '加载中...' : '提交中'}
                   </>
                 ) : (
                   <>
@@ -147,10 +152,10 @@ export default function InterviewChatPanel({
               </motion.button>
               <motion.button
                 onClick={() => onShowCompleteConfirm(true)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isLoadingQuestion}
                 className="px-6 py-3 bg-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
-                whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
+                whileHover={{ scale: isSubmitting || isLoadingQuestion ? 1 : 1.02 }}
+                whileTap={{ scale: isSubmitting || isLoadingQuestion ? 1 : 0.98 }}
               >
                 提前交卷
               </motion.button>
@@ -167,6 +172,7 @@ function MessageBubble({ message }: { message: Message }) {
   if (message.type === 'interviewer') {
     const difficulty = message.difficulty as DifficultyLevel | undefined;
     const difficultyStyle = difficulty ? difficultyColors[difficulty] : null;
+    const isFollowUp = message.isFollowUp || false;
 
     return (
       <motion.div
@@ -180,25 +186,38 @@ function MessageBubble({ message }: { message: Message }) {
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-sm font-semibold text-slate-700">面试官</span>
-            {message.category && (
+            {isFollowUp ? (
+              <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-xs rounded-full border border-amber-200">
+                追问 {message.relatedIndex ? `· 关于问题${message.relatedIndex}` : ''}
+              </span>
+            ) : message.category ? (
               <span className="px-2 py-0.5 bg-primary-50 text-primary-600 text-xs rounded-full">
                 {message.category}
               </span>
-            )}
-            {difficultyStyle && difficulty && (
+            ) : null}
+            {!isFollowUp && difficultyStyle && difficulty && (
               <span className={`px-2 py-0.5 ${difficultyStyle.bg} ${difficultyStyle.text} text-xs rounded-full border ${difficultyStyle.border}`}>
                 {difficultyLabels[difficulty]}
               </span>
             )}
           </div>
-          {message.knowledgeBaseName && (
+          {message.knowledgeBaseName && !isFollowUp && (
             <div className="flex items-center gap-1 mb-2 text-xs text-slate-500">
               <BookOpen className="w-3 h-3" />
               <span>{message.knowledgeBaseName}</span>
             </div>
           )}
           <div className="bg-slate-100 rounded-2xl rounded-tl-none p-4 text-slate-800 leading-relaxed">
-            {message.content}
+            {isFollowUp && message.relatedQuestion ? (
+              <>
+                <div className="text-xs text-amber-600 mb-2 pb-2 border-b border-amber-200">
+                  {message.relatedIndex ? `关于问题${message.relatedIndex}：` : ''}{message.relatedQuestion}
+                </div>
+                <div>{message.content}</div>
+              </>
+            ) : (
+              message.content
+            )}
           </div>
         </div>
       </motion.div>

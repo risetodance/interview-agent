@@ -3,6 +3,19 @@
 
 server:
   port: 8080
+  # Tomcat 连接超时配置
+  tomcat:
+    connection-timeout: 60000  # 60秒
+    keep-alive-timeout: 120000  # 120秒
+    max-keep-alive-requests: 100
+  # Servlet 会话超时
+  servlet:
+    session:
+      timeout: 30m  # 30分钟
+  # 错误处理
+  error:
+    include-message: always
+    include-binding-errors: always
 
 spring:
   application:
@@ -20,10 +33,18 @@ spring:
     username: ${POSTGRES_USER:postgres}
     password: ${POSTGRES_PASSWORD:123456}
     driver-class-name: org.postgresql.Driver
+    # HikariCP 连接池超时配置
+    hikari:
+      connection-timeout: 30000      # 获取连接超时：30秒
+      idle-timeout: 600000          # 空闲连接超时：10分钟
+      max-lifetime: 1800000          # 连接最大生命周期：30分钟
+      connection-test-query: SELECT 1
+      maximum-pool-size: 10
+      minimum-idle: 5
 
   jpa:
     hibernate:
-      ddl-auto: create #首次启动用 create，表创建成功后，改回 update
+      ddl-auto: update #首次启动用 create，表创建成功后，改回 update
     show-sql: false
     properties:
       hibernate:
@@ -49,12 +70,16 @@ spring:
           connectionPoolSize: 64
           subscriptionConnectionMinimumIdleSize: 1
           subscriptionConnectionPoolSize: 50
+          timeout: 10000          # Redis 操作超时：10秒
   
   # Spring AI
   ai:
     openai:
       base-url: https://api.minimaxi.com/
       api-key: ${MINIMAX_API_KEY}
+      # HTTP 请求超时配置（毫秒）
+      connect-timeout: 120000    # 2分钟
+      read-timeout: 120000       # 2分钟
       chat:
         options:
           model: ${AI_MODEL:MiniMax-M2.5}
@@ -81,6 +106,11 @@ app:
   # CORS配置
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:80}
+
+  # HTTP 请求超时配置（毫秒）
+  http:
+    connect-timeout: ${APP_HTTP_CONNECT_TIMEOUT:120000}  # 2分钟
+    read-timeout: ${APP_HTTP_READ_TIMEOUT:120000}         # 2分钟
 
   # JWT Token 配置
   jwt:

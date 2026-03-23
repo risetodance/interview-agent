@@ -53,12 +53,8 @@ public class InterviewHistoryService {
         List<Object> referenceAnswers = parseJson(session.getReferenceAnswersJson(), new TypeReference<>() {});
         Map<String, CategoryScoreDTO> categoryScores = parseCategoryScores(session.getCategoryScores());
 
-        // 解析所有题目（用于构建完整的答案列表）
-        List<InterviewQuestionDTO> allQuestions = parseJson(
-            session.getQuestionsJson(),
-                new TypeReference<>() {
-                }
-        );
+        // 从答案构建问题列表（自适应面试）
+        List<InterviewQuestionDTO> allQuestions = buildQuestionsFromAnswers(session.getAnswers());
 
         // 构建答案详情列表（包含所有题目，未回答的也要显示）
         List<InterviewDetailDTO.AnswerDetailDTO> answerList = buildAnswerDetailList(
@@ -160,6 +156,22 @@ public class InterviewHistoryService {
             log.error("解析 JSON 失败", e);
             return null;
         }
+    }
+
+    /**
+     * 从答案构建问题列表（自适应面试）
+     */
+    private List<InterviewQuestionDTO> buildQuestionsFromAnswers(List<InterviewAnswerEntity> answers) {
+        if (answers == null || answers.isEmpty()) {
+            return List.of();
+        }
+        return answers.stream()
+            .map(answer -> InterviewQuestionDTO.create(
+                answer.getQuestionIndex(),
+                answer.getQuestion(),
+                answer.getCategory() != null ? answer.getCategory() : "Java基础"
+            ))
+            .toList();
     }
 
     /**

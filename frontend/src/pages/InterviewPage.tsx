@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useState, useRef} from 'react';
 import {AnimatePresence, motion} from 'framer-motion';
 import {interviewApi} from '../api/interview';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -15,16 +15,20 @@ interface Message {
   questionIndex?: number;
   difficulty?: string;
   knowledgeBaseName?: string | null;
+  isFollowUp?: boolean;
+  relatedIndex?: number;
+  relatedQuestion?: string;
 }
 
 interface InterviewProps {
   resumeText: string;
   resumeId?: number;
+  sessionId?: string; // 传入sessionId时，直接恢复该会话
   onBack: () => void;
   onInterviewComplete: () => void;
 }
 
-export default function Interview({ resumeText, resumeId, onBack, onInterviewComplete }: InterviewProps) {
+export default function Interview({ resumeText, resumeId, sessionId, onBack, onInterviewComplete }: InterviewProps) {
   const [stage, setStage] = useState<InterviewStage>('config');
   const [questionCount, setQuestionCount] = useState(8);
   const [session, setSession] = useState<InterviewSession | null>(null);
@@ -38,14 +42,87 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
   const [unfinishedSession, setUnfinishedSession] = useState<InterviewSession | null>(null);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [forceCreateNew, setForceCreateNew] = useState(false);
-  
+  const [isLoadingQuestion, setIsLoadingQuestion] = useState(false);
+
+  // 使用 ref 防止重复请求
+  const hasInitialized = useRef(false);
+
   // 检查是否有未完成的面试（组件挂载时和resumeId变化时）
   useEffect(() => {
-    if (resumeId) {
+    // 防止重复初始化
+    if (hasInitialized.current) {
+      return;
+    }
+    hasInitialized.current = true;
+
+    if (sessionId) {
+      // 如果有sessionId，直接恢复该会话
+      restoreSessionById(sessionId);
+    } else if (resumeId) {
       checkUnfinishedSession();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumeId]);
+  }, [resumeId, sessionId]);
+
+  // 根据sessionId恢复会话
+  const restoreSessionById = async (sid: string) => {
+    setCheckingUnfinished(true);
+    try {
+      // 调用 getSessionProgress 获取会话进度（包括历史记录和当前问题）
+      const progress = await interviewApi.getSessionProgress(sid);
+
+      // 构建消息历史
+      const restoredMessages: Message[] = [];
+      for (const historyItem of progress.history) {
+        restoredMessages.push({
+          type: 'interviewer',
+          content: historyItem.question,
+          category: historyItem.category,
+          questionIndex: historyItem.questionIndex,
+          difficulty: historyItem.difficulty
+        });
+        restoredMessages.push({
+          type: 'user',
+          content: historyItem.userAnswer
+        });
+      }
+
+      // 添加当前问题
+      if (progress.currentQuestion) {
+        restoredMessages.push({
+          type: 'interviewer',
+          content: progress.currentQuestion.question,
+          category: progress.currentQuestion.category,
+          questionIndex: progress.currentQuestion.questionIndex,
+          difficulty: progress.currentQuestion.difficulty,
+          knowledgeBaseName: progress.currentQuestion.knowledgeBaseName,
+          isFollowUp: progress.currentQuestion.isFollowUp,
+          relatedIndex: progress.currentQuestion.relatedIndex,
+          relatedQuestion: progress.currentQuestion.relatedQuestion
+        });
+      }
+
+      // 创建 session 对象
+      const tempSession: InterviewSession = {
+        sessionId: sid,
+        resumeText: resumeText,
+        totalQuestions: progress.totalQuestions,
+        currentQuestionIndex: progress.currentQuestionIndex,
+        questions: [],
+        status: 'IN_PROGRESS'
+      };
+
+      setSession(tempSession);
+      setCurrentQuestion(progress.currentQuestion);
+      setMessages(restoredMessages);
+      setStage('interview');
+    } catch (err) {
+      console.error('恢复会话失败', err);
+      setError('恢复面试失败，请重新开始');
+    } finally {
+      setCheckingUnfinished(false);
+    }
+  };
   
   const checkUnfinishedSession = async () => {
     if (!resumeId) return;
@@ -77,39 +154,56 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
   
   const restoreSession = async (sessionToRestore: InterviewSession) => {
     setSession(sessionToRestore);
+    setIsLoadingQuestion(true);
 
     // 调用 getCurrentQuestion 获取当前问题
     try {
       const currentQ = await interviewApi.getCurrentQuestion(sessionToRestore.sessionId);
       setCurrentQuestion(currentQ);
 
-      // 恢复消息历史
-      const restoredMessages: Message[] = [];
-      for (let i = 0; i <= sessionToRestore.currentQuestionIndex; i++) {
-        const q = sessionToRestore.questions[i];
-        restoredMessages.push({
-          type: 'interviewer',
-          content: q.question,
-          category: q.category,
-          questionIndex: i
-        });
-        if (q.userAnswer) {
+      // 自适应版本 InterviewSessionBasicDTO 没有 questions 列表
+      // 只能显示当前问题，无法恢复完整消息历史
+      if (sessionToRestore.questions && sessionToRestore.questions.length > 0) {
+        // 旧版本数据，可以恢复完整历史
+        const restoredMessages: Message[] = [];
+        for (let i = 0; i <= sessionToRestore.currentQuestionIndex; i++) {
+          const q = sessionToRestore.questions[i];
           restoredMessages.push({
-            type: 'user',
-            content: q.userAnswer
+            type: 'interviewer',
+            content: q.question,
+            category: q.category,
+            questionIndex: i
           });
+          if (q.userAnswer) {
+            restoredMessages.push({
+              type: 'user',
+              content: q.userAnswer
+            });
+          }
         }
-      }
-      setMessages(restoredMessages);
+        setMessages(restoredMessages);
 
-      // 如果当前问题已有答案，显示在输入框中
-      const currentQuestionData = sessionToRestore.questions[sessionToRestore.currentQuestionIndex];
-      if (currentQuestionData?.userAnswer) {
-        setAnswer(currentQuestionData.userAnswer);
+        // 如果当前问题已有答案，显示在输入框中
+        const currentQuestionData = sessionToRestore.questions[sessionToRestore.currentQuestionIndex];
+        if (currentQuestionData?.userAnswer) {
+          setAnswer(currentQuestionData.userAnswer);
+        }
+      } else {
+        // 新版本：只显示当前问题作为第一条消息
+        setMessages([{
+          type: 'interviewer',
+          content: currentQ.question,
+          category: currentQ.category,
+          questionIndex: currentQ.questionIndex,
+          difficulty: currentQ.difficulty,
+          knowledgeBaseName: currentQ.knowledgeBaseName
+        }]);
       }
     } catch (err) {
       console.error('恢复会话获取当前问题失败', err);
       setError('恢复面试失败，请重新开始');
+    } finally {
+      setIsLoadingQuestion(false);
     }
 
     setStage('interview');
@@ -134,7 +228,8 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
       setSession(newSession);
       setStage('interview');
 
-      // 调用 getCurrentQuestion 获取第一题
+      // 调用 getCurrentQuestion 获取第一题，显示 loading
+      setIsLoadingQuestion(true);
       try {
         const firstQuestion = await interviewApi.getCurrentQuestion(newSession.sessionId);
         setCurrentQuestion(firstQuestion);
@@ -150,6 +245,8 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
         console.error('获取第一题失败', questionErr);
         setError('获取面试问题失败，请重试');
         setStage('config');
+      } finally {
+        setIsLoadingQuestion(false);
       }
     } catch (err) {
       setError('创建面试失败，请重试');
@@ -181,7 +278,7 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
       });
 
       if (response.hasNextQuestion && response.nextQuestion) {
-        // 使用 submitAnswerResponse 返回的 nextQuestion
+        // 使用 submitAnswer 返回的 nextQuestion，不需要再调用 /current
         const nextQ = response.nextQuestion;
         setCurrentQuestion(nextQ);
         setMessages(prev => [...prev, {
@@ -190,7 +287,10 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
           category: nextQ.category,
           questionIndex: nextQ.questionIndex,
           difficulty: nextQ.difficulty,
-          knowledgeBaseName: nextQ.knowledgeBaseName
+          knowledgeBaseName: nextQ.knowledgeBaseName,
+          isFollowUp: nextQ.isFollowUp,
+          relatedIndex: nextQ.relatedIndex,
+          relatedQuestion: nextQ.relatedQuestion
         }]);
       } else {
         // 面试已完成，评估将在后台进行，跳转到面试记录页
@@ -242,21 +342,33 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
   
   // 面试对话界面
   const renderInterview = () => {
-    if (!session || !currentQuestion) return null;
+    if (!session) return null;
 
     return (
-      <InterviewChatPanel
-        session={session}
-        currentQuestion={currentQuestion}
-        messages={messages}
-        answer={answer}
-        onAnswerChange={setAnswer}
-        onSubmit={handleSubmitAnswer}
-        onCompleteEarly={handleCompleteEarly}
-        isSubmitting={isSubmitting}
-        showCompleteConfirm={showCompleteConfirm}
-        onShowCompleteConfirm={setShowCompleteConfirm}
-      />
+      <div className="relative">
+        {/* 加载下一题时的遮罩 */}
+        {isLoadingQuestion && (
+          <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-10 h-10 border-3 border-slate-200 border-t-primary-500 rounded-full mx-auto mb-4 animate-spin" />
+              <p className="text-slate-500">正在出题中...</p>
+            </div>
+          </div>
+        )}
+        <InterviewChatPanel
+          session={session}
+          currentQuestion={currentQuestion}
+          messages={messages}
+          answer={answer}
+          onAnswerChange={setAnswer}
+          onSubmit={handleSubmitAnswer}
+          onCompleteEarly={handleCompleteEarly}
+          isSubmitting={isSubmitting}
+          isLoadingQuestion={isLoadingQuestion}
+          showCompleteConfirm={showCompleteConfirm}
+          onShowCompleteConfirm={setShowCompleteConfirm}
+        />
+      </div>
     );
   };
 

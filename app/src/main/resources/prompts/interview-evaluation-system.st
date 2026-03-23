@@ -50,18 +50,15 @@ JSON 结构必须严格包含以下字段：
    - category: 字符串，技术类别名称（如：Java基础、Spring、并发、数据库）
    - score: 整数，该类别得分
    - questionCount: 整数，该类别的问题数量
-5. questionDetails: 对象数组，每个对象包含：
+5. questionEvaluations: 对象数组，每个对象包含：
    - questionIndex: 整数，问题序号
    - question: 字符串，题目内容
    - category: 字符串，所属类别
    - userAnswer: 字符串，候选人原始回答
    - score: 整数，本题得分（0-100）
    - feedback: 字符串，针对本题的具体评价
+   - referenceAnswer: 字符串，标准参考答案（深度解析版）
+   - keyPoints: 字符串数组，核心要点列表
 6. overallFeedback: 字符串，整场面试的综合性总结评价。
 7. strengths: 字符串数组，优势列表。
 8. improvements: 字符串数组，改进建议列表。
-9. referenceAnswers: 对象数组，每个对象包含：
-   - questionIndex: 整数，问题序号
-   - question: 字符串，题目内容
-   - referenceAnswer: 字符串，标准参考答案（深度解析版）
-   - keyPoints: 字符串数组，核心要点列表

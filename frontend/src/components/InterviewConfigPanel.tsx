@@ -176,10 +176,10 @@ export default function InterviewConfigPanel({
             </motion.button>
             <motion.button
               onClick={onStart}
-              disabled={isCreating}
+              disabled={isCreating || checkingUnfinished}
               className="px-8 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-semibold shadow-lg shadow-primary-500/30 hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-              whileHover={{ scale: isCreating ? 1 : 1.02, y: isCreating ? 0 : -1 }}
-              whileTap={{ scale: isCreating ? 1 : 0.98 }}
+              whileHover={{ scale: isCreating || checkingUnfinished ? 1 : 1.02, y: isCreating || checkingUnfinished ? 0 : -1 }}
+              whileTap={{ scale: isCreating || checkingUnfinished ? 1 : 0.98 }}
             >
               {isCreating ? (
                 <>

@@ -135,24 +135,7 @@ public class InterviewController {
             @PathVariable Long resumeId) {
         return Result.success(sessionService.findUnfinishedSessionOrThrow(userId, resumeId));
     }
-    
-    /**
-     * 暂存答案（不进入下一题）
-     */
-    @PutMapping("/api/interview/sessions/{sessionId}/answers")
-    public Result<Void> saveAnswer(
-            @CurrentUser Long userId,
-            @PathVariable String sessionId,
-            @RequestBody Map<String, Object> body) {
-        sessionService.validateSessionOwnership(userId, sessionId);
-        Integer questionIndex = (Integer) body.get("questionIndex");
-        String answer = (String) body.get("answer");
-        log.info("暂存答案: 用户{}, 会话{}, 问题{}", userId, sessionId, questionIndex);
-        SubmitAnswerRequest request = new SubmitAnswerRequest(sessionId, questionIndex, answer);
-        sessionService.saveAnswer(request);
-        return Result.success(null);
-    }
-    
+
     /**
      * 提前交卷
      */
@@ -254,6 +237,20 @@ public class InterviewController {
         sessionService.validateSessionOwnership(userId, sessionId);
         CurrentQuestionDTO question = sessionService.getCurrentQuestionForAdaptive(sessionId);
         return Result.success(question);
+    }
+
+    /**
+     * 获取会话进度和历史答题记录
+     * GET /api/interview/sessions/{sessionId}/progress
+     */
+    @GetMapping("/api/interview/sessions/{sessionId}/progress")
+    public Result<SessionProgressDTO> getSessionProgress(
+            @CurrentUser Long userId,
+            @PathVariable String sessionId) {
+        log.info("获取会话进度: 用户{}, 会话{}", userId, sessionId);
+        sessionService.validateSessionOwnership(userId, sessionId);
+        SessionProgressDTO progress = sessionService.getSessionProgress(sessionId);
+        return Result.success(progress);
     }
 
     /**

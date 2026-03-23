@@ -3,6 +3,7 @@ package interview.guide.modules.interview.service;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
+import interview.guide.modules.interview.model.AnswerHistoryDTO;
 import interview.guide.modules.interview.model.CurrentQuestionDTO;
 import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
@@ -13,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -63,35 +65,35 @@ public class QuestionGenerationService {
 
     /**
      * 生成单个面试问题
+     * AI根据简历和历史记录自行决定问题内容和分类
      *
      * @param session            会话实体
      * @param questionIndex     问题索引
      * @param resumeText         简历文本
-     * @param category           问题分类
+     * @param history           历史答题记录
      * @return 包含问题内容和参考上下文的 DTO
      */
     public CurrentQuestionDTO generateSingleQuestion(InterviewSessionEntity session, int questionIndex,
-                                                     String resumeText, String category) {
+                                                     String resumeText, List<AnswerHistoryDTO> history) {
         String difficulty = session.getCurrentDifficulty() != null ? session.getCurrentDifficulty() : "BASIC";
 
-        log.info("生成问题: sessionId={}, index={}, difficulty={}, category={}",
-                session.getSessionId(), questionIndex, difficulty, category);
+        log.info("生成问题: sessionId={}, index={}, difficulty={}",
+                session.getSessionId(), questionIndex, difficulty);
 
         // 获取会话关联的知识库ID
         List<Long> knowledgeBaseIds = parseKnowledgeBaseIds(session.getKnowledgeBaseIds());
 
-        // 尝试从知识库检索相关内容
+        // 尝试从知识库检索相关内容（通用搜索，不限定分类）
         String referenceContext = null;
         Long usedKnowledgeBaseId = null;
         String knowledgeBaseName = null;
 
         if (knowledgeBaseIds != null && !knowledgeBaseIds.isEmpty()) {
-            String searchQuery = "生成" + category + "面试问题，难度" + difficulty;
-            var docs = knowledgeBaseVectorService.similaritySearch(searchQuery, knowledgeBaseIds, 3, 0.5);
+            var docs = knowledgeBaseVectorService.similaritySearch("面试题 技术知识", knowledgeBaseIds, 3, 0.5);
 
             if (docs != null && !docs.isEmpty()) {
                 referenceContext = docs.stream()
-                        .map(d -> d.getText())
+                        .map(Document::getText)
                         .reduce((a, b) -> a + "\n\n" + b)
                         .orElse(null);
 
@@ -112,40 +114,49 @@ public class QuestionGenerationService {
             }
         }
 
-        // 如果没有知识库，使用通用AI生成
-        String question = generateQuestionByAI(resumeText, category, difficulty, referenceContext, questionIndex);
+        // 使用通用AI生成，传入历史记录让AI决定问题内容和分类
+        SimpleQuestionDTO aiResult = generateQuestionByAI(resumeText, difficulty, referenceContext, questionIndex, history);
 
         // 更新会话的 questionsGenerated 计数
         int currentGenerated = session.getQuestionsGenerated() != null ? session.getQuestionsGenerated() : 0;
         session.setQuestionsGenerated(currentGenerated + 1);
 
+        // 使用AI返回的分类
+        String finalCategory = aiResult.category();
+
         CurrentQuestionDTO dto = new CurrentQuestionDTO(
                 questionIndex,
-                question,
-                category,
+                aiResult.question(),
+                finalCategory,
                 difficulty,
                 usedKnowledgeBaseId,
                 knowledgeBaseName,
-                referenceContext
+                referenceContext,
+                aiResult.isFollowUp(),
+                aiResult.relatedIndex(),
+                aiResult.relatedQuestion()
         );
 
-        log.info("问题生成成功: sessionId={}, index={}, questionLength={}, kbId={}",
-                session.getSessionId(), questionIndex, question.length(), usedKnowledgeBaseId);
+        log.info("问题生成成功: sessionId={}, index={}, category={}, questionLength={}, kbId={}",
+                session.getSessionId(), questionIndex, finalCategory, aiResult.question().length(), usedKnowledgeBaseId);
 
         return dto;
     }
 
     /**
      * 使用 AI 生成问题
+     * @return SimpleQuestionDTO 包含问题内容和分类
      */
-    private String generateQuestionByAI(String resumeText, String category, String difficulty,
-                                         String referenceContext, int questionIndex) {
+    private SimpleQuestionDTO generateQuestionByAI(String resumeText, String difficulty,
+                                         String referenceContext, int questionIndex,
+                                         List<AnswerHistoryDTO> history) {
         try {
             // 加载提示词
             PromptTemplate systemPrompt = getOrCreatePromptTemplate(difficulty);
 
             String systemPromptText = systemPrompt.render();
-            String userPromptText = buildUserPrompt(resumeText, category, difficulty, referenceContext, questionIndex);
+            // 传入历史记录，让AI根据简历内容自行决定问题类型
+            String userPromptText = buildUserPrompt(resumeText, difficulty, referenceContext, questionIndex, history);
 
             // 调用 AI 生成
             SimpleQuestionDTO result = structuredOutputInvoker.invoke(
@@ -160,15 +171,15 @@ public class QuestionGenerationService {
             );
 
             if (result != null && result.question() != null && !result.question().isBlank()) {
-                return result.question();
+                return result;
             }
 
             // 降级处理：返回默认问题
-            return generateDefaultQuestion(category, difficulty);
+            return generateDefaultQuestion();
 
         } catch (Exception e) {
             log.warn("AI问题生成失败，使用默认问题: {}", e.getMessage());
-            return generateDefaultQuestion(category, difficulty);
+            return generateDefaultQuestion();
         }
     }
 
@@ -191,28 +202,57 @@ public class QuestionGenerationService {
 
     /**
      * 构建用户提示词
+     * AI根据简历内容和历史记录自行决定问题类型和是否追问
      */
-    private String buildUserPrompt(String resumeText, String category, String difficulty,
-                                   String referenceContext, int questionIndex) {
+    private String buildUserPrompt(String resumeText, String difficulty,
+                                   String referenceContext, int questionIndex,
+                                   List<AnswerHistoryDTO> history) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("请生成一道面试问题。\n\n");
+        prompt.append("你是一个专业的技术面试官。请根据候选人的简历内容，自动选择一个最合适的技术方向来考察该候选人。\n\n");
         prompt.append("【问题索引】").append(questionIndex).append("\n");
-        prompt.append("【问题分类】").append(category).append("\n");
         prompt.append("【难度等级】").append(difficulty).append("\n");
-        prompt.append("【简历内容】\n").append(resumeText).append("\n\n");
+        prompt.append("【候选人简历】\n").append(resumeText).append("\n\n");
+
+        // 添加历史答题记录
+        if (history != null && !history.isEmpty()) {
+            prompt.append("【历史答题记录】\n");
+            for (AnswerHistoryDTO h : history) {
+                prompt.append("- 问题").append(h.questionIndex()).append("（").append(h.category()).append("）：").append(h.question()).append("\n");
+                prompt.append("  候选人回答：").append(h.userAnswer() != null ? h.userAnswer() : "无").append("\n");
+                if (h.feedback() != null) {
+                    prompt.append("  AI评价：").append(h.feedback()).append("\n");
+                }
+            }
+            prompt.append("\n");
+
+            // 告诉AI可以追问
+            prompt.append("【追问规则】\n");
+            prompt.append("如果发现候选人在某个问题上回答不完整或值得深入探讨，可以生成一道追问。\n");
+            prompt.append("追问应该基于候选人上一题的回答内容进行深入追问，不要问与上一题无关的问题。\n");
+            prompt.append("如果是追问，在 isFollowUp 填写 true，并在 relatedIndex 和 relatedQuestion 中填写关联的问题信息。\n\n");
+        }
 
         if (referenceContext != null && !referenceContext.isBlank()) {
             prompt.append("【参考资料】\n").append(referenceContext).append("\n\n");
         }
 
-        prompt.append("请生成一道针对性强、符合上述难度要求的面试问题。");
+        prompt.append("请根据简历内容，决定生成新问题还是追问（基于候选人的回答质量）。\n");
+        prompt.append("生成一道具有针对性的面试问题或追问。\n\n");
+        prompt.append("【输出要求】请以JSON格式返回，格式如下：\n");
+        prompt.append("{\n");
+        prompt.append("  \"question\": \"你生成的问题内容\",\n");
+        prompt.append("  \"category\": \"问题所属的技术分类（如：Java并发、MySQL、Redis等）\",\n");
+        prompt.append("  \"isFollowUp\": false或true,\n");
+        prompt.append("  \"relatedIndex\": 关联的问题索引（追问时填写）,\n");
+        prompt.append("  \"relatedQuestion\": 关联的问题摘要（追问时填写）\n");
+        prompt.append("}");
         return prompt.toString();
     }
 
     /**
      * 生成默认问题（降级处理）
      */
-    private String generateDefaultQuestion(String category, String difficulty) {
+    private SimpleQuestionDTO generateDefaultQuestion() {
         Map<String, String[]> defaultQuestions = new HashMap<>();
         defaultQuestions.put("Java基础", new String[]{
                 "请解释什么是多态性？请举例说明。",
@@ -250,11 +290,12 @@ public class QuestionGenerationService {
                 "请介绍一下你负责的系统架构？"
         });
 
-        String[] questions = defaultQuestions.getOrDefault(category,
-                new String[]{"请介绍一下你的技术栈？", "你为什么选择这门技术？", "请描述一个你解决过的技术问题？"});
-
+        // 随机选择一个分类
+        String[] categories = {"Java基础", "Java集合", "Java并发", "MySQL", "Redis", "Spring", "项目经历"};
+        String category = categories[(int) (Math.random() * categories.length)];
+        String[] questions = defaultQuestions.get(category);
         int index = (int) (Math.random() * questions.length);
-        return questions[index];
+        return new SimpleQuestionDTO(questions[index], category, false, null, null);
     }
 
     /**
@@ -293,5 +334,11 @@ public class QuestionGenerationService {
     /**
      * 中间DTO用于接收AI响应
      */
-    private record SimpleQuestionDTO(String question) {}
+    private record SimpleQuestionDTO(
+            String question,      // 问题内容（不含追问标记）
+            String category,       // 分类
+            Boolean isFollowUp,    // 是否是追问
+            Integer relatedIndex,  // 关联的问题索引（追问时填写）
+            String relatedQuestion // 关联的问题摘要（追问时填写）
+    ) {}
 }

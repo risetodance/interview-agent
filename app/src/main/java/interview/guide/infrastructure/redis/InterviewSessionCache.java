@@ -1,20 +1,16 @@
 package interview.guide.infrastructure.redis;
 
-import interview.guide.modules.interview.model.InterviewQuestionDTO;
 import interview.guide.modules.interview.model.InterviewSessionDTO.SessionStatus;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import tools.jackson.core.JacksonException;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-import java.util.ArrayList;
 
 /**
  * 面试会话 Redis 缓存服务
@@ -51,73 +47,13 @@ public class InterviewSessionCache {
         private String sessionId;
         private String resumeText;
         private Long resumeId;
-        private String questionsJson;  // 序列化的问题列表
         private int currentIndex;
         private SessionStatus status;
         private List<Long> knowledgeBaseIds;  // 关联的知识库ID列表
+        private Integer questionsGenerated = 0;  // 已生成的问题数量
 
         public CachedSession() {
         }
-
-        public CachedSession(String sessionId, String resumeText, Long resumeId,
-                            List<InterviewQuestionDTO> questions, int currentIndex,
-                            SessionStatus status, ObjectMapper objectMapper) {
-            this(sessionId, resumeText, resumeId, questions, currentIndex, status, null, objectMapper);
-        }
-
-        public CachedSession(String sessionId, String resumeText, Long resumeId,
-                            List<InterviewQuestionDTO> questions, int currentIndex,
-                            SessionStatus status, List<Long> knowledgeBaseIds, ObjectMapper objectMapper) {
-            this.sessionId = sessionId;
-            this.resumeText = resumeText;
-            this.resumeId = resumeId;
-            this.currentIndex = currentIndex;
-            this.status = status;
-            this.knowledgeBaseIds = knowledgeBaseIds != null ? new ArrayList<>(knowledgeBaseIds) : new ArrayList<>();
-            try {
-                this.questionsJson = objectMapper.writeValueAsString(questions);
-            } catch (JacksonException e) {
-                throw new RuntimeException("序列化问题列表失败", e);
-            }
-        }
-
-        public List<InterviewQuestionDTO> getQuestions(ObjectMapper objectMapper) {
-            try {
-                return objectMapper.readValue(questionsJson, new TypeReference<>() {});
-            } catch (JacksonException e) {
-                throw new RuntimeException("反序列化问题列表失败", e);
-            }
-        }
-    }
-
-    /**
-     * 保存会话到缓存
-     */
-    public void saveSession(String sessionId, String resumeText, Long resumeId,
-                           List<InterviewQuestionDTO> questions, int currentIndex,
-                           SessionStatus status) {
-        saveSession(sessionId, resumeText, resumeId, questions, currentIndex, status, null);
-    }
-
-    /**
-     * 保存会话到缓存（包含知识库ID）
-     */
-    public void saveSession(String sessionId, String resumeText, Long resumeId,
-                           List<InterviewQuestionDTO> questions, int currentIndex,
-                           SessionStatus status, List<Long> knowledgeBaseIds) {
-        String key = buildSessionKey(sessionId);
-        CachedSession cachedSession = new CachedSession(
-            sessionId, resumeText, resumeId, questions, currentIndex, status, knowledgeBaseIds, objectMapper
-        );
-
-        redisService.set(key, cachedSession, SESSION_TTL);
-
-        // 如果有 resumeId，建立映射关系（用于查找未完成会话）
-        if (resumeId != null && isUnfinishedStatus(status)) {
-            saveResumeSessionMapping(resumeId, sessionId);
-        }
-
-        log.debug("会话已缓存: sessionId={}, resumeId={}, status={}", sessionId, resumeId, status);
     }
 
     /**
@@ -160,22 +96,6 @@ public class InterviewSessionCache {
             String key = buildSessionKey(sessionId);
             redisService.set(key, session, SESSION_TTL);
             log.debug("更新会话进度: sessionId={}, currentIndex={}", sessionId, currentIndex);
-        });
-    }
-
-    /**
-     * 更新问题列表（用于保存答案）
-     */
-    public void updateQuestions(String sessionId, List<InterviewQuestionDTO> questions) {
-        getSession(sessionId).ifPresent(session -> {
-            try {
-                session.setQuestionsJson(objectMapper.writeValueAsString(questions));
-                String key = buildSessionKey(sessionId);
-                redisService.set(key, session, SESSION_TTL);
-                log.debug("更新会话问题: sessionId={}", sessionId);
-            } catch (JacksonException e) {
-                log.error("序列化问题列表失败", e);
-            }
         });
     }
 

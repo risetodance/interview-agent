@@ -134,8 +134,15 @@ function InterviewWrapper() {
   const location = useLocation();
   const [resumeText, setResumeText] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
+    // 从location state获取sessionId（继续面试）
+    const stateSessionId = (location.state as { sessionId?: string })?.sessionId;
+    if (stateSessionId) {
+      setSessionId(stateSessionId);
+    }
+
     // 优先从location state获取resumeText
     const stateText = (location.state as { resumeText?: string })?.resumeText;
     if (stateText) {
@@ -157,13 +164,17 @@ function InterviewWrapper() {
     }
   }, [resumeId, location.state]);
 
-  if (!resumeId) {
+  if (!resumeId && !sessionId) {
     return <Navigate to="/history" replace />;
   }
 
   const handleBack = () => {
     // 尝试返回详情页，如果失败则返回历史列表
-    navigate(`/history/${resumeId}`, { replace: false });
+    if (resumeId) {
+      navigate(`/history/${resumeId}`, { replace: false });
+    } else {
+      navigate('/history', { replace: false });
+    }
   };
 
   const handleInterviewComplete = () => {
@@ -185,7 +196,8 @@ function InterviewWrapper() {
   return (
     <Interview
       resumeText={resumeText}
-      resumeId={parseInt(resumeId, 10)}
+      resumeId={resumeId ? parseInt(resumeId, 10) : undefined}
+      sessionId={sessionId || undefined}
       onBack={handleBack}
       onInterviewComplete={handleInterviewComplete}
     />
@@ -275,21 +287,27 @@ function InterviewHistoryWrapper() {
   };
 
   const handleViewInterview = async (sessionId: string, resumeId?: number) => {
-    if (resumeId) {
-      // 如果有简历ID，跳转到简历详情页的面试详情
-      navigate(`/history/${resumeId}`, {
-        state: { viewInterview: sessionId }
-      });
-    } else {
-      // 否则尝试从面试详情中获取简历ID
-      try {
-        await historyApi.getInterviewDetail(sessionId);
-        // 面试详情中没有简历ID，需要从其他地方获取
-        // 暂时跳转到历史记录列表
-        navigate('/history');
-      } catch {
+    try {
+      const detail = await historyApi.getInterviewDetail(sessionId);
+
+      // 如果是进行中的面试，跳转到面试页面继续
+      if (detail.status === 'IN_PROGRESS' || detail.status === 'CREATED') {
+        navigate(`/interview/${resumeId}`, {
+          state: { sessionId, resumeId }
+        });
+        return;
+      }
+
+      // 否则跳转到详情页
+      if (resumeId) {
+        navigate(`/history/${resumeId}`, {
+          state: { viewInterview: sessionId }
+        });
+      } else {
         navigate('/history');
       }
+    } catch {
+      navigate('/history');
     }
   };
 

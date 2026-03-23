@@ -19,6 +19,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * 面试评估 Stream 消费者
@@ -104,10 +105,9 @@ public class EvaluateStreamConsumer extends AbstractStreamConsumer<EvaluateStrea
         }
 
         InterviewSessionEntity session = sessionOpt.get();
-        List<InterviewQuestionDTO> questions = objectMapper.readValue(
-            session.getQuestionsJson(),
-            new TypeReference<>() {}
-        );
+
+        // 自适应面试：从数据库答案构建问题列表
+        List<InterviewQuestionDTO> questions = buildQuestionsFromAnswers(sessionId);
 
         List<interview.guide.modules.interview.model.InterviewAnswerEntity> answers =
             persistenceService.findAnswersBySessionId(sessionId);
@@ -119,9 +119,25 @@ public class EvaluateStreamConsumer extends AbstractStreamConsumer<EvaluateStrea
             }
         }
 
-        String resumeText = session.getResume().getResumeText();
+        String resumeText = session.getResume() != null ? session.getResume().getResumeText() : null;
         InterviewReportDTO report = evaluationService.evaluateInterview(sessionId, resumeText, questions);
         persistenceService.saveReport(sessionId, report);
+    }
+
+    /**
+     * 从数据库答案构建问题列表（自适应面试）
+     */
+    private List<InterviewQuestionDTO> buildQuestionsFromAnswers(String sessionId) {
+        List<interview.guide.modules.interview.model.InterviewAnswerEntity> answers =
+            persistenceService.findAnswersBySessionId(sessionId);
+
+        return answers.stream()
+            .map(answer -> InterviewQuestionDTO.create(
+                answer.getQuestionIndex(),
+                answer.getQuestion(),
+                answer.getCategory() != null ? answer.getCategory() : "Java基础"
+            ))
+            .collect(Collectors.toList());
     }
 
     @Override

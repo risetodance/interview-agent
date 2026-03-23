@@ -406,29 +406,21 @@ public class InterviewPersistenceService {
 
     /**
      * 获取简历的历史提问列表（限制最近的 N 条）
+     * 自适应面试：从答案中提取历史问题
      */
     public List<String> getHistoricalQuestionsByResumeId(Long resumeId) {
         // 只查询最近的 10 个会话，避免加载过多历史数据
         List<InterviewSessionEntity> sessions = sessionRepository.findTop10ByResumeIdOrderByCreatedAtDesc(resumeId);
 
         return sessions.stream()
-            .map(InterviewSessionEntity::getQuestionsJson)
-            .filter(json -> json != null && !json.isEmpty())
-            .flatMap(json -> {
-                try {
-                    List<InterviewQuestionDTO> questions = objectMapper.readValue(json,
-                        new TypeReference<List<InterviewQuestionDTO>>() {});
-                    // 过滤掉追问，只保留主问题作为历史参考
-                    return questions.stream()
-                        .filter(q -> !q.isFollowUp())
-                        .map(InterviewQuestionDTO::question);
-                } catch (Exception e) {
-                    log.error("解析历史问题JSON失败", e);
-                    return java.util.stream.Stream.empty();
-                }
+            .flatMap(session -> {
+                List<InterviewAnswerEntity> answers = findAnswersBySessionId(session.getSessionId());
+                return answers.stream()
+                    .map(InterviewAnswerEntity::getQuestion);
             })
+            .filter(q -> q != null && !q.isBlank())
             .distinct()
-            .limit(30) // 核心改动：只保留最近的 30 道题
+            .limit(30) // 只保留最近的 30 道题
             .toList();
     }
 
@@ -474,6 +466,24 @@ public class InterviewPersistenceService {
             InterviewSessionEntity session = sessionOpt.get();
             session.setQuestionsGenerated(count);
             sessionRepository.save(session);
+        }
+    }
+
+    /**
+     * 更新会话的知识库ID列表
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateKnowledgeBaseIds(String sessionId, List<Long> knowledgeBaseIds) {
+        Optional<InterviewSessionEntity> sessionOpt = sessionRepository.findBySessionId(sessionId);
+        if (sessionOpt.isPresent()) {
+            InterviewSessionEntity session = sessionOpt.get();
+            try {
+                session.setKnowledgeBaseIds(objectMapper.writeValueAsString(knowledgeBaseIds));
+                sessionRepository.save(session);
+                log.info("会话知识库ID已更新: sessionId={}, kbIds={}", sessionId, knowledgeBaseIds);
+            } catch (JacksonException e) {
+                log.error("序列化知识库ID列表失败: {}", e.getMessage(), e);
+            }
         }
     }
 

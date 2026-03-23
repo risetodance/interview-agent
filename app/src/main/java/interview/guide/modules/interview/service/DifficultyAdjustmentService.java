@@ -47,8 +47,8 @@ public class DifficultyAdjustmentService {
 
     /**
      * 根据得分调整难度
-     * - 得分 >= 90: 升级难度 (BASIC->ADVANCED->EXPERT)
-     * - 得分 60-89: 保持当前难度
+     * - 得分 >= 80: 升级难度 (BASIC->ADVANCED->EXPERT)
+     * - 得分 60-79: 保持当前难度
      * - 得分 < 60: EXPERT 降到 ADVANCED，其他保持
      *
      * @param currentDifficulty 当前难度
@@ -58,7 +58,7 @@ public class DifficultyAdjustmentService {
     public String adjustDifficulty(String currentDifficulty, int score) {
         Difficulty current = Difficulty.fromCode(currentDifficulty);
 
-        if (score >= 90) {
+        if (score >= 80) {
             // 升级难度
             return upgradeDifficulty(current).getCode();
         } else if (score >= 60) {
@@ -103,7 +103,7 @@ public class DifficultyAdjustmentService {
      * 判断是否达到了升级条件
      */
     public boolean shouldUpgrade(String currentDifficulty, int score) {
-        return score >= 90;
+        return score >= 80;
     }
 
     /**

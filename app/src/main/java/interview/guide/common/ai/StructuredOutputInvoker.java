@@ -19,6 +19,7 @@ public class StructuredOutputInvoker {
 1) 不要输出 Markdown 代码块（如 ```json）。
 2) 不要输出任何解释文字、前后缀、注释。
 3) 所有字符串内引号必须正确转义。
+4) 绝对不要在文本中插入反斜杠转义非ASCII字符。
 """;
 
     private final int maxAttempts;
