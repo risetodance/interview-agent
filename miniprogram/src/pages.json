@@ -54,6 +54,13 @@
       }
     },
     {
+      "path": "pages/interview/config",
+      "style": {
+        "navigationBarTitleText": "面试配置",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/interview/session",
       "style": {
         "navigationBarTitleText": "面试会话",

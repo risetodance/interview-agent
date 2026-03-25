@@ -43,6 +43,9 @@ const loadInterviewDetail = async () => {
     // 加载能力画像数据
     try {
       const profileRes = await getAbilityProfile(pageId.value)
+      console.log('[Report] profileRes:', profileRes)
+      console.log('[Report] categoryScores:', profileRes?.categoryScores)
+      console.log('[Report] categoryScores keys:', profileRes?.categoryScores ? Object.keys(profileRes.categoryScores) : 'null')
       abilityProfile.value = profileRes
       // 绘制雷达图
       await nextTick()
@@ -61,12 +64,22 @@ const loadInterviewDetail = async () => {
 
 // 绘制雷达图
 const drawRadarChart = () => {
-  if (!abilityProfile.value || !abilityProfile.value.categoryScores) return
+  console.log('[Report] drawRadarChart called')
+  console.log('[Report] abilityProfile:', abilityProfile.value)
+
+  if (!abilityProfile.value || !abilityProfile.value.categoryScores) {
+    console.log('[Report] 雷达图跳过: abilityProfile为空或categoryScores为空')
+    return
+  }
 
   const categoryScores = abilityProfile.value.categoryScores
   const categories = Object.keys(categoryScores)
+  console.log('[Report] categories:', categories)
 
-  if (categories.length === 0) return
+  if (categories.length === 0) {
+    console.log('[Report] 雷达图跳过: categories为空')
+    return
+  }
 
   // categoryScores 是 Map 格式
   const data = categories.map(key => ({
@@ -74,21 +87,56 @@ const drawRadarChart = () => {
     score: categoryScores[key].avgScore || 0
   }))
 
-  // 创建 canvas 上下文
-  const ctx = uni.createCanvasContext('radarChart')
+  console.log('[Report] 开始绘制雷达图')
 
+  // uni-app H5: 直接使用原生 HTML5 Canvas API
+  // 尝试多种方式获取 canvas 元素
+  let canvas = document.querySelector('#radarCanvas canvas') as HTMLCanvasElement
+  if (!canvas) {
+    canvas = document.getElementById('radarCanvas') as HTMLCanvasElement
+  }
+  if (!canvas) {
+    console.error('[Report] Canvas元素获取失败')
+    // 降级到 UNI-API
+    const ctx = uni.createCanvasContext('radarChart')
+    if (!ctx) {
+      console.error('[Report] Canvas上下文创建失败')
+      return
+    }
+    setTimeout(() => {
+      drawRadarChartWithCtx(ctx, data)
+      ctx.draw(true)
+    }, 100)
+    return
+  }
+  console.log('[Report] Canvas元素获取成功:', canvas)
+
+  const ctx2d = canvas.getContext('2d')
+  if (!ctx2d) {
+    console.error('[Report] Canvas 2D上下文获取失败')
+    return
+  }
+  console.log('[Report] Canvas 2D上下文创建成功')
+
+  // 使用原生 Canvas API 绘制
+  setTimeout(() => {
+    drawRadarChartWithCtx(ctx2d, data)
+  }, 100)
+}
+
+function drawRadarChartWithCtx(ctx: any, data: any[]) {
   // 画布参数
-  const canvasWidth = 600
-  const canvasHeight = 500
+  const canvasWidth = 320
+  const canvasHeight = 280
   const centerX = canvasWidth / 2
-  const centerY = canvasHeight / 2 + 30
-  const radius = 180
+  const centerY = canvasHeight / 2 + 10
+  const radius = 85
   const angleStep = (2 * Math.PI) / data.length
   const startAngle = -Math.PI / 2
 
-  // 绘制背景网格
-  ctx.setStrokeStyle('#e5e7eb')
-  ctx.setLineWidth(1)
+  // 绘制背景网格 (使用原生 Canvas API)
+  ctx.strokeStyle = '#e5e7eb'
+  ctx.lineWidth = 1
 
   // 绘制3个同心圆
   for (let i = 1; i <= 3; i++) {
@@ -120,11 +168,11 @@ const drawRadarChart = () => {
     ctx.stroke()
   }
 
-  // 绘制数据区域
+  // 绘制数据区域 (使用原生 Canvas API)
   ctx.beginPath()
-  ctx.setFillStyle('rgba(139, 92, 246, 0.3)')
-  ctx.setStrokeStyle('#8b5cf6')
-  ctx.setLineWidth(2)
+  ctx.fillStyle = 'rgba(139, 92, 246, 0.3)'
+  ctx.strokeStyle = '#8b5cf6'
+  ctx.lineWidth = 2
 
   for (let i = 0; i <= data.length; i++) {
     const idx = i % data.length
@@ -153,48 +201,40 @@ const drawRadarChart = () => {
     const y = centerY + r * Math.sin(angle)
 
     ctx.beginPath()
-    ctx.setFillStyle('#8b5cf6')
-    ctx.arc(x, y, 6, 0, 2 * Math.PI)
+    ctx.fillStyle = '#8b5cf6'
+    ctx.arc(x, y, 5, 0, 2 * Math.PI)
     ctx.fill()
   }
 
-  // 绘制标签
-  ctx.setFillStyle('#64748b')
-  ctx.setFontSize(24)
+  // 绘制标签 (使用原生 Canvas API) - 显示完整标签，放在雷达图外侧
+  ctx.fillStyle = '#64748b'
+  ctx.font = '12px sans-serif'
 
   for (let i = 0; i < data.length; i++) {
     const angle = startAngle + angleStep * i
-    const labelRadius = radius + 35
+    const labelRadius = radius + 38
     const x = centerX + labelRadius * Math.cos(angle)
     const y = centerY + labelRadius * Math.sin(angle)
 
-    ctx.setTextAlign('center')
-    ctx.setTextBaseline('middle')
-
-    // 简化标签（如果太长）
-    let label = data[i].name
-    if (label.length > 4) {
-      label = label.substring(0, 4) + '...'
-    }
-    ctx.fillText(label, x, y)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(data[i].name, x, y)
   }
 
-  // 绘制分数
+  // 绘制分数 - 放在数据点往外偏移15px的位置，避免重叠
   for (let i = 0; i < data.length; i++) {
     const angle = startAngle + angleStep * i
     const score = data[i].score / 100
-    const scoreRadius = radius * score
+    const scoreRadius = radius * score + 15
     const x = centerX + scoreRadius * Math.cos(angle)
     const y = centerY + scoreRadius * Math.sin(angle)
 
-    ctx.setFillStyle('#8b5cf6')
-    ctx.setFontSize(20)
-    ctx.setTextAlign('center')
-    ctx.setTextBaseline('middle')
-    ctx.fillText(String(Math.round(data[i].score)), x, y - 20)
+    ctx.fillStyle = '#8b5cf6'
+    ctx.font = 'bold 11px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(String(Math.round(data[i].score)), x, y)
   }
-
-  ctx.draw()
 }
 
 // 获取答案列表（从interview中获取）
@@ -292,7 +332,12 @@ const progressOffset = computed(() => {
           <text class="section-title">能力画像</text>
         </view>
         <view class="radar-container">
-          <canvas canvas-id="radarChart" class="radar-canvas"></canvas>
+          <canvas
+            id="radarCanvas"
+            canvas-id="radarChart"
+            class="radar-canvas"
+            style="width: 320px; height: 280px;"
+          ></canvas>
         </view>
       </view>
 
@@ -541,8 +586,8 @@ $text-secondary: #909399;
   }
 
   .radar-canvas {
-    width: 600rpx;
-    height: 500rpx;
+    width: 320px;
+    height: 280px;
   }
 }
 

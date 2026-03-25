@@ -254,10 +254,6 @@ onShow(() => {
             <text class="content-label">题目数量</text>
             <text class="content-value">{{ item.questionCount || 0 }} 题</text>
           </view>
-          <view v-if="item.duration" class="content-item">
-            <text class="content-label">预计时长</text>
-            <text class="content-value">{{ item.duration }} 分钟</text>
-          </view>
         </view>
 
         <!-- 卡片底部 -->
@@ -269,7 +265,7 @@ onShow(() => {
           </view>
           <view v-else-if="item.status === 'in_progress'" class="progress-section">
             <text class="progress-label">进度</text>
-            <text class="progress-value">{{ item.currentQuestionIndex || 0 }}/{{ item.questionCount || 0 }}</text>
+            <text class="progress-value">面试未完成</text>
           </view>
           <view class="action-btns">
             <view

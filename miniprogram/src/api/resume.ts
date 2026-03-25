@@ -118,6 +118,8 @@ export interface Certificate {
 
 // 简历分析结果
 export interface ResumeAnalysis {
+  // 分析时间
+  analyzedAt?: string
   // 技能匹配度
   skillMatchRate?: number
   // 匹配职位
@@ -130,6 +132,12 @@ export interface ResumeAnalysis {
   overallScore?: number
   // 分析建议
   suggestions?: string[]
+  // 雷达图评分维度
+  expressionScore?: number   // 表达专业性
+  skillMatchScore?: number   // 技能匹配
+  contentScore?: number      // 内容完整性
+  structureScore?: number    // 结构清晰度
+  projectScore?: number      // 项目经验
 }
 
 // 上传简历响应
@@ -179,8 +187,13 @@ export const getResumeList = (params?: ResumeListParams) => {
  */
 export const getResumeDetail = (id: number) => {
   return get<any>(`/api/resumes/${id}/detail`).then(data => {
+    // 打印后端返回的完整数据，用于调试雷达图字段
+    console.log('[ResumeDetail] 后端返回完整数据:', JSON.stringify(data, null, 2))
+    console.log('[ResumeDetail] analyses 数组:', data.analyses)
+
     // 从 analyses 获取最新的分析结果
     const latestAnalysis = data.analyses?.[0]
+    console.log('[ResumeDetail] latestAnalysis:', latestAnalysis)
 
     // 处理 strengths 和 suggestions（可能是字符串 JSON 或数组）
     const parseJsonField = (field: any): string[] => {
@@ -218,6 +231,8 @@ export const getResumeDetail = (id: number) => {
       // 分析结果
       analysis: latestAnalysis ? {
         overallScore: latestAnalysis.overallScore,
+        // 分析时间
+        analyzedAt: latestAnalysis.analyzedAt || latestAnalysis.createdAt,
         // 技能匹配度上限 100%
         skillMatchRate: latestAnalysis.skillMatchScore
           ? Math.min(100, Math.round(latestAnalysis.skillMatchScore / 25 * 100))
@@ -228,7 +243,13 @@ export const getResumeDetail = (id: number) => {
         matchedPositions: latestAnalysis.matchedPositions || [],
         strengths: parseJsonField(latestAnalysis.strengths),
         improvements: parseJsonField(latestAnalysis.suggestions),
-        suggestions: parseJsonField(latestAnalysis.suggestions)
+        suggestions: parseJsonField(latestAnalysis.suggestions),
+        // 雷达图评分维度
+        expressionScore: latestAnalysis.expressionScore,
+        skillMatchScore: latestAnalysis.skillMatchScore,
+        contentScore: latestAnalysis.contentScore,
+        structureScore: latestAnalysis.structureScore,
+        projectScore: latestAnalysis.projectScore
       } : undefined,
       // 分析历史
       analyses: data.analyses || []

@@ -10,6 +10,7 @@
     "pages/resume/detail",
     "pages/interview/list",
     "pages/interview/create",
+    "pages/interview/config",
     "pages/interview/session",
     "pages/knowledge/list",
     "pages/knowledge/chat",

@@ -73,6 +73,31 @@ export const createInterview = (data: CreateInterviewParams) => {
 }
 
 /**
+ * 创建面试会话（自适应难度版本）
+ * POST /api/interview/sessions
+ */
+export interface CreateSessionParams {
+  resumeText: string
+  questionCount: number
+  resumeId?: number
+  forceCreate?: boolean
+  questionBankIds?: number[]
+  knowledgeBaseIds?: number[]
+}
+
+export interface SessionResponse {
+  sessionId: string
+  resumeText: string
+  totalQuestions: number
+  currentQuestionIndex: number
+  status: string
+}
+
+export const createSession = (data: CreateSessionParams) => {
+  return post<SessionResponse>('/api/interview/sessions', data, { timeout: 180000 })
+}
+
+/**
  * 更新面试
  */
 export const updateInterview = (sessionId: string | number, data: Partial<CreateInterviewParams>) => {
@@ -256,6 +281,33 @@ export const getAbilityProfile = (sessionId: string | number) => {
 // ========== 自适应难度面试 API ==========
 
 /**
+ * 会话进度 DTO 类型
+ */
+export interface AnswerHistoryDTO {
+  questionIndex: number
+  question: string
+  category: string
+  difficulty: string
+  userAnswer: string
+}
+
+export interface SessionProgressDTO {
+  sessionId: string
+  currentQuestionIndex: number
+  totalQuestions: number
+  currentQuestion: CurrentQuestionDTO | null
+  history: AnswerHistoryDTO[]
+}
+
+/**
+ * 获取会话进度（包括历史记录和当前问题）
+ * GET /api/interview/sessions/{sessionId}/progress
+ */
+export const getSessionProgress = (sessionId: string | number) => {
+  return get<SessionProgressDTO>(`/api/interview/sessions/${sessionId}/progress`)
+}
+
+/**
  * 当前问题 DTO 类型
  */
 export interface CurrentQuestionDTO {
@@ -312,5 +364,5 @@ export const submitAnswerAdaptive = (sessionId: string | number, questionIndex: 
   return post<SubmitAnswerResponse>(`/api/interview/sessions/${sessionId}/answer`, {
     questionIndex,
     answer
-  })
+  }, { timeout: 180000 })  // 3分钟超时，AI生成下一题需要时间
 }

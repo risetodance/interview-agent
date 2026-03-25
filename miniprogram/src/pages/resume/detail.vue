@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import {
   getResumeDetail,
   reanalyzeResume,
@@ -13,6 +13,73 @@ const resumeDetail = ref<ResumeDetail | null>(null)
 const loading = ref(false)
 const analyzing = ref(false)
 const polling = ref(false) // 正在轮询等待分析完成
+
+// 按优先级分类建议
+const suggestionsByPriority = computed(() => {
+  if (!resumeDetail.value?.analysis?.suggestions) return { high: [], medium: [], low: [] }
+
+  const suggestions = resumeDetail.value.analysis.suggestions
+  return {
+    high: suggestions.filter((s: any) => s.priority === '高'),
+    medium: suggestions.filter((s: any) => s.priority === '中'),
+    low: suggestions.filter((s: any) => s.priority === '低')
+  }
+})
+
+// 获取优先级颜色
+const getPriorityColor = (priority: string) => {
+  switch (priority) {
+    case '高':
+      return { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' }
+    case '中':
+      return { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' }
+    case '低':
+      return { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' }
+    default:
+      return { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700' }
+  }
+}
+
+// 获取优先级徽章颜色
+const getPriorityBadgeColor = (priority: string) => {
+  switch (priority) {
+    case '高':
+      return 'bg-red-500 text-white'
+    case '中':
+      return 'bg-amber-500 text-white'
+    case '低':
+      return 'bg-blue-500 text-white'
+    default:
+      return 'bg-slate-500 text-white'
+  }
+}
+
+// 获取类别颜色样式
+const getCategoryStyle = (category: string) => {
+  const colors: Record<string, { bg: string; text: string }> = {
+    '项目': { bg: '#f3e8ff', text: '#7c3aed' },    // purple-100, purple-700
+    '技能': { bg: '#e0e7ff', text: '#4f46e5' },    // indigo-100, indigo-700
+    '内容': { bg: '#d1fae5', text: '#059669' },    // emerald-100, emerald-700
+    '格式': { bg: '#fce7f3', text: '#db2777' },    // pink-100, pink-700
+    '结构': { bg: '#cffafe', text: '#0891b2' },    // cyan-100, cyan-700
+    '表达': { bg: '#ffedd5', text: '#ea580c' }     // orange-100, orange-700
+  }
+  return colors[category] || { bg: '#f1f5f9', text: '#475569' } // slate-100, slate-700
+}
+
+// 获取分组标题颜色
+const getGroupTitleColor = (priority: string) => {
+  switch (priority) {
+    case '高':
+      return { bg: 'bg-red-100', text: 'text-red-700' }
+    case '中':
+      return { bg: 'bg-amber-100', text: 'text-amber-700' }
+    case '低':
+      return { bg: 'bg-blue-100', text: 'text-blue-700' }
+    default:
+      return { bg: 'bg-slate-100', text: 'text-slate-700' }
+  }
+}
 
 // 页面是否处于活动状态
 let pageActive = true
@@ -47,11 +114,16 @@ const loadResumeDetail = async () => {
   try {
     const result = await getResumeDetail(resumeId.value)
     resumeDetail.value = result
+    console.log('[ResumeDetail] loadResumeDetail result.analysis:', result.analysis)
 
     // 如果状态是 PENDING 或 PROCESSING，自动开始轮询
     if (result.parseStatus === 'PENDING' || result.parseStatus === 'PROCESSING') {
       polling.value = true
       pollAnalysisStatus()
+    } else if (result.analysis) {
+      // 绘制雷达图
+      await nextTick()
+      setTimeout(() => drawRadarChart(), 100)
     }
   } catch (error) {
     console.error('加载简历详情失败:', error)
@@ -61,6 +133,176 @@ const loadResumeDetail = async () => {
     })
   } finally {
     loading.value = false
+  }
+}
+
+// 绘制雷达图
+const drawRadarChart = () => {
+  console.log('[ResumeDetail] drawRadarChart called')
+  console.log('[ResumeDetail] resumeDetail.value:', resumeDetail.value)
+  console.log('[ResumeDetail] analysis:', resumeDetail.value?.analysis)
+
+  if (!resumeDetail.value?.analysis) {
+    console.log('[ResumeDetail] analysis 不存在，跳过')
+    return
+  }
+
+  const analysis = resumeDetail.value.analysis
+  console.log('[ResumeDetail] expressionScore:', analysis.expressionScore)
+  console.log('[ResumeDetail] skillMatchScore:', analysis.skillMatchScore)
+  console.log('[ResumeDetail] contentScore:', analysis.contentScore)
+  console.log('[ResumeDetail] structureScore:', analysis.structureScore)
+  console.log('[ResumeDetail] projectScore:', analysis.projectScore)
+
+  // 雷达图数据 - 5个维度（包含满分用于归一化）
+  const data = [
+    { name: '表达专业性', score: analysis.expressionScore || 0, fullMark: 10 },
+    { name: '技能匹配', score: analysis.skillMatchScore || 0, fullMark: 20 },
+    { name: '内容完整性', score: analysis.contentScore || 0, fullMark: 15 },
+    { name: '结构清晰度', score: analysis.structureScore || 0, fullMark: 15 },
+    { name: '项目经验', score: analysis.projectScore || 0, fullMark: 40 }
+  ]
+  console.log('[ResumeDetail] radar data:', data)
+
+  // 检查是否有有效数据
+  if (data.every(item => item.score === 0)) {
+    console.log('[ResumeDetail] 雷达图数据全为0，跳过绘制')
+    return
+  }
+
+  // 使用原生 HTML5 Canvas API
+  console.log('[ResumeDetail] 尝试获取Canvas元素')
+  let canvas = document.querySelector('#resumeRadarCanvas canvas') as HTMLCanvasElement
+  console.log('[ResumeDetail] querySelector result:', canvas)
+  if (!canvas) {
+    canvas = document.getElementById('resumeRadarCanvas') as HTMLCanvasElement
+    console.log('[ResumeDetail] getElementById result:', canvas)
+  }
+  if (!canvas) {
+    console.error('[ResumeDetail] Canvas元素获取失败')
+    return
+  }
+
+  console.log('[ResumeDetail] Canvas元素获取成功:', canvas)
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    console.error('[ResumeDetail] Canvas 2D上下文获取失败')
+    return
+  }
+
+  console.log('[ResumeDetail] 开始绘制雷达图')
+  drawResumeRadarChart(ctx, data)
+  console.log('[ResumeDetail] 雷达图绘制完成')
+}
+
+function drawResumeRadarChart(ctx: any, data: any[]) {
+  const canvasWidth = 320
+  const canvasHeight = 280
+  const centerX = canvasWidth / 2
+  const centerY = canvasHeight / 2 + 10
+  const radius = 85
+  const angleStep = (2 * Math.PI) / data.length
+  const startAngle = -Math.PI / 2
+
+  // 绘制背景网格
+  ctx.strokeStyle = '#e5e7eb'
+  ctx.lineWidth = 1
+
+  // 绘制3个同心圆
+  for (let i = 1; i <= 3; i++) {
+    const r = (radius / 3) * i
+    ctx.beginPath()
+    for (let j = 0; j <= data.length; j++) {
+      const angle = startAngle + angleStep * (j % data.length)
+      const x = centerX + r * Math.cos(angle)
+      const y = centerY + r * Math.sin(angle)
+      if (j === 0) {
+        ctx.moveTo(x, y)
+      } else {
+        ctx.lineTo(x, y)
+      }
+    }
+    ctx.closePath()
+    ctx.stroke()
+  }
+
+  // 绘制轴线
+  for (let i = 0; i < data.length; i++) {
+    const angle = startAngle + angleStep * i
+    ctx.beginPath()
+    ctx.moveTo(centerX, centerY)
+    ctx.lineTo(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle))
+    ctx.stroke()
+  }
+
+  // 绘制数据区域
+  ctx.beginPath()
+  ctx.fillStyle = 'rgba(139, 92, 246, 0.3)'
+  ctx.strokeStyle = '#8b5cf6'
+  ctx.lineWidth = 2
+
+  for (let i = 0; i <= data.length; i++) {
+    const idx = i % data.length
+    const angle = startAngle + angleStep * idx
+    // 使用 fullMark 归一化：score / fullMark * 100
+    const normalizedScore = (data[idx].score / data[idx].fullMark) * 100
+    const r = radius * (normalizedScore / 100)
+    const x = centerX + r * Math.cos(angle)
+    const y = centerY + r * Math.sin(angle)
+
+    if (i === 0) {
+      ctx.moveTo(x, y)
+    } else {
+      ctx.lineTo(x, y)
+    }
+  }
+  ctx.closePath()
+  ctx.fill()
+  ctx.stroke()
+
+  // 绘制数据点
+  for (let i = 0; i < data.length; i++) {
+    const angle = startAngle + angleStep * i
+    const normalizedScore = (data[i].score / data[i].fullMark) * 100
+    const r = radius * (normalizedScore / 100)
+    const x = centerX + r * Math.cos(angle)
+    const y = centerY + r * Math.sin(angle)
+
+    ctx.beginPath()
+    ctx.fillStyle = '#8b5cf6'
+    ctx.arc(x, y, 5, 0, 2 * Math.PI)
+    ctx.fill()
+  }
+
+  // 绘制标签
+  ctx.fillStyle = '#64748b'
+  ctx.font = '12px sans-serif'
+
+  for (let i = 0; i < data.length; i++) {
+    const angle = startAngle + angleStep * i
+    const labelRadius = radius + 38
+    const x = centerX + labelRadius * Math.cos(angle)
+    const y = centerY + labelRadius * Math.sin(angle)
+
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(data[i].name, x, y)
+  }
+
+  // 绘制分数
+  for (let i = 0; i < data.length; i++) {
+    const angle = startAngle + angleStep * i
+    const normalizedScore = (data[i].score / data[i].fullMark) * 100
+    const scoreRadius = radius * (normalizedScore / 100) + 15
+    const x = centerX + scoreRadius * Math.cos(angle)
+    const y = centerY + scoreRadius * Math.sin(angle)
+
+    ctx.fillStyle = '#8b5cf6'
+    ctx.font = 'bold 11px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(String(Math.round(data[i].score)), x, y)
   }
 }
 
@@ -314,6 +556,18 @@ const formatDate = (date: string): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// 格式化分析时间（格式：2026/03/21 01:43）
+const formatAnalysisDate = (dateStr: string): string => {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  return `${year}/${month}/${day} ${hours}:${minutes}`
+}
+
 // 格式化分析项目（字符串或对象）
 const formatAnalysisItem = (item: any): string => {
   if (!item) return ''
@@ -343,48 +597,13 @@ const formatAnalysisItem = (item: any): string => {
 
     <!-- 简历内容 -->
     <scroll-view v-else-if="resumeDetail" class="content" scroll-y>
-      <!-- 基本信息 -->
-      <view class="section basic-info">
-        <view class="info-header">
-          <view class="avatar">
-            <image
-              v-if="resumeDetail.basicInfo?.avatar"
-              :src="resumeDetail.basicInfo.avatar"
-              mode="aspectFill"
-            />
-            <text v-else class="avatar-placeholder">
-              {{ resumeDetail.name?.charAt(0) || '简历' }}
-            </text>
+      <!-- 附件简历卡片 -->
+      <view class="section attachment-card">
+        <view class="attachment-header">
+          <view class="attachment-icon">
+            <text class="icon-text">附</text>
           </view>
-          <view class="info-content">
-            <text class="name">{{ resumeDetail.basicInfo?.name || resumeDetail.name }}</text>
-            <view class="meta">
-              <text v-if="resumeDetail.basicInfo?.gender" class="meta-item">
-                {{ resumeDetail.basicInfo.gender }}
-              </text>
-              <text v-if="resumeDetail.basicInfo?.age" class="meta-item">
-                {{ resumeDetail.basicInfo.age }}岁
-              </text>
-              <text v-if="resumeDetail.basicInfo?.location" class="meta-item">
-                {{ resumeDetail.basicInfo.location }}
-              </text>
-            </view>
-          </view>
-        </view>
-
-        <view v-if="resumeDetail.basicInfo?.phone || resumeDetail.basicInfo?.email" class="contact-info">
-          <text v-if="resumeDetail.basicInfo?.phone" class="contact-item">
-            <text class="iconfont">&#xe615;</text>
-            {{ resumeDetail.basicInfo.phone }}
-          </text>
-          <text v-if="resumeDetail.basicInfo?.email" class="contact-item">
-            <text class="iconfont">&#xe613;</text>
-            {{ resumeDetail.basicInfo.email }}
-          </text>
-        </view>
-
-        <view v-if="resumeDetail.basicInfo?.summary" class="summary">
-          <text class="summary-text">{{ resumeDetail.basicInfo.summary }}</text>
+          <text class="attachment-name">{{ resumeDetail.name }}</text>
         </view>
       </view>
 
@@ -392,24 +611,101 @@ const formatAnalysisItem = (item: any): string => {
       <view v-if="resumeDetail.analysis" class="section analysis">
         <view class="section-title">AI 分析结果</view>
 
-        <!-- 综合评分 -->
-        <view v-if="resumeDetail.analysis.overallScore" class="score-card">
-          <view class="score-circle">
-            <text class="score-value">{{ resumeDetail.analysis.overallScore }}</text>
-            <text class="score-label">综合评分</text>
+        <!-- 核心评价模块（绿色渐变背景，全宽上下结构） -->
+        <view class="core-evaluation-section">
+          <view class="core-evaluation-bg">
+            <!-- 核心评价文字 -->
+            <text class="core-summary">{{ resumeDetail.basicInfo?.summary || '简历基础框架完整，候选人在技术领域有一定积累。' }}</text>
+
+            <!-- 总分 + 分析时间 双列布局 -->
+            <view class="core-stats-grid">
+              <view class="stat-card">
+                <text class="stat-label">总分</text>
+                <view class="stat-score-row">
+                  <text class="stat-score">{{ resumeDetail.analysis.overallScore || 0 }}</text>
+                  <text class="stat-max">/ 100</text>
+                </view>
+              </view>
+              <view class="stat-card">
+                <text class="stat-label">分析时间</text>
+                <text class="stat-time">{{ resumeDetail.analysis.analyzedAt ? formatAnalysisDate(resumeDetail.analysis.analyzedAt) : '-' }}</text>
+              </view>
+            </view>
+
+            <!-- 优势亮点 -->
+            <view v-if="resumeDetail.analysis.strengths?.length" class="strength-card">
+              <text class="strength-label">优势亮点</text>
+              <view class="tags-list">
+                <text
+                  v-for="(strength, idx) in resumeDetail.analysis.strengths"
+                  :key="idx"
+                  class="strength-tag"
+                >
+                  {{ strength }}
+                </text>
+              </view>
+            </view>
           </view>
         </view>
 
-        <!-- 技能匹配度 -->
-        <view v-if="resumeDetail.analysis.skillMatchRate" class="match-rate">
-          <text class="match-label">技能匹配度</text>
-          <view class="match-bar">
-            <view
-              class="match-inner"
-              :style="{ width: resumeDetail.analysis.skillMatchRate + '%' }"
-            ></view>
+        <!-- 能力画像雷达图 + 详细分数 -->
+        <view v-if="resumeDetail.analysis.expressionScore || resumeDetail.analysis.skillMatchScore || resumeDetail.analysis.contentScore || resumeDetail.analysis.structureScore || resumeDetail.analysis.projectScore" class="radar-section">
+          <view class="radar-container">
+            <canvas
+              id="resumeRadarCanvas"
+              canvas-id="resumeRadarChart"
+              class="radar-canvas"
+              style="width: 320px; height: 280px;"
+            ></canvas>
           </view>
-          <text class="match-value">{{ resumeDetail.analysis.skillMatchRate }}%</text>
+          <!-- 详细分数列表 -->
+          <view class="score-list">
+            <view class="score-item">
+              <text class="score-label">项目经验</text>
+              <view class="score-row">
+                <view class="score-bar">
+                  <view class="score-bar-inner project" :style="{ width: (resumeDetail.analysis.projectScore / 40 * 100) + '%' }"></view>
+                </view>
+                <text class="score-value">{{ resumeDetail.analysis.projectScore }}/40</text>
+              </view>
+            </view>
+            <view class="score-item">
+              <text class="score-label">技能匹配</text>
+              <view class="score-row">
+                <view class="score-bar">
+                  <view class="score-bar-inner skill" :style="{ width: (resumeDetail.analysis.skillMatchScore / 20 * 100) + '%' }"></view>
+                </view>
+                <text class="score-value">{{ resumeDetail.analysis.skillMatchScore }}/20</text>
+              </view>
+            </view>
+            <view class="score-item">
+              <text class="score-label">内容完整性</text>
+              <view class="score-row">
+                <view class="score-bar">
+                  <view class="score-bar-inner content" :style="{ width: (resumeDetail.analysis.contentScore / 15 * 100) + '%' }"></view>
+                </view>
+                <text class="score-value">{{ resumeDetail.analysis.contentScore }}/15</text>
+              </view>
+            </view>
+            <view class="score-item">
+              <text class="score-label">结构清晰度</text>
+              <view class="score-row">
+                <view class="score-bar">
+                  <view class="score-bar-inner structure" :style="{ width: (resumeDetail.analysis.structureScore / 15 * 100) + '%' }"></view>
+                </view>
+                <text class="score-value">{{ resumeDetail.analysis.structureScore }}/15</text>
+              </view>
+            </view>
+            <view class="score-item">
+              <text class="score-label">表达专业性</text>
+              <view class="score-row">
+                <view class="score-bar">
+                  <view class="score-bar-inner expression" :style="{ width: (resumeDetail.analysis.expressionScore / 10 * 100) + '%' }"></view>
+                </view>
+                <text class="score-value">{{ resumeDetail.analysis.expressionScore }}/10</text>
+              </view>
+            </view>
+          </view>
         </view>
 
         <!-- 匹配职位 -->
@@ -426,35 +722,82 @@ const formatAnalysisItem = (item: any): string => {
           </view>
         </view>
 
-        <!-- 优势 -->
-        <view v-if="resumeDetail.analysis.strengths?.length" class="strengths">
-          <text class="item-label">优势</text>
-          <view class="list">
-            <view v-for="(item, index) in resumeDetail.analysis.strengths" :key="index" class="list-item">
-              <text class="iconfont plus">&#xe617;</text>
-              <text class="text">{{ item }}</text>
+        <!-- 改进建议 - 按优先级分组 -->
+        <view v-if="resumeDetail.analysis.suggestions?.length" class="suggestions-section">
+          <view class="suggestions-header">
+            <text class="suggestions-title">改进建议</text>
+            <text class="suggestions-count">({{ resumeDetail.analysis.suggestions.length }} 条)</text>
+          </view>
+
+          <!-- 高优先级 -->
+          <view v-if="suggestionsByPriority.high.length > 0" class="priority-group">
+            <view class="priority-group-header">
+              <text class="priority-badge high">高优先级 ({{ suggestionsByPriority.high.length }})</text>
+              <view class="priority-divider high"></view>
+            </view>
+            <view class="suggestion-list">
+              <view
+                v-for="(item, idx) in suggestionsByPriority.high"
+                :key="'high-' + idx"
+                class="suggestion-card high"
+              >
+                <view class="suggestion-tags">
+                  <text class="tag-priority high">{{ item.priority }}</text>
+                  <text class="tag-category" :style="{ backgroundColor: getCategoryStyle(item.category || '其他').bg, color: getCategoryStyle(item.category || '其他').text }">{{ item.category || '其他' }}</text>
+                </view>
+                <view class="suggestion-content">
+                  <text class="issue-text">{{ item.issue || '问题描述' }}</text>
+                  <text class="recommendation-text">{{ item.recommendation || item }}</text>
+                </view>
+              </view>
             </view>
           </view>
-        </view>
 
-        <!-- 待改进 -->
-        <view v-if="resumeDetail.analysis.improvements?.length" class="improvements">
-          <text class="item-label">待改进</text>
-          <view class="list">
-            <view v-for="(item, index) in resumeDetail.analysis.improvements" :key="index" class="list-item">
-              <text class="iconfont minus">&#xe616;</text>
-              <text class="text">{{ formatAnalysisItem(item) }}</text>
+          <!-- 中优先级 -->
+          <view v-if="suggestionsByPriority.medium.length > 0" class="priority-group">
+            <view class="priority-group-header">
+              <text class="priority-badge medium">中优先级 ({{ suggestionsByPriority.medium.length }})</text>
+              <view class="priority-divider medium"></view>
+            </view>
+            <view class="suggestion-list">
+              <view
+                v-for="(item, idx) in suggestionsByPriority.medium"
+                :key="'medium-' + idx"
+                class="suggestion-card medium"
+              >
+                <view class="suggestion-tags">
+                  <text class="tag-priority medium">{{ item.priority }}</text>
+                  <text class="tag-category" :style="{ backgroundColor: getCategoryStyle(item.category || '其他').bg, color: getCategoryStyle(item.category || '其他').text }">{{ item.category || '其他' }}</text>
+                </view>
+                <view class="suggestion-content">
+                  <text class="issue-text">{{ item.issue || '问题描述' }}</text>
+                  <text class="recommendation-text">{{ item.recommendation || item }}</text>
+                </view>
+              </view>
             </view>
           </view>
-        </view>
 
-        <!-- 建议 -->
-        <view v-if="resumeDetail.analysis.suggestions?.length" class="suggestions">
-          <text class="item-label">建议</text>
-          <view class="list">
-            <view v-for="(item, index) in resumeDetail.analysis.suggestions" :key="index" class="list-item suggestion">
-              <text class="iconfont">&#xe618;</text>
-              <text class="text">{{ formatAnalysisItem(item) }}</text>
+          <!-- 低优先级 -->
+          <view v-if="suggestionsByPriority.low.length > 0" class="priority-group">
+            <view class="priority-group-header">
+              <text class="priority-badge low">低优先级 ({{ suggestionsByPriority.low.length }})</text>
+              <view class="priority-divider low"></view>
+            </view>
+            <view class="suggestion-list">
+              <view
+                v-for="(item, idx) in suggestionsByPriority.low"
+                :key="'low-' + idx"
+                class="suggestion-card low"
+              >
+                <view class="suggestion-tags">
+                  <text class="tag-priority low">{{ item.priority }}</text>
+                  <text class="tag-category" :style="{ backgroundColor: getCategoryStyle(item.category || '其他').bg, color: getCategoryStyle(item.category || '其他').text }">{{ item.category || '其他' }}</text>
+                </view>
+                <view class="suggestion-content">
+                  <text class="issue-text">{{ item.issue || '问题描述' }}</text>
+                  <text class="recommendation-text">{{ item.recommendation || item }}</text>
+                </view>
+              </view>
             </view>
           </view>
         </view>
@@ -670,96 +1013,40 @@ const formatAnalysisItem = (item: any): string => {
   border-left: 6rpx solid #6366f1;
 }
 
-// 基本信息
-.basic-info {
-  .info-header {
+// 附件简历卡片
+.attachment-card {
+  .attachment-header {
     display: flex;
     align-items: center;
-    margin-bottom: 24rpx;
+    gap: 20rpx;
   }
 
-  .avatar {
-    width: 120rpx;
-    height: 120rpx;
+  .attachment-icon {
+    width: 80rpx;
+    height: 80rpx;
     border-radius: 50%;
-    overflow: hidden;
-    margin-right: 24rpx;
     background-color: #eef2ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
-    image {
-      width: 100%;
-      height: 100%;
-    }
-
-    .avatar-placeholder {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      height: 100%;
-      font-size: 48rpx;
+    .icon-text {
+      font-size: 32rpx;
       color: #6366f1;
-      font-weight: bold;
+      font-weight: 600;
     }
   }
 
-  .info-content {
-    flex: 1;
-  }
-
-  .name {
-    font-size: 36rpx;
+  .attachment-name {
+    font-size: 32rpx;
     font-weight: 600;
     color: #333;
-    margin-bottom: 12rpx;
   }
 
-  .meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16rpx;
-
-    .meta-item {
-      font-size: 26rpx;
-      color: #666;
-
-      &::before {
-        content: '|';
-        margin-right: 16rpx;
-        color: #ddd;
-      }
-
-      &:first-child::before {
-        display: none;
-      }
-    }
-  }
-
-  .contact-info {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 24rpx;
-    padding-top: 20rpx;
-    border-top: 1rpx solid #f5f5f5;
-    margin-bottom: 20rpx;
-
-    .contact-item {
-      display: flex;
-      align-items: center;
-      gap: 8rpx;
-      font-size: 26rpx;
-      color: #666;
-
-      .iconfont {
-        font-size: 28rpx;
-        color: #999;
-      }
-    }
-  }
-
-  .summary {
+  .attachment-summary {
+    margin-top: 20rpx;
     padding: 20rpx;
-    background-color: #f8fbf8;
+    background-color: #f5f5f5;
     border-radius: 12rpx;
 
     .summary-text {
@@ -772,31 +1059,183 @@ const formatAnalysisItem = (item: any): string => {
 
 // 分析结果
 .analysis {
-  .score-card {
-    display: flex;
-    justify-content: center;
-    padding: 20rpx 0;
+  // 核心评价模块（绿色渐变背景，全宽）
+  .core-evaluation-section {
+    margin-bottom: 24rpx;
   }
 
-  .score-circle {
-    width: 200rpx;
-    height: 200rpx;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #6366f1, #45a049);
+  .core-evaluation-bg {
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border-radius: 24rpx;
+    padding: 32rpx;
+
+    .core-summary {
+      display: block;
+      font-size: 28rpx;
+      color: #1e293b;
+      line-height: 1.6;
+      margin-bottom: 24rpx;
+    }
+
+    // 总分 + 分析时间 双列布局
+    .core-stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16rpx;
+      margin-bottom: 20rpx;
+    }
+
+    // 总分卡片 - 白色背景
+    .stat-card {
+      background-color: #fff;
+      border-radius: 20rpx;
+      padding: 24rpx;
+
+      .stat-label {
+        display: block;
+        font-size: 24rpx;
+        font-weight: 600;
+        color: #059669;
+        margin-bottom: 12rpx;
+      }
+
+      .stat-score-row {
+        display: flex;
+        align-items: baseline;
+        gap: 8rpx;
+      }
+
+      .stat-score {
+        font-size: 56rpx;
+        font-weight: 700;
+        color: #1e293b;
+        line-height: 1;
+      }
+
+      .stat-max {
+        font-size: 24rpx;
+        color: #94a3b8;
+      }
+
+      .stat-time {
+        font-size: 24rpx;
+        color: #475569;
+      }
+    }
+
+    // 优势亮点卡片 - 白色背景
+    .strength-card {
+      background-color: #fff;
+      border-radius: 20rpx;
+      padding: 24rpx;
+
+      .strength-label {
+        display: block;
+        font-size: 24rpx;
+        font-weight: 600;
+        color: #059669;
+        margin-bottom: 12rpx;
+      }
+
+      .tags-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12rpx;
+      }
+
+      .strength-tag {
+        padding: 10rpx 20rpx;
+        background-color: #d1fae5;
+        color: #047857;
+        border: 2rpx solid #a7f3d0;
+        border-radius: 12rpx;
+        font-size: 24rpx;
+        font-weight: 500;
+      }
+    }
+  }
+
+  // 能力画像雷达图
+  .radar-section {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    gap: 16rpx;
 
-    .score-value {
-      font-size: 56rpx;
-      font-weight: bold;
-      color: #fff;
+    .radar-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 10rpx 0;
+    }
+
+    .radar-canvas {
+      width: 320px;
+      height: 280px;
+    }
+
+    .score-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12rpx;
+    }
+
+    .score-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4rpx;
     }
 
     .score-label {
+      font-size: 22rpx;
+      color: #64748b;
+    }
+
+    .score-row {
+      display: flex;
+      align-items: center;
+      gap: 12rpx;
+    }
+
+    .score-bar {
+      flex: 1;
+      height: 16rpx;
+      background-color: #e2e8f0;
+      border-radius: 8rpx;
+      overflow: hidden;
+    }
+
+    .score-bar-inner {
+      height: 100%;
+      border-radius: 8rpx;
+
+      &.project {
+        background-color: #a855f7;
+      }
+
+      &.skill {
+        background-color: #3b82f6;
+      }
+
+      &.content {
+        background-color: #10b981;
+      }
+
+      &.structure {
+        background-color: #06b6d4;
+      }
+
+      &.expression {
+        background-color: #f97316;
+      }
+    }
+
+    .score-value {
       font-size: 24rpx;
-      color: rgba(255, 255, 255, 0.8);
+      color: #334155;
+      font-weight: 600;
+      width: 80rpx;
+      text-align: right;
+      flex-shrink: 0;
     }
   }
 
@@ -861,41 +1300,163 @@ const formatAnalysisItem = (item: any): string => {
     }
   }
 
-  .strengths,
-  .improvements,
-  .suggestions {
+  // 改进建议模块
+  .suggestions-section {
     margin-bottom: 24rpx;
   }
 
-  .list {
+  .suggestions-header {
     display: flex;
-    flex-direction: column;
-    gap: 12rpx;
+    align-items: center;
+    gap: 8rpx;
+    margin-bottom: 24rpx;
+
+    .suggestions-title {
+      font-size: 28rpx;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .suggestions-count {
+      font-size: 24rpx;
+      color: #94a3b8;
+    }
   }
 
-  .list-item {
+  // 优先级分组
+  .priority-group {
+    margin-bottom: 24rpx;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  .priority-group-header {
     display: flex;
-    align-items: flex-start;
-    gap: 12rpx;
-    font-size: 28rpx;
-    color: #666;
-    line-height: 1.5;
+    align-items: center;
+    gap: 16rpx;
+    margin-bottom: 16rpx;
 
-    .iconfont {
-      font-size: 28rpx;
-      flex-shrink: 0;
+    .priority-badge {
+      padding: 8rpx 20rpx;
+      border-radius: 999rpx;
+      font-size: 24rpx;
+      font-weight: 600;
 
-      &.plus {
-        color: #6366f1;
+      &.high {
+        background-color: #fef2f2;
+        color: #dc2626;
       }
 
-      &.minus {
-        color: #f56c6c;
+      &.medium {
+        background-color: #fffbeb;
+        color: #d97706;
+      }
+
+      &.low {
+        background-color: #eff6ff;
+        color: #2563eb;
       }
     }
 
-    &.suggestion .iconfont {
-      color: #409eff;
+    .priority-divider {
+      flex: 1;
+      height: 2rpx;
+
+      &.high {
+        background-color: #fecaca;
+      }
+
+      &.medium {
+        background-color: #fde68a;
+      }
+
+      &.low {
+        background-color: #bfdbfe;
+      }
+    }
+  }
+
+  .suggestion-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16rpx;
+  }
+
+  .suggestion-card {
+    background-color: #fff;
+    border-radius: 20rpx;
+    padding: 24rpx;
+
+    &.high {
+      border: 4rpx solid #fecaca;
+      background-color: #fef2f2;
+    }
+
+    &.medium {
+      border: 4rpx solid #fde68a;
+      background-color: #fffbeb;
+    }
+
+    &.low {
+      border: 4rpx solid #bfdbfe;
+      background-color: #eff6ff;
+    }
+
+    .suggestion-tags {
+      display: flex;
+      align-items: center;
+      gap: 12rpx;
+      margin-bottom: 12rpx;
+    }
+
+    .tag-priority {
+      padding: 6rpx 16rpx;
+      border-radius: 8rpx;
+      font-size: 20rpx;
+      font-weight: 600;
+
+      &.high {
+        background-color: #ef4444;
+        color: #fff;
+      }
+
+      &.medium {
+        background-color: #f59e0b;
+        color: #fff;
+      }
+
+      &.low {
+        background-color: #3b82f6;
+        color: #fff;
+      }
+    }
+
+    .tag-category {
+      padding: 6rpx 16rpx;
+      border-radius: 8rpx;
+      font-size: 20rpx;
+      font-weight: 500;
+    }
+
+    .suggestion-content {
+      display: flex;
+      flex-direction: column;
+      gap: 8rpx;
+    }
+
+    .issue-text {
+      font-size: 28rpx;
+      font-weight: 600;
+      color: #1e293b;
+      line-height: 1.5;
+    }
+
+    .recommendation-text {
+      font-size: 26rpx;
+      color: #64748b;
+      line-height: 1.6;
     }
   }
 }

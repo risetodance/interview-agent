@@ -148,9 +148,6 @@ export default function InterviewConfigPanel({
             />
           </div>
           
-          <p className="text-sm text-slate-500 mb-6">
-            题目分布：项目经历(20%) + MySQL(20%) + Redis(20%) + Java基础/集合/并发(30%) + Spring(10%)
-          </p>
 
           <AnimatePresence>
             {error && (
