@@ -64,6 +64,15 @@ public class QuestionGenerationService {
     private final Map<String, PromptTemplate> promptTemplatesByDifficulty = new HashMap<>();
 
     /**
+     * 生成单个面试问题（无视角模式）
+     */
+    public CurrentQuestionDTO generateSingleQuestion(InterviewSessionEntity session, int questionIndex,
+                                                     String resumeText, List<AnswerHistoryDTO> history) {
+        return generateSingleQuestion(session, questionIndex, resumeText, history,
+                null, null, null);
+    }
+
+    /**
      * 生成单个面试问题
      * AI根据简历和历史记录自行决定问题内容和分类
      *
@@ -71,14 +80,19 @@ public class QuestionGenerationService {
      * @param questionIndex     问题索引
      * @param resumeText         简历文本
      * @param history           历史答题记录
+     * @param perspectiveId     视角ID（用于过滤历史和选择prompt）
+     * @param perspectivePrompt 视角的评分prompt（作为系统提示词）
+     * @param perspectiveName   视角名称
      * @return 包含问题内容和参考上下文的 DTO
      */
     public CurrentQuestionDTO generateSingleQuestion(InterviewSessionEntity session, int questionIndex,
-                                                     String resumeText, List<AnswerHistoryDTO> history) {
+                                                     String resumeText, List<AnswerHistoryDTO> history,
+                                                     Long perspectiveId, String perspectivePrompt,
+                                                     String perspectiveName) {
         String difficulty = session.getCurrentDifficulty() != null ? session.getCurrentDifficulty() : "BASIC";
 
-        log.info("生成问题: sessionId={}, index={}, difficulty={}",
-                session.getSessionId(), questionIndex, difficulty);
+        log.info("生成问题: sessionId={}, index={}, difficulty={}, perspective={}",
+                session.getSessionId(), questionIndex, difficulty, perspectiveName);
 
         // 获取会话关联的知识库ID
         List<Long> knowledgeBaseIds = parseKnowledgeBaseIds(session.getKnowledgeBaseIds());
@@ -114,8 +128,20 @@ public class QuestionGenerationService {
             }
         }
 
-        // 使用通用AI生成，传入历史记录让AI决定问题内容和分类
-        SimpleQuestionDTO aiResult = generateQuestionByAI(resumeText, difficulty, referenceContext, questionIndex, history);
+        // 过滤历史记录：只保留当前视角的 Q&A（隐私隔离）
+        List<AnswerHistoryDTO> filteredHistory = history;
+        if (perspectiveId != null && history != null && !history.isEmpty()) {
+            filteredHistory = history.stream()
+                    .filter(h -> perspectiveId.equals(h.createdByPerspectiveId()))
+                    .toList();
+            log.debug("历史过滤: 原始{}条 -> 过滤后{}条 (perspectiveId={})",
+                    history.size(), filteredHistory.size(), perspectiveId);
+        }
+
+        // 使用AI生成，传入视角的prompt和过滤后的历史记录
+        SimpleQuestionDTO aiResult = generateQuestionByAI(
+                resumeText, difficulty, referenceContext, questionIndex,
+                filteredHistory, perspectiveId, perspectivePrompt, perspectiveName);
 
         // 更新会话的 questionsGenerated 计数
         int currentGenerated = session.getQuestionsGenerated() != null ? session.getQuestionsGenerated() : 0;
@@ -134,11 +160,14 @@ public class QuestionGenerationService {
                 referenceContext,
                 aiResult.isFollowUp(),
                 aiResult.relatedIndex(),
-                aiResult.relatedQuestion()
+                aiResult.relatedQuestion(),
+                perspectiveId,
+                perspectiveName
         );
 
-        log.info("问题生成成功: sessionId={}, index={}, category={}, questionLength={}, kbId={}",
-                session.getSessionId(), questionIndex, finalCategory, aiResult.question().length(), usedKnowledgeBaseId);
+        log.info("问题生成成功: sessionId={}, index={}, category={}, questionLength={}, kbId={}, perspective={}",
+                session.getSessionId(), questionIndex, finalCategory, aiResult.question().length(),
+                usedKnowledgeBaseId, perspectiveName);
 
         return dto;
     }
@@ -149,14 +178,29 @@ public class QuestionGenerationService {
      */
     private SimpleQuestionDTO generateQuestionByAI(String resumeText, String difficulty,
                                          String referenceContext, int questionIndex,
-                                         List<AnswerHistoryDTO> history) {
+                                         List<AnswerHistoryDTO> history,
+                                         Long perspectiveId, String perspectivePrompt,
+                                         String perspectiveName) {
         try {
-            // 加载提示词
-            PromptTemplate systemPrompt = getOrCreatePromptTemplate(difficulty);
+            // 确定系统提示词：优先使用视角prompt，否则使用通用难度prompt
+            String basePrompt;
+            if (perspectivePrompt != null && !perspectivePrompt.isBlank()) {
+                basePrompt = perspectivePrompt;
+            } else {
+                basePrompt = "你是一个专业的技术面试官。请根据候选人的简历内容，自动选择一个最合适的技术方向来考察该候选人。";
+            }
+            // 系统提示词 = 角色定义 + 难度要求 + JSON格式说明
+            String difficultyHint = getDifficultyHint(difficulty);
+            String systemPromptText = basePrompt + difficultyHint + """
 
-            String systemPromptText = systemPrompt.render();
+                请以JSON格式返回，格式如下：
+                {"question": "面试问题内容 - 生成的问题文本", "category": "问题分类 - 如Java基础/并发/数据库等", "isFollowUp": "是否追问 - true表示追问，false表示新问题", "relatedIndex": "全局问题索引 - 追问时填写关联问题的全局索引（即历史记录中【】内的数字，如问题2对应2）", "relatedQuestion": "关联问题摘要 - 追问时填写关联的问题摘要"}
+                """;
+            log.debug("使用视角prompt出题: perspectiveId={}, perspectiveName={}", perspectiveId, perspectiveName);
+
             // 传入历史记录，让AI根据简历内容自行决定问题类型
-            String userPromptText = buildUserPrompt(resumeText, difficulty, referenceContext, questionIndex, history);
+            String userPromptText = buildUserPrompt(resumeText, difficulty, referenceContext, questionIndex,
+                    history, perspectiveId, perspectiveName);
 
             // 调用 AI 生成
             SimpleQuestionDTO result = structuredOutputInvoker.invoke(
@@ -184,20 +228,15 @@ public class QuestionGenerationService {
     }
 
     /**
-     * 获取或创建指定难度的提示词模板
+     * 获取难度提示
      */
-    private PromptTemplate getOrCreatePromptTemplate(String difficulty) throws IOException {
-        return promptTemplatesByDifficulty.computeIfAbsent(difficulty, k -> {
-            String content = systemPromptTemplate.getTemplate();
-            // 根据难度调整系统提示词
-            String difficultyHint = switch (k.toUpperCase()) {
-                case "BASIC" -> "\n\n【难度要求】生成基础级别的问题，重点考察候选人对概念的理解和基本应用能力。";
-                case "ADVANCED" -> "\n\n【难度要求】生成进阶级别的问题，重点考察候选人的深入理解和实际经验。";
-                case "EXPERT" -> "\n\n【难度要求】生成专家级别的问题，重点考察候选人的深度认知、架构能力和问题解决能力。";
-                default -> "";
-            };
-            return new PromptTemplate(content + difficultyHint);
-        });
+    private String getDifficultyHint(String difficulty) {
+        return switch (difficulty.toUpperCase()) {
+            case "BASIC" -> "\n\n【难度要求】生成基础级别的问题，重点考察候选人对概念的理解和基本应用能力。";
+            case "ADVANCED" -> "\n\n【难度要求】生成进阶级别的问题，重点考察候选人的深入理解和实际经验。";
+            case "EXPERT" -> "\n\n【难度要求】生成专家级别的问题，重点考察候选人的深度认知、架构能力和问题解决能力。";
+            default -> "";
+        };
     }
 
     /**
@@ -206,9 +245,16 @@ public class QuestionGenerationService {
      */
     private String buildUserPrompt(String resumeText, String difficulty,
                                    String referenceContext, int questionIndex,
-                                   List<AnswerHistoryDTO> history) {
+                                   List<AnswerHistoryDTO> history,
+                                   Long perspectiveId, String perspectiveName) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("你是一个专业的技术面试官。请根据候选人的简历内容，自动选择一个最合适的技术方向来考察该候选人。\n\n");
+
+        // 根据是否有视角信息决定面试官身份
+        if (perspectiveName != null && !perspectiveName.isBlank()) {
+            prompt.append("你是一位").append(perspectiveName).append("。请根据候选人的简历内容，从本角色的视角出发，考察候选人的相关能力。\n\n");
+        } else {
+            prompt.append("你是一个专业的技术面试官。请根据候选人的简历内容，自动选择一个最合适的技术方向来考察该候选人。\n\n");
+        }
         prompt.append("【问题索引】").append(questionIndex).append("\n");
         prompt.append("【难度等级】").append(difficulty).append("\n");
         prompt.append("【候选人简历】\n").append(resumeText).append("\n\n");
@@ -229,7 +275,7 @@ public class QuestionGenerationService {
             prompt.append("【追问规则】\n");
             prompt.append("如果发现候选人在某个问题上回答不完整或值得深入探讨，可以生成一道追问。\n");
             prompt.append("追问应该基于候选人上一题的回答内容进行深入追问，不要问与上一题无关的问题。\n");
-            prompt.append("如果是追问，在 isFollowUp 填写 true，并在 relatedIndex 和 relatedQuestion 中填写关联的问题信息。\n\n");
+            prompt.append("如果是追问，在 isFollowUp 填写 true，并在 relatedIndex 中填写关联问题的全局索引（即上面历史记录中【】内的数字，如追问你刚才出的题2则填2），在 relatedQuestion 中填写关联的问题摘要。\n\n");
         }
 
         if (referenceContext != null && !referenceContext.isBlank()) {
@@ -237,15 +283,7 @@ public class QuestionGenerationService {
         }
 
         prompt.append("请根据简历内容，决定生成新问题还是追问（基于候选人的回答质量）。\n");
-        prompt.append("生成一道具有针对性的面试问题或追问。\n\n");
-        prompt.append("【输出要求】请以JSON格式返回，格式如下：\n");
-        prompt.append("{\n");
-        prompt.append("  \"question\": \"你生成的问题内容\",\n");
-        prompt.append("  \"category\": \"问题所属的技术分类（如：Java并发、MySQL、Redis等）\",\n");
-        prompt.append("  \"isFollowUp\": false或true,\n");
-        prompt.append("  \"relatedIndex\": 关联的问题索引（追问时填写）,\n");
-        prompt.append("  \"relatedQuestion\": 关联的问题摘要（追问时填写）\n");
-        prompt.append("}");
+        prompt.append("生成一道具有针对性的面试问题或追问。");
         return prompt.toString();
     }
 

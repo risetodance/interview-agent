@@ -19,6 +19,8 @@ import DashboardPage from './pages/admin/DashboardPage';
 import UserManagementPage from './pages/admin/UserManagementPage';
 import SystemConfigPage from './pages/admin/SystemConfigPage';
 import AuditLogPage from './pages/admin/AuditLogPage';
+import InterviewerRoleManagementPage from './pages/admin/InterviewerRoleManagementPage';
+import InterviewReportPage from './pages/InterviewReportPage';
 import { historyApi } from './api/history';
 import type { UploadKnowledgeBaseResponse } from './api/knowledgebase';
 import {UserProvider, useUser} from './store/user';
@@ -230,6 +232,9 @@ function App() {
             {/* 面试记录列表 */}
             <Route path="interviews" element={<InterviewHistoryWrapper />} />
 
+            {/* 面试报告（多视角） */}
+            <Route path="interviews/:sessionId/report" element={<InterviewReportPageWrapper />} />
+
             {/* 模拟面试 */}
             <Route path="interview/:resumeId" element={<InterviewWrapper />} />
 
@@ -271,6 +276,7 @@ function App() {
             <Route path="users" element={<UserManagementPage />} />
             <Route path="config" element={<SystemConfigPage />} />
             <Route path="audit-logs" element={<AuditLogPage />} />
+            <Route path="interviewer-roles" element={<InterviewerRoleManagementPage />} />
           </Route>
         </Routes></Suspense>
     </BrowserRouter>
@@ -298,20 +304,31 @@ function InterviewHistoryWrapper() {
         return;
       }
 
-      // 否则跳转到详情页
-      if (resumeId) {
-        navigate(`/history/${resumeId}`, {
-          state: { viewInterview: sessionId }
-        });
-      } else {
-        navigate('/history');
-      }
+      // 已完成的面试，跳转到多视角报告页面
+      navigate(`/interviews/${sessionId}/report`);
     } catch {
       navigate('/history');
     }
   };
 
   return <InterviewHistoryPage onBack={handleBack} onViewInterview={handleViewInterview} />;
+}
+
+// 面试报告页面包装器
+function InterviewReportPageWrapper() {
+  const { sessionId } = useParams<{ sessionId: string }>();
+  const navigate = useNavigate();
+
+  if (!sessionId) {
+    navigate('/interviews');
+    return null;
+  }
+
+  const handleBack = () => {
+    navigate('/interviews');
+  };
+
+  return <InterviewReportPage sessionId={sessionId} onBack={handleBack} />;
 }
 
 // 知识库管理页面包装器

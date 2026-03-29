@@ -36,6 +36,10 @@ public enum ErrorCode {
     INTERVIEW_EVALUATION_FAILED(3005, "面试评估失败"),
     INTERVIEW_QUESTION_GENERATION_FAILED(3006, "面试问题生成失败"),
     INTERVIEW_NOT_COMPLETED(3007, "面试尚未完成"),
+
+    // ========== 通用资源错误 1xxx ==========
+    RESOURCE_NOT_FOUND(1001, "资源不存在"),
+    DUPLICATE_RESOURCE(1002, "资源已存在"),
     
     // ========== 存储模块错误 4xxx ==========
     STORAGE_UPLOAD_FAILED(4001, "文件上传失败"),

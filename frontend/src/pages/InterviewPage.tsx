@@ -1,10 +1,12 @@
 import {useEffect, useState, useRef} from 'react';
 import {AnimatePresence, motion} from 'framer-motion';
 import {interviewApi} from '../api/interview';
+import {interviewerRoleApi} from '../api/interviewerRole';
 import ConfirmDialog from '../components/ConfirmDialog';
 import InterviewConfigPanel from '../components/InterviewConfigPanel';
 import InterviewChatPanel from '../components/InterviewChatPanel';
 import type {CurrentQuestionDTO, InterviewSession} from '../types/interview';
+import type {InterviewerRole} from '../types/interviewerRole';
 
 type InterviewStage = 'config' | 'interview';
 
@@ -18,6 +20,9 @@ interface Message {
   isFollowUp?: boolean;
   relatedIndex?: number;
   relatedQuestion?: string;
+  // 多视角支持
+  createdByPerspectiveId?: number;
+  createdByPerspectiveName?: string;
 }
 
 interface InterviewProps {
@@ -43,6 +48,12 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [forceCreateNew, setForceCreateNew] = useState(false);
   const [isLoadingQuestion, setIsLoadingQuestion] = useState(false);
+  // 多视角支持
+  const [availableRoles, setAvailableRoles] = useState<InterviewerRole[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
+  const [selectedPerspectives, setSelectedPerspectives] = useState<number[]>([]);
+  // 会话级权重配置
+  const [perspectiveWeights, setPerspectiveWeights] = useState<Record<number, number>>({});
 
   // 使用 ref 防止重复请求
   const hasInitialized = useRef(false);
@@ -64,6 +75,40 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeId, sessionId]);
 
+  // 加载可用的面试官角色（仅在配置阶段）
+  useEffect(() => {
+    if (stage !== 'config') return;
+    setLoadingRoles(true);
+    interviewerRoleApi.getRoles()
+      .then(roles => {
+        setAvailableRoles(roles);
+        // 自动选择已启用且为默认模板的角色
+        const defaultRoleIds = roles
+          .filter(r => r.status && r.defaultTemplate)
+          .map(r => r.id);
+        if (defaultRoleIds.length > 0) {
+          const selectedDefaults = defaultRoleIds.slice(0, 3);
+          setSelectedPerspectives(selectedDefaults);
+          // 初始化默认视角的权重，归一化使其总和为1
+          const defaultRoles = selectedDefaults
+            .map(id => roles.find(r => r.id === id))
+            .filter((r): r is NonNullable<typeof r> => r !== undefined);
+          const totalDefaultWeight = defaultRoles.reduce((sum, r) => sum + r.weight, 0);
+          const initWeights: Record<number, number> = {};
+          defaultRoles.forEach(role => {
+            initWeights[role.id] = totalDefaultWeight > 0 ? role.weight / totalDefaultWeight : 1 / defaultRoles.length;
+          });
+          setPerspectiveWeights(initWeights);
+        }
+      })
+      .catch(err => {
+        console.error('加载面试官角色失败', err);
+      })
+      .finally(() => {
+        setLoadingRoles(false);
+      });
+  }, [stage]);
+
   // 根据sessionId恢复会话
   const restoreSessionById = async (sid: string) => {
     setCheckingUnfinished(true);
@@ -79,7 +124,12 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
           content: historyItem.question,
           category: historyItem.category,
           questionIndex: historyItem.questionIndex,
-          difficulty: historyItem.difficulty
+          difficulty: historyItem.difficulty,
+          createdByPerspectiveId: historyItem.createdByPerspectiveId,
+          createdByPerspectiveName: historyItem.createdByPerspectiveName,
+          isFollowUp: historyItem.isFollowUp,
+          relatedIndex: historyItem.relatedIndex,
+          relatedQuestion: historyItem.relatedQuestion,
         });
         restoredMessages.push({
           type: 'user',
@@ -98,7 +148,9 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
           knowledgeBaseName: progress.currentQuestion.knowledgeBaseName,
           isFollowUp: progress.currentQuestion.isFollowUp,
           relatedIndex: progress.currentQuestion.relatedIndex,
-          relatedQuestion: progress.currentQuestion.relatedQuestion
+          relatedQuestion: progress.currentQuestion.relatedQuestion,
+          createdByPerspectiveId: progress.currentQuestion.createdByPerspectiveId,
+          createdByPerspectiveName: progress.currentQuestion.createdByPerspectiveName,
         });
       }
 
@@ -196,7 +248,9 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
           category: currentQ.category,
           questionIndex: currentQ.questionIndex,
           difficulty: currentQ.difficulty,
-          knowledgeBaseName: currentQ.knowledgeBaseName
+          knowledgeBaseName: currentQ.knowledgeBaseName,
+          createdByPerspectiveId: currentQ.createdByPerspectiveId,
+          createdByPerspectiveName: currentQ.createdByPerspectiveName,
         }]);
       }
     } catch (err) {
@@ -219,7 +273,9 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
         resumeText,
         questionCount,
         resumeId,
-        forceCreate: forceCreateNew
+        forceCreate: forceCreateNew,
+        selectedPerspectives: selectedPerspectives.length > 0 ? selectedPerspectives : undefined,
+        perspectiveWeights: Object.keys(perspectiveWeights).length > 0 ? perspectiveWeights : undefined,
       });
 
       // 重置强制创建标志
@@ -239,7 +295,9 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
           category: firstQuestion.category,
           questionIndex: firstQuestion.questionIndex,
           difficulty: firstQuestion.difficulty,
-          knowledgeBaseName: firstQuestion.knowledgeBaseName
+          knowledgeBaseName: firstQuestion.knowledgeBaseName,
+          createdByPerspectiveId: firstQuestion.createdByPerspectiveId,
+          createdByPerspectiveName: firstQuestion.createdByPerspectiveName,
         }]);
       } catch (questionErr) {
         console.error('获取第一题失败', questionErr);
@@ -290,7 +348,9 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
           knowledgeBaseName: nextQ.knowledgeBaseName,
           isFollowUp: nextQ.isFollowUp,
           relatedIndex: nextQ.relatedIndex,
-          relatedQuestion: nextQ.relatedQuestion
+          relatedQuestion: nextQ.relatedQuestion,
+          createdByPerspectiveId: nextQ.createdByPerspectiveId,
+          createdByPerspectiveName: nextQ.createdByPerspectiveName,
         }]);
       } else {
         // 面试已完成，评估将在后台进行，跳转到面试记录页
@@ -336,6 +396,12 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
         resumeText={resumeText}
         onBack={onBack}
         error={error}
+        availableRoles={availableRoles}
+        selectedPerspectives={selectedPerspectives}
+        onPerspectivesChange={setSelectedPerspectives}
+        loadingRoles={loadingRoles}
+        perspectiveWeights={perspectiveWeights}
+        onPerspectiveWeightsChange={setPerspectiveWeights}
       />
     );
   };

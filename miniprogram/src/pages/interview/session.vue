@@ -41,14 +41,16 @@ const restoredCurrentQuestion = ref<{
   questionIndex: number
   question: string
   category: string
-  difficulty: string
-  knowledgeBaseName: string
+  difficulty?: string
+  knowledgeBaseName?: string | null
+  createdByPerspectiveId?: number
+  createdByPerspectiveName?: string
 } | null>(null)
 
 // 消息列表类型（与Web端一致）
 interface MessageItem {
   id: number
-  type: 'interviewer' | 'user'
+  type: 'interviewer' | 'user' | 'system' | 'evaluation'
   content: string
   category?: string
   questionIndex?: number
@@ -58,6 +60,17 @@ interface MessageItem {
   relatedIndex?: number
   relatedQuestion?: string
   timestamp: number
+  // 多视角扩展字段
+  createdByPerspectiveId?: number
+  createdByPerspectiveName?: string
+  // 评价数据
+  evaluation?: {
+    score: number
+    strength: string[]
+    improvements: string[]
+    suggestedAnswer?: string
+    overallFeedback?: string
+  }
 }
 
 // 消息列表
@@ -173,7 +186,9 @@ const initInterview = async () => {
         category: historyItem.category,
         questionIndex: historyItem.questionIndex,
         difficulty: historyItem.difficulty,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        createdByPerspectiveId: (historyItem as any).createdByPerspectiveId,
+        createdByPerspectiveName: (historyItem as any).createdByPerspectiveName
       })
       // 添加用户回答
       messages.value.push({
@@ -191,7 +206,9 @@ const initInterview = async () => {
         question: progress.currentQuestion.question,
         category: progress.currentQuestion.category,
         difficulty: progress.currentQuestion.difficulty,
-        knowledgeBaseName: progress.currentQuestion.knowledgeBaseName
+        knowledgeBaseName: progress.currentQuestion.knowledgeBaseName,
+        createdByPerspectiveId: (progress.currentQuestion as any).createdByPerspectiveId,
+        createdByPerspectiveName: (progress.currentQuestion as any).createdByPerspectiveName
       }
       // 添加当前问题到消息列表
       messages.value.push({
@@ -202,7 +219,9 @@ const initInterview = async () => {
         questionIndex: progress.currentQuestion.questionIndex,
         difficulty: progress.currentQuestion.difficulty,
         knowledgeBaseName: progress.currentQuestion.knowledgeBaseName,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        createdByPerspectiveId: (progress.currentQuestion as any).createdByPerspectiveId,
+        createdByPerspectiveName: (progress.currentQuestion as any).createdByPerspectiveName
       })
     } else {
       // 新面试，还没有生成任何题目，调用 fetchCurrentQuestion 获取第一题
@@ -215,7 +234,9 @@ const initInterview = async () => {
           question: firstQuestion.question,
           category: firstQuestion.category,
           difficulty: firstQuestion.difficulty,
-          knowledgeBaseName: firstQuestion.knowledgeBaseName
+          knowledgeBaseName: firstQuestion.knowledgeBaseName,
+          createdByPerspectiveId: (firstQuestion as any).createdByPerspectiveId,
+          createdByPerspectiveName: (firstQuestion as any).createdByPerspectiveName
         }
         // 添加第一题到消息列表
         messages.value.push({
@@ -226,7 +247,9 @@ const initInterview = async () => {
           questionIndex: firstQuestion.questionIndex,
           difficulty: firstQuestion.difficulty,
           knowledgeBaseName: firstQuestion.knowledgeBaseName,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          createdByPerspectiveId: (firstQuestion as any).createdByPerspectiveId,
+          createdByPerspectiveName: (firstQuestion as any).createdByPerspectiveName
         })
       } catch (err) {
         console.error('获取第一题失败:', err)
@@ -274,8 +297,8 @@ const addQuestionMessage = (question: InterviewQuestion) => {
   messages.value.push({
     id: Date.now(),
     type: 'interviewer',
-    content: question.content,
-    questionId: question.id,
+    content: question.question || question.content || '',
+    questionIndex: question.questionIndex,
     timestamp: Date.now()
   })
 
@@ -286,12 +309,12 @@ const addQuestionMessage = (question: InterviewQuestion) => {
 }
 
 // 添加回答消息
-const addAnswerMessage = (answer: string, questionId: number) => {
+const addAnswerMessage = (answer: string, questionIndex: number) => {
   messages.value.push({
     id: Date.now(),
     type: 'user',
     content: answer,
-    questionId,
+    questionIndex,
     timestamp: Date.now()
   })
 
@@ -317,7 +340,7 @@ const handleEvaluation = (data: any) => {
       id: Date.now(),
       type: 'evaluation',
       content: data.evaluation.overallFeedback || '回答完毕',
-      questionId: data.questionId,
+      questionIndex: data.questionIndex as number,
       evaluation: data.evaluation,
       timestamp: Date.now()
     })
@@ -382,8 +405,8 @@ const submitAnswer = async () => {
   try {
     // 使用自适应难度 API 提交答案
     const result = await interviewStore.submitQuestionAnswer({
-      interviewId: pageId.value,
-      questionId: questionIndex,  // 使用 questionIndex 作为 questionId
+      interviewId: Number(pageId.value),
+      questionId: Number(questionIndex),  // 使用 questionIndex 作为 questionId
       answer
     })
 
@@ -395,7 +418,9 @@ const submitAnswer = async () => {
         question: result.nextQuestion.question,
         category: result.nextQuestion.category,
         difficulty: result.nextQuestion.difficulty,
-        knowledgeBaseName: result.nextQuestion.knowledgeBaseName
+        knowledgeBaseName: result.nextQuestion.knowledgeBaseName,
+        createdByPerspectiveId: result.nextQuestion.createdByPerspectiveId,
+        createdByPerspectiveName: result.nextQuestion.createdByPerspectiveName
       }
       // 添加下一题到消息列表
       messages.value.push({
@@ -406,7 +431,9 @@ const submitAnswer = async () => {
         questionIndex: result.nextQuestion.questionIndex,
         difficulty: result.nextQuestion.difficulty,
         knowledgeBaseName: result.nextQuestion.knowledgeBaseName,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        createdByPerspectiveId: result.nextQuestion.createdByPerspectiveId,
+        createdByPerspectiveName: result.nextQuestion.createdByPerspectiveName
       })
       interviewStatus.value = 'answering'
       scrollToBottom()
@@ -614,6 +641,7 @@ onUnmounted(() => {
         <view class="progress-header">
           <text class="progress-text">
             题目 {{ currentQuestionIndex + 1 }} / {{ totalQuestions }}
+            <text v-if="currentQuestionInfo?.createdByPerspectiveName" class="perspective-indicator">[{{ currentQuestionInfo.createdByPerspectiveName }}]</text>
           </text>
           <text class="progress-percent">{{ progressPercent }}%</text>
         </view>
@@ -659,6 +687,7 @@ onUnmounted(() => {
           <view v-if="msg.type === 'interviewer'" class="message-body">
             <view class="message-tags">
               <text class="message-label">面试官</text>
+              <text v-if="msg.createdByPerspectiveName" class="tag perspective-tag">{{ msg.createdByPerspectiveName }}</text>
               <text v-if="msg.category" class="tag category-tag">{{ msg.category }}</text>
               <text v-if="msg.difficulty" class="tag difficulty-tag" :style="{ backgroundColor: getDifficultyStyle(msg.difficulty).bg, color: getDifficultyStyle(msg.difficulty).color }">
                 {{ getDifficultyLabel(msg.difficulty) }}
@@ -788,6 +817,13 @@ $bg-color: #f8fafc;
       font-size: 28rpx;
       font-weight: 600;
       color: #334155;
+    }
+
+    .perspective-indicator {
+      font-size: 24rpx;
+      color: $primary-color;
+      font-weight: 600;
+      margin-left: 12rpx;
     }
 
     .progress-percent {
@@ -938,6 +974,12 @@ $bg-color: #f8fafc;
       .category-tag {
         background-color: rgba(99, 102, 241, 0.1);
         color: $primary-color;
+      }
+
+      .perspective-tag {
+        background-color: rgba(99, 102, 241, 0.2);
+        color: $primary-dark;
+        font-weight: 600;
       }
 
       .difficulty-tag {

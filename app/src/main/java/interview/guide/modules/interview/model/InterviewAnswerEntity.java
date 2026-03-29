@@ -74,6 +74,30 @@ public class InterviewAnswerEntity {
     // 问题生成时间
     private LocalDateTime generatedAt;
 
+    // 出题视角ID（该题由哪个视角出）
+    @Column(name = "created_by_perspective_id")
+    private Long createdByPerspectiveId;
+
+    // 出题视角名称（如"技术面试官"）
+    @Column(name = "created_by_perspective_name", length = 100)
+    private String createdByPerspectiveName;
+
+    // 仅能看到此答案的视角列表（JSON数组，隐私隔离）
+    @Column(name = "visible_to_perspectives", columnDefinition = "TEXT")
+    private String visibleToPerspectives;
+
+    // 是否为追问
+    @Column(name = "is_follow_up")
+    private Boolean isFollowUp;
+
+    // 关联的问题索引（追问时填写）
+    @Column(name = "related_index")
+    private Integer relatedIndex;
+
+    // 关联的问题摘要（追问时填写）
+    @Column(name = "related_question", columnDefinition = "TEXT")
+    private String relatedQuestion;
+
     @PrePersist
     protected void onCreate() {
         answeredAt = LocalDateTime.now();
@@ -199,5 +223,53 @@ public class InterviewAnswerEntity {
 
     public void setGeneratedAt(LocalDateTime generatedAt) {
         this.generatedAt = generatedAt;
+    }
+
+    public Long getCreatedByPerspectiveId() {
+        return createdByPerspectiveId;
+    }
+
+    public void setCreatedByPerspectiveId(Long createdByPerspectiveId) {
+        this.createdByPerspectiveId = createdByPerspectiveId;
+    }
+
+    public String getCreatedByPerspectiveName() {
+        return createdByPerspectiveName;
+    }
+
+    public void setCreatedByPerspectiveName(String createdByPerspectiveName) {
+        this.createdByPerspectiveName = createdByPerspectiveName;
+    }
+
+    public String getVisibleToPerspectives() {
+        return visibleToPerspectives;
+    }
+
+    public void setVisibleToPerspectives(String visibleToPerspectives) {
+        this.visibleToPerspectives = visibleToPerspectives;
+    }
+
+    public Boolean getIsFollowUp() {
+        return isFollowUp;
+    }
+
+    public void setIsFollowUp(Boolean isFollowUp) {
+        this.isFollowUp = isFollowUp;
+    }
+
+    public Integer getRelatedIndex() {
+        return relatedIndex;
+    }
+
+    public void setRelatedIndex(Integer relatedIndex) {
+        this.relatedIndex = relatedIndex;
+    }
+
+    public String getRelatedQuestion() {
+        return relatedQuestion;
+    }
+
+    public void setRelatedQuestion(String relatedQuestion) {
+        this.relatedQuestion = relatedQuestion;
     }
 }

@@ -110,6 +110,31 @@ public class InterviewSessionEntity {
     // 已生成的问题数量
     private Integer questionsGenerated = 0;
 
+    // 选择的视角列表 (JSON数组，存储用户选择的视角ID列表)
+    @Column(name = "selected_perspectives", columnDefinition = "TEXT")
+    private String selectedPerspectives;
+
+    // 汇总状态
+    @Enumerated(EnumType.STRING)
+    @Column(name = "perspective_summary_status", length = 20)
+    private AsyncTaskStatus perspectiveSummaryStatus;
+
+    // 综合得分（加权平均）
+    @Column(name = "comprehensive_score")
+    private Integer comprehensiveScore;
+
+    // LLM生成的综合评价
+    @Column(name = "comprehensive_feedback", columnDefinition = "TEXT")
+    private String comprehensiveFeedback;
+
+    // 上一题由哪个视角出（用于轮询规则）
+    @Column(name = "last_question_perspective_id")
+    private Long lastQuestionPerspectiveId;
+
+    // 各视角权重配置（JSON格式，存储如: {"1": 0.6, "2": 0.4}）
+    @Column(name = "perspective_weights", columnDefinition = "TEXT")
+    private String perspectiveWeights;
+
     public enum SessionStatus {
         CREATED,      // 会话已创建
         IN_PROGRESS,  // 面试进行中
@@ -318,5 +343,53 @@ public class InterviewSessionEntity {
     public void addAnswer(InterviewAnswerEntity answer) {
         answers.add(answer);
         answer.setSession(this);
+    }
+
+    public String getSelectedPerspectives() {
+        return selectedPerspectives;
+    }
+
+    public void setSelectedPerspectives(String selectedPerspectives) {
+        this.selectedPerspectives = selectedPerspectives;
+    }
+
+    public AsyncTaskStatus getPerspectiveSummaryStatus() {
+        return perspectiveSummaryStatus;
+    }
+
+    public void setPerspectiveSummaryStatus(AsyncTaskStatus perspectiveSummaryStatus) {
+        this.perspectiveSummaryStatus = perspectiveSummaryStatus;
+    }
+
+    public Integer getComprehensiveScore() {
+        return comprehensiveScore;
+    }
+
+    public void setComprehensiveScore(Integer comprehensiveScore) {
+        this.comprehensiveScore = comprehensiveScore;
+    }
+
+    public String getComprehensiveFeedback() {
+        return comprehensiveFeedback;
+    }
+
+    public void setComprehensiveFeedback(String comprehensiveFeedback) {
+        this.comprehensiveFeedback = comprehensiveFeedback;
+    }
+
+    public Long getLastQuestionPerspectiveId() {
+        return lastQuestionPerspectiveId;
+    }
+
+    public void setLastQuestionPerspectiveId(Long lastQuestionPerspectiveId) {
+        this.lastQuestionPerspectiveId = lastQuestionPerspectiveId;
+    }
+
+    public String getPerspectiveWeights() {
+        return perspectiveWeights;
+    }
+
+    public void setPerspectiveWeights(String perspectiveWeights) {
+        this.perspectiveWeights = perspectiveWeights;
     }
 }

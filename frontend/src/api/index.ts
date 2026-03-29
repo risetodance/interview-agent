@@ -7,3 +7,4 @@ export { interviewApi } from './interview';
 export { knowledgeBaseApi } from './knowledgebase';
 export { historyApi } from './history';
 export { adminApi } from './admin';
+export { interviewerRoleApi, perspectiveApi } from './interviewerRole';

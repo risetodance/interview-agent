@@ -14,5 +14,9 @@ public record CurrentQuestionDTO(
         String referenceContext,
         Boolean isFollowUp,
         Integer relatedIndex,
-        String relatedQuestion
+        String relatedQuestion,
+        // 出题视角ID
+        Long createdByPerspectiveId,
+        // 出题视角名称（如"技术面试官"）
+        String createdByPerspectiveName
 ) {}

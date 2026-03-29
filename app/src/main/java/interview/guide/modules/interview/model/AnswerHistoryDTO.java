@@ -11,5 +11,13 @@ public record AnswerHistoryDTO(
     String difficulty,
     String userAnswer,
     Integer score,
-    String feedback
+    String feedback,
+    // 出题视角ID
+    Long createdByPerspectiveId,
+    // 出题视角名称
+    String createdByPerspectiveName,
+    // 追问相关
+    Boolean isFollowUp,
+    Integer relatedIndex,
+    String relatedQuestion
 ) {}

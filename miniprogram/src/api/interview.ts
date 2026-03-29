@@ -83,6 +83,10 @@ export interface CreateSessionParams {
   forceCreate?: boolean
   questionBankIds?: number[]
   knowledgeBaseIds?: number[]
+  // 多视角扩展字段：选中的视角ID列表
+  selectedPerspectives?: number[]
+  // 各视角权重配置，key 为视角ID，value 为权重值（0-1之间）
+  perspectiveWeights?: Record<string, number>
 }
 
 export interface SessionResponse {
@@ -278,6 +282,134 @@ export const getAbilityProfile = (sessionId: string | number) => {
   return get<AbilityProfile>(`/api/interview/sessions/${sessionId}/profile`)
 }
 
+// ========== 多视角面试 API ==========
+
+/**
+ * 面试官角色 DTO
+ * 对应后端 GET /api/admin/interviewer-roles
+ */
+export interface InterviewerRoleDTO {
+  id: number
+  roleName: string
+  roleCode: string
+  description: string
+  weight: number
+  icon: string
+  status: boolean  // true = ACTIVE, false = INACTIVE
+}
+
+/**
+ * 视角答题记录 DTO
+ */
+export interface PerspectiveAnswerDTO {
+  questionIndex: number
+  question: string
+  userAnswer: string
+  score: number | null
+  feedback: string | null
+  difficulty: string
+  category: string
+}
+
+/**
+ * 视角评分 DTO
+ * 对应后端 GET /api/interview/sessions/{sessionId}/perspectives
+ */
+export interface PerspectiveScoreDTO {
+  id?: number
+  sessionId?: string
+  perspectiveId: number
+  perspectiveName: string
+  perspectiveIcon?: string
+  questionIndex?: number
+  score: number | null
+  feedback?: string | null
+  strengths?: string[]
+  improvements?: string[]
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED'
+  questionCount?: number
+  answeredCount?: number
+}
+
+/**
+ * 视角详情 DTO
+ * 对应后端 GET /api/interview/sessions/{sessionId}/perspectives/{perspectiveId}
+ */
+export interface PerspectiveDetailDTO {
+  perspectiveId: number
+  roleName: string
+  perspectiveIcon?: string
+  score: number | null
+  feedback?: string
+  strengths: string[]
+  improvements: string[]
+  questionCount?: number
+  answeredCount?: number
+  questionScores: {
+    questionIndex: number
+    question: string
+    userAnswer: string
+    score: number | null
+    feedback: string | null
+    difficulty: string
+    category: string
+    referenceAnswer?: string | null
+    keyPoints?: string[]
+  }[]
+}
+
+/**
+ * 综合报告 DTO
+ * 对应后端 GET /api/interview/sessions/{sessionId}/report/comprehensive
+ */
+export interface ComprehensiveReportDTO {
+  sessionId: string
+  overallScore: number
+  perspectives?: {
+    perspectiveId: number
+    perspectiveName: string
+    weight: number
+    score: number | null
+    questionCount?: number
+  }[]
+  comprehensiveFeedback: string
+  strengths: string[]
+  improvements: string[]
+  perspectiveDetails?: Record<string, PerspectiveDetailDTO>
+}
+
+/**
+ * 获取可选视角列表（创建面试时使用）
+ * GET /api/admin/interviewer-roles
+ */
+export const getPerspectives = () => {
+  return get<InterviewerRoleDTO[]>('/api/admin/interviewer-roles')
+}
+
+/**
+ * 获取面试视角列表
+ * GET /api/interview/sessions/{sessionId}/perspectives
+ */
+export const getSessionPerspectives = (sessionId: string | number) => {
+  return get<PerspectiveScoreDTO[]>(`/api/interview/sessions/${sessionId}/perspectives`)
+}
+
+/**
+ * 获取视角详情
+ * GET /api/interview/sessions/{sessionId}/perspectives/{perspectiveId}
+ */
+export const getPerspectiveDetail = (sessionId: string | number, perspectiveId: number) => {
+  return get<PerspectiveDetailDTO>(`/api/interview/sessions/${sessionId}/perspectives/${perspectiveId}`)
+}
+
+/**
+ * 获取综合报告
+ * GET /api/interview/sessions/{sessionId}/report/comprehensive
+ */
+export const getComprehensiveReport = (sessionId: string | number) => {
+  return get<ComprehensiveReportDTO>(`/api/interview/sessions/${sessionId}/report/comprehensive`)
+}
+
 // ========== 自适应难度面试 API ==========
 
 /**
@@ -289,6 +421,9 @@ export interface AnswerHistoryDTO {
   category: string
   difficulty: string
   userAnswer: string
+  // 多视角扩展字段（后端使用 createdByPerspectiveId/Name）
+  createdByPerspectiveId?: number
+  createdByPerspectiveName?: string
 }
 
 export interface SessionProgressDTO {
@@ -314,10 +449,15 @@ export interface CurrentQuestionDTO {
   questionIndex: number
   question: string
   category: string
-  difficulty: string
-  knowledgeBaseId: number
-  knowledgeBaseName: string
+  difficulty?: string
+  knowledgeBaseId?: number | null
+  knowledgeBaseName?: string | null
   referenceContext?: string
+  // 多视角扩展字段（后端使用 createdByPerspectiveId/Name）
+  createdByPerspectiveId?: number
+  createdByPerspectiveName?: string
+  // 参考答案
+  referenceAnswer?: string | null
 }
 
 /**
@@ -333,6 +473,10 @@ export interface InterviewQuestionDTO {
   feedback?: string | null
   isFollowUp: boolean
   parentQuestionIndex?: number | null
+  difficulty?: string
+  knowledgeBaseName?: string | null
+  createdByPerspectiveId?: number
+  createdByPerspectiveName?: string
 }
 
 /**

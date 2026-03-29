@@ -15,6 +15,9 @@ export interface CurrentQuestionDTO {
   isFollowUp?: boolean;
   relatedIndex?: number;
   relatedQuestion?: string;
+  // 多视角支持
+  createdByPerspectiveId?: number;
+  createdByPerspectiveName?: string;
 }
 
 // 会话进度 DTO
@@ -33,6 +36,13 @@ export interface AnswerHistoryDTO {
   category: string;
   difficulty: DifficultyLevel;
   userAnswer: string;
+  // 多视角支持
+  createdByPerspectiveId?: number;
+  createdByPerspectiveName?: string;
+  // 追问相关
+  isFollowUp?: boolean;
+  relatedIndex?: number;
+  relatedQuestion?: string;
 }
 
 export interface InterviewSession {
@@ -73,6 +83,8 @@ export interface CreateInterviewRequest {
   forceCreate?: boolean;  // 是否强制创建新会话（忽略未完成的会话）
   questionBankIds?: number[];  // 题库ID列表
   knowledgeBaseIds?: number[];  // 知识库ID列表
+  selectedPerspectives?: number[];  // 选择的面试官视角 ID 列表（1-3个）
+  perspectiveWeights?: Record<number, number>;  // 各视角权重配置 {perspectiveId: weight}
 }
 
 export interface SubmitAnswerRequest {
@@ -119,6 +131,7 @@ export interface QuestionEvaluation {
   userAnswer: string;
   score: number;
   feedback: string;
+  referenceAnswer?: string;
 }
 
 export interface ReferenceAnswer {

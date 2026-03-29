@@ -7,6 +7,7 @@ import interview.guide.modules.interview.model.*;
 import interview.guide.modules.interview.service.InterviewHistoryService;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
 import interview.guide.modules.interview.service.InterviewSessionService;
+import interview.guide.modules.interview.service.PerspectiveEvaluationService;
 import interview.guide.modules.interview.service.ScoreTrendService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,7 @@ public class InterviewController {
     private final InterviewHistoryService historyService;
     private final InterviewPersistenceService persistenceService;
     private final ScoreTrendService scoreTrendService;
+    private final PerspectiveEvaluationService perspectiveEvaluationService;
     
     /**
      * 创建面试会话
@@ -283,5 +285,53 @@ public class InterviewController {
         sessionService.validateSessionOwnership(userId, sessionId);
         AbilityProfileDTO profile = sessionService.getAbilityProfile(sessionId);
         return Result.success(profile);
+    }
+
+    // ==================== 多视角面试相关接口 ====================
+
+    /**
+     * 获取各视角评分状态和结果
+     * GET /api/interview/sessions/{sessionId}/perspectives
+     */
+    @GetMapping("/api/interview/sessions/{sessionId}/perspectives")
+    public Result<List<PerspectiveScoreDTO>> getPerspectiveScores(
+            @CurrentUser Long userId,
+            @PathVariable String sessionId) {
+        log.info("获取视角评分列表: 用户{}, 会话{}", userId, sessionId);
+        sessionService.validateSessionOwnership(userId, sessionId);
+        List<PerspectiveScoreDTO> scores = perspectiveEvaluationService.getPerspectiveScores(
+                persistenceService.findBySessionId(sessionId).orElseThrow().getId());
+        return Result.success(scores);
+    }
+
+    /**
+     * 获取指定视角详情
+     * GET /api/interview/sessions/{sessionId}/perspectives/{perspectiveId}
+     */
+    @GetMapping("/api/interview/sessions/{sessionId}/perspectives/{perspectiveId}")
+    public Result<PerspectiveDetailDTO> getPerspectiveDetail(
+            @CurrentUser Long userId,
+            @PathVariable String sessionId,
+            @PathVariable Long perspectiveId) {
+        log.info("获取视角详情: 用户{}, 会话{}, 视角{}", userId, sessionId, perspectiveId);
+        sessionService.validateSessionOwnership(userId, sessionId);
+        Long sessionIdLong = persistenceService.findBySessionId(sessionId).orElseThrow().getId();
+        PerspectiveDetailDTO detail = perspectiveEvaluationService.getPerspectiveDetail(sessionIdLong, perspectiveId);
+        return Result.success(detail);
+    }
+
+    /**
+     * 获取综合报告
+     * GET /api/interview/sessions/{sessionId}/report/comprehensive
+     */
+    @GetMapping("/api/interview/sessions/{sessionId}/report/comprehensive")
+    public Result<ComprehensiveReportDTO> getComprehensiveReport(
+            @CurrentUser Long userId,
+            @PathVariable String sessionId) {
+        log.info("获取综合报告: 用户{}, 会话{}", userId, sessionId);
+        sessionService.validateSessionOwnership(userId, sessionId);
+        Long sessionIdLong = persistenceService.findBySessionId(sessionId).orElseThrow().getId();
+        ComprehensiveReportDTO report = perspectiveEvaluationService.getComprehensiveReportFromDb(sessionIdLong);
+        return Result.success(report);
     }
 }

@@ -6,6 +6,7 @@ import {
   FileText,
   LogOut,
   Sparkles,
+  UserCog,
 } from 'lucide-react';
 import { useUser } from '../../store/user';
 
@@ -41,6 +42,13 @@ export default function AdminSidebar() {
       label: '用户管理',
       icon: Users,
       description: '审核和管理用户'
+    },
+    {
+      id: 'interviewer-roles',
+      path: '/admin/interviewer-roles',
+      label: '面试官角色',
+      icon: UserCog,
+      description: '管理面试官角色模板'
     },
     {
       id: 'config',

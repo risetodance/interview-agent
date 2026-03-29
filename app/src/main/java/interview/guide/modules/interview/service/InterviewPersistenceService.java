@@ -118,6 +118,28 @@ public class InterviewPersistenceService {
     @Transactional(rollbackFor = Exception.class)
     public InterviewSessionEntity saveAdaptiveSession(Long userId, String sessionId, Long resumeId,
                                                      int totalQuestions, String knowledgeBaseIdsJson) {
+        return saveAdaptiveSession(userId, sessionId, resumeId, totalQuestions, knowledgeBaseIdsJson, null, null);
+    }
+
+    /**
+     * 保存自适应面试会话（支持多视角）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public InterviewSessionEntity saveAdaptiveSession(Long userId, String sessionId, Long resumeId,
+                                                     int totalQuestions, String knowledgeBaseIdsJson,
+                                                     String selectedPerspectivesJson) {
+        return saveAdaptiveSession(userId, sessionId, resumeId, totalQuestions, knowledgeBaseIdsJson,
+                selectedPerspectivesJson, null);
+    }
+
+    /**
+     * 保存自适应面试会话（支持多视角 + 会话级权重配置）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public InterviewSessionEntity saveAdaptiveSession(Long userId, String sessionId, Long resumeId,
+                                                     int totalQuestions, String knowledgeBaseIdsJson,
+                                                     String selectedPerspectivesJson,
+                                                     String perspectiveWeightsJson) {
         try {
             InterviewSessionEntity session = new InterviewSessionEntity();
             session.setSessionId(sessionId);
@@ -128,6 +150,8 @@ public class InterviewPersistenceService {
             session.setCategoryScores("{}");
             session.setQuestionsGenerated(0);
             session.setKnowledgeBaseIds(knowledgeBaseIdsJson);
+            session.setSelectedPerspectives(selectedPerspectivesJson);
+            session.setPerspectiveWeights(perspectiveWeightsJson);
 
             // 如果有简历ID，关联简历
             if (resumeId != null) {
@@ -142,7 +166,8 @@ public class InterviewPersistenceService {
             }
 
             InterviewSessionEntity saved = sessionRepository.save(session);
-            log.info("自适应面试会话已保存: userId={}, sessionId={}, totalQuestions={}", userId, sessionId, totalQuestions);
+            log.info("自适应面试会话已保存: userId={}, sessionId={}, totalQuestions={}, hasPerspectives={}, hasWeights={}",
+                    userId, sessionId, totalQuestions, selectedPerspectivesJson != null, perspectiveWeightsJson != null);
             return saved;
         } catch (Exception e) {
             log.error("保存自适应会话失败: {}", e.getMessage(), e);
@@ -496,6 +521,43 @@ public class InterviewPersistenceService {
                                                         String userAnswer, String difficulty,
                                                         Long knowledgeBaseId, String referenceContext,
                                                         int score, String feedback) {
+        return saveAnswerWithDifficulty(sessionId, questionIndex, question, category,
+                userAnswer, difficulty, knowledgeBaseId, referenceContext, score, feedback,
+                null, null, null, null, null, null, null);
+    }
+
+    /**
+     * 保存答案（包含难度、知识库信息和视角信息）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public InterviewAnswerEntity saveAnswerWithDifficulty(String sessionId, int questionIndex,
+                                                        String question, String category,
+                                                        String userAnswer, String difficulty,
+                                                        Long knowledgeBaseId, String referenceContext,
+                                                        int score, String feedback,
+                                                        Long createdByPerspectiveId,
+                                                        String createdByPerspectiveName) {
+        return saveAnswerWithDifficulty(sessionId, questionIndex, question, category,
+                userAnswer, difficulty, knowledgeBaseId, referenceContext, score, feedback,
+                createdByPerspectiveId, createdByPerspectiveName, null, null, null, null, null);
+    }
+
+    /**
+     * 保存答案（包含难度、知识库信息、视角信息和追问信息）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public InterviewAnswerEntity saveAnswerWithDifficulty(String sessionId, int questionIndex,
+                                                        String question, String category,
+                                                        String userAnswer, String difficulty,
+                                                        Long knowledgeBaseId, String referenceContext,
+                                                        int score, String feedback,
+                                                        Long createdByPerspectiveId,
+                                                        String createdByPerspectiveName,
+                                                        Boolean isFollowUp,
+                                                        Integer relatedIndex,
+                                                        String relatedQuestion,
+                                                        String referenceAnswer,
+                                                        String keyPointsJson) {
         Optional<InterviewSessionEntity> sessionOpt = sessionRepository.findBySessionId(sessionId);
         if (sessionOpt.isEmpty()) {
             throw new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND);
@@ -518,10 +580,31 @@ public class InterviewPersistenceService {
         answer.setReferenceContext(referenceContext);
         answer.setScore(score);
         answer.setFeedback(feedback);
+        if (createdByPerspectiveId != null) {
+            answer.setCreatedByPerspectiveId(createdByPerspectiveId);
+        }
+        if (createdByPerspectiveName != null) {
+            answer.setCreatedByPerspectiveName(createdByPerspectiveName);
+        }
+        if (isFollowUp != null) {
+            answer.setIsFollowUp(isFollowUp);
+        }
+        if (relatedIndex != null) {
+            answer.setRelatedIndex(relatedIndex);
+        }
+        if (relatedQuestion != null) {
+            answer.setRelatedQuestion(relatedQuestion);
+        }
+        if (referenceAnswer != null) {
+            answer.setReferenceAnswer(referenceAnswer);
+        }
+        if (keyPointsJson != null) {
+            answer.setKeyPointsJson(keyPointsJson);
+        }
 
         InterviewAnswerEntity saved = answerRepository.save(answer);
-        log.info("面试答案（含难度）已保存: sessionId={}, questionIndex={}, difficulty={}, score={}",
-                sessionId, questionIndex, difficulty, score);
+        log.info("面试答案（含难度+视角+追问+参考答案）已保存: sessionId={}, questionIndex={}, difficulty={}, score={}, perspective={}, isFollowUp={}",
+                sessionId, questionIndex, difficulty, score, createdByPerspectiveName, isFollowUp);
 
         return saved;
     }
@@ -531,5 +614,26 @@ public class InterviewPersistenceService {
      */
     public List<InterviewAnswerEntity> findScoredAnswersBySessionId(String sessionId) {
         return answerRepository.findBySession_SessionIdAndScoreIsNotNullOrderByQuestionIndex(sessionId);
+    }
+
+    /**
+     * 更新会话的上一题视角ID
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateLastQuestionPerspectiveId(String sessionId, Long perspectiveId) {
+        Optional<InterviewSessionEntity> sessionOpt = sessionRepository.findBySessionId(sessionId);
+        if (sessionOpt.isPresent()) {
+            InterviewSessionEntity session = sessionOpt.get();
+            session.setLastQuestionPerspectiveId(perspectiveId);
+            sessionRepository.save(session);
+            log.debug("会话视角已更新: sessionId={}, lastQuestionPerspectiveId={}", sessionId, perspectiveId);
+        }
+    }
+
+    /**
+     * 获取指定视角下的最新答案（用于获取该视角当前的难度）
+     */
+    public Optional<InterviewAnswerEntity> findLastAnswerBySessionAndPerspective(Long sessionDbId, Long perspectiveId) {
+        return answerRepository.findLastAnswerBySessionAndPerspective(sessionDbId, perspectiveId);
     }
 }

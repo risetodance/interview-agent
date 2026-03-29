@@ -8,6 +8,7 @@ import interview.guide.infrastructure.redis.InterviewSessionCache.CachedSession;
 import interview.guide.modules.interview.listener.EvaluateStreamProducer;
 import interview.guide.modules.interview.model.*;
 import interview.guide.modules.interview.model.InterviewSessionDTO.SessionStatus;
+import interview.guide.modules.interview.repository.InterviewerRoleRepository;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
 import interview.guide.modules.question.service.QuestionService;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,8 @@ public class InterviewSessionService {
     private final DifficultyAdjustmentService difficultyAdjustmentService;
     private final QuestionGenerationService questionGenerationService;
     private final SingleAnswerEvaluationService singleAnswerEvaluationService;
+    private final PerspectiveEvaluationService perspectiveEvaluationService;
+    private final InterviewerRoleRepository interviewerRoleRepository;
 
     @Lazy
     private QuestionService questionServiceForBank;
@@ -62,8 +65,8 @@ public class InterviewSessionService {
 
         String sessionId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 
-        log.info("创建新面试会话: userId={}, sessionId={}, 题目数量: {}, resumeId: {}, knowledgeBaseIds: {}",
-                userId, sessionId, request.questionCount(), request.resumeId(), request.knowledgeBaseIds());
+        log.info("创建新面试会话: userId={}, sessionId={}, 题目数量: {}, resumeId: {}, knowledgeBaseIds: {}, selectedPerspectives: {}",
+                userId, sessionId, request.questionCount(), request.resumeId(), request.knowledgeBaseIds(), request.selectedPerspectives());
 
         // 自适应难度模式：始终不批量生成问题，问题在 getCurrentQuestionForAdaptive 中实时生成
         // 保存知识库ID列表到会话
@@ -76,9 +79,29 @@ public class InterviewSessionService {
             }
         }
 
+        // 保存选择的视角列表
+        String selectedPerspectivesJson = null;
+        if (request.selectedPerspectives() != null && !request.selectedPerspectives().isEmpty()) {
+            try {
+                selectedPerspectivesJson = objectMapper.writeValueAsString(request.selectedPerspectives());
+            } catch (Exception e) {
+                log.warn("序列化选择视角失败: {}", e.getMessage());
+            }
+        }
+
+        // 保存视角权重配置（会话级权重）
+        String perspectiveWeightsJson = null;
+        if (request.perspectiveWeights() != null && !request.perspectiveWeights().isEmpty()) {
+            try {
+                perspectiveWeightsJson = objectMapper.writeValueAsString(request.perspectiveWeights());
+            } catch (Exception e) {
+                log.warn("序列化视角权重失败: {}", e.getMessage());
+            }
+        }
+
         // 保存到数据库（不生成问题）
         persistenceService.saveAdaptiveSession(userId, sessionId, request.resumeId(),
-                request.questionCount(), knowledgeBaseIdsJson);
+                request.questionCount(), knowledgeBaseIdsJson, selectedPerspectivesJson, perspectiveWeightsJson);
 
         return new InterviewSessionBasicDTO(
                 sessionId,
@@ -472,6 +495,44 @@ public class InterviewSessionService {
             return null; // 所有问题已回答完毕
         }
 
+        // 多视角模式：轮询选择出题视角
+        Long selectedPerspectiveId = null;
+        String selectedPerspectiveName = null;
+        String selectedPerspectivePrompt = null;
+        if (session.getSelectedPerspectives() != null && !session.getSelectedPerspectives().isBlank()) {
+            try {
+                List<Long> selectedPerspectives = objectMapper.readValue(
+                        session.getSelectedPerspectives(), new TypeReference<List<Long>>() {});
+                if (selectedPerspectives != null && !selectedPerspectives.isEmpty()) {
+                    selectedPerspectiveId = perspectiveEvaluationService.selectNextQuestionPerspective(
+                            selectedPerspectives, session.getLastQuestionPerspectiveId());
+                    // 获取视角名称和prompt
+                    InterviewerRoleEntity role = interviewerRoleRepository.findById(selectedPerspectiveId).orElse(null);
+                    if (role != null) {
+                        selectedPerspectiveName = role.getRoleName();
+                        selectedPerspectivePrompt = role.getQuestionPrompt();
+                    }
+                    // 更新会话的上一题视角ID
+                    session.setLastQuestionPerspectiveId(selectedPerspectiveId);
+                    persistenceService.updateLastQuestionPerspectiveId(sessionId, selectedPerspectiveId);
+
+                    // 获取该视角下的最新难度（按视角隔离，不再使用 session.getCurrentDifficulty()）
+                    Optional<InterviewAnswerEntity> lastAnswerForPerspective =
+                            persistenceService.findLastAnswerBySessionAndPerspective(session.getId(), selectedPerspectiveId);
+                    if (lastAnswerForPerspective.isPresent()) {
+                        session.setCurrentDifficulty(lastAnswerForPerspective.get().getDifficulty());
+                    } else {
+                        // 该视角第一次出题，使用默认难度
+                        session.setCurrentDifficulty("BASIC");
+                    }
+                    log.info("轮询选择出题视角: sessionId={}, perspectiveId={}, perspectiveName={}, difficulty={}",
+                            sessionId, selectedPerspectiveId, selectedPerspectiveName, session.getCurrentDifficulty());
+                }
+            } catch (Exception e) {
+                log.warn("解析selectedPerspectives失败: {}", e.getMessage());
+            }
+        }
+
         // 获取已回答的问题（用于传给AI作为历史上下文）
         List<InterviewAnswerEntity> existingAnswers = persistenceService.findAnswersBySessionId(sessionId);
 
@@ -484,15 +545,25 @@ public class InterviewSessionService {
                         a.getDifficulty(),
                         a.getUserAnswer(),
                         a.getScore(),
-                        a.getFeedback()))
+                        a.getFeedback(),
+                        a.getCreatedByPerspectiveId(),
+                        a.getCreatedByPerspectiveName(),
+                        a.getIsFollowUp(),
+                        a.getRelatedIndex(),
+                        a.getRelatedQuestion()))
                 .toList();
 
-        // 生成问题（AI会根据简历和历史自行决定问题内容和分类）
+        // 生成问题（AI会根据简历和历史自行决定问题内容和分类，使用视角prompt）
         CurrentQuestionDTO questionDTO = questionGenerationService.generateSingleQuestion(
-                session, questionIndex, resumeText, history);
+                session, questionIndex, resumeText, history,
+                selectedPerspectiveId, selectedPerspectivePrompt, selectedPerspectiveName);
 
         // 保存生成的问题到数据库（userAnswer为null，等待用户回答后更新）
-        // 使用AI返回的分类（questionDTO.category()），而不是预设的分类
+        // AI返回的relatedIndex已经是全局questionIndex，无需转换
+        Integer globalRelatedIndex = null;
+        if (Boolean.TRUE.equals(questionDTO.isFollowUp()) && questionDTO.relatedIndex() != null) {
+            globalRelatedIndex = questionDTO.relatedIndex();
+        }
         persistenceService.saveAnswerWithDifficulty(
                 sessionId,
                 questionIndex,
@@ -503,7 +574,14 @@ public class InterviewSessionService {
                 questionDTO.knowledgeBaseId(),
                 questionDTO.referenceContext(),
                 0,  // 初始评分为0，等待用户回答后更新
-                null // 初始反馈为null
+                null, // 初始反馈为null
+                selectedPerspectiveId,
+                selectedPerspectiveName,
+                questionDTO.isFollowUp(),
+                globalRelatedIndex,
+                questionDTO.relatedQuestion(),
+                null,
+                null
         );
 
         // 更新会话状态
@@ -512,10 +590,24 @@ public class InterviewSessionService {
             persistenceService.updateSessionStatus(sessionId, InterviewSessionEntity.SessionStatus.IN_PROGRESS);
         }
 
-        log.info("获取当前问题: sessionId={}, index={}, category={}, difficulty={}",
-                sessionId, questionIndex, questionDTO.category(), questionDTO.difficulty());
+        log.info("获取当前问题: sessionId={}, index={}, category={}, difficulty={}, perspective={}",
+                sessionId, questionIndex, questionDTO.category(), questionDTO.difficulty(), selectedPerspectiveName);
 
-        return questionDTO;
+        // 返回包含视角信息的问题DTO
+        return new CurrentQuestionDTO(
+                questionDTO.questionIndex(),
+                questionDTO.question(),
+                questionDTO.category(),
+                questionDTO.difficulty(),
+                questionDTO.knowledgeBaseId(),
+                questionDTO.knowledgeBaseName(),
+                questionDTO.referenceContext(),
+                questionDTO.isFollowUp(),
+                questionDTO.relatedIndex(),
+                questionDTO.relatedQuestion(),
+                selectedPerspectiveId,
+                selectedPerspectiveName
+        );
     }
 
     /**
@@ -540,8 +632,12 @@ public class InterviewSessionService {
                         a.getDifficulty(),
                         a.getUserAnswer(),
                         a.getScore(),
-                        a.getFeedback()
-                ))
+                        a.getFeedback(),
+                        a.getCreatedByPerspectiveId(),
+                        a.getCreatedByPerspectiveName(),
+                        a.getIsFollowUp(),
+                        a.getRelatedIndex(),
+                        a.getRelatedQuestion()))
                 .toList();
 
         // 获取当前问题索引和总题数
@@ -580,9 +676,11 @@ public class InterviewSessionService {
                     currentAnswerEntity.getKnowledgeBaseId(),
                     null, // knowledgeBaseName
                     currentAnswerEntity.getReferenceContext(),
-                    null, // isFollowUp
-                    null, // relatedIndex
-                    null  // relatedQuestion
+                    currentAnswerEntity.getIsFollowUp(),
+                    currentAnswerEntity.getRelatedIndex(),
+                    currentAnswerEntity.getRelatedQuestion(),
+                    currentAnswerEntity.getCreatedByPerspectiveId(),
+                    currentAnswerEntity.getCreatedByPerspectiveName()
             );
         }
         return currentQuestion;
@@ -629,18 +727,29 @@ public class InterviewSessionService {
                 currentAnswer.getReferenceContext()
         );
 
-        // 保存答案（含评估结果）
+        // 调整难度（根据该视角的答题表现）
+        String adjustedDifficulty = difficultyAdjustmentService.adjustDifficulty(
+                currentAnswer.getDifficulty(), evaluationResult.score());
+
+        // 保存答案（含评估结果和调整后的难度）
         persistenceService.saveAnswerWithDifficulty(
                 sessionId,
                 questionIndex,
                 currentAnswer.getQuestion(),
                 currentAnswer.getCategory(),
                 answer,
-                currentAnswer.getDifficulty(),
+                adjustedDifficulty,
                 currentAnswer.getKnowledgeBaseId(),
                 currentAnswer.getReferenceContext(),
                 evaluationResult.score(),
-                evaluationResult.feedback()
+                evaluationResult.feedback(),
+                currentAnswer.getCreatedByPerspectiveId(),
+                currentAnswer.getCreatedByPerspectiveName(),
+                currentAnswer.getIsFollowUp(),
+                currentAnswer.getRelatedIndex(),
+                currentAnswer.getRelatedQuestion(),
+                evaluationResult.referenceAnswer(),
+                evaluationResult.getKeyPointsJson()
         );
 
         // 更新分类得分
@@ -655,12 +764,6 @@ public class InterviewSessionService {
         // 计算当前总分
         int currentScore = calculateOverallScore(categoryScores);
 
-        // 调整难度
-        String currentDifficulty = session.getCurrentDifficulty() != null ? session.getCurrentDifficulty() : "BASIC";
-        String nextDifficulty = difficultyAdjustmentService.adjustDifficulty(currentDifficulty, evaluationResult.score());
-        session.setCurrentDifficulty(nextDifficulty);
-        persistenceService.updateCurrentDifficulty(sessionId, nextDifficulty);
-
         // 更新问题索引
         int newIndex = questionIndex + 1;
         boolean hasNextQuestion = session.getTotalQuestions() == null || newIndex < session.getTotalQuestions();
@@ -673,6 +776,41 @@ public class InterviewSessionService {
             // 生成下一题
             session.setCurrentQuestionIndex(newIndex);
 
+            // 多视角模式：轮询选择出题视角
+            Long nextPerspectiveId = null;
+            String nextPerspectiveName = null;
+            String nextPerspectivePrompt = null;
+            if (session.getSelectedPerspectives() != null && !session.getSelectedPerspectives().isBlank()) {
+                try {
+                    List<Long> selectedPerspectives = objectMapper.readValue(
+                            session.getSelectedPerspectives(), new TypeReference<List<Long>>() {});
+                    if (selectedPerspectives != null && !selectedPerspectives.isEmpty()) {
+                        nextPerspectiveId = perspectiveEvaluationService.selectNextQuestionPerspective(
+                                selectedPerspectives, session.getLastQuestionPerspectiveId());
+                        InterviewerRoleEntity role = interviewerRoleRepository.findById(nextPerspectiveId).orElse(null);
+                        if (role != null) {
+                            nextPerspectiveName = role.getRoleName();
+                            nextPerspectivePrompt = role.getScoringPrompt();
+                        }
+                        // 更新会话的上一题视角ID
+                        session.setLastQuestionPerspectiveId(nextPerspectiveId);
+                        persistenceService.updateLastQuestionPerspectiveId(sessionId, nextPerspectiveId);
+
+                        // 获取该视角下的最新难度（按视角隔离，不再使用 session.getCurrentDifficulty()）
+                        Optional<InterviewAnswerEntity> lastAnswerForNextPerspective =
+                                persistenceService.findLastAnswerBySessionAndPerspective(session.getId(), nextPerspectiveId);
+                        if (lastAnswerForNextPerspective.isPresent()) {
+                            session.setCurrentDifficulty(lastAnswerForNextPerspective.get().getDifficulty());
+                        } else {
+                            // 该视角第一次出题，使用默认难度
+                            session.setCurrentDifficulty("BASIC");
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("解析selectedPerspectives失败: {}", e.getMessage());
+                }
+            }
+
             // 构建历史答题记录（包含已回答的问题和答案）
             List<AnswerHistoryDTO> history = existingAnswers.stream()
                     .map(a -> new AnswerHistoryDTO(
@@ -682,15 +820,25 @@ public class InterviewSessionService {
                             a.getDifficulty(),
                             a.getUserAnswer(),
                             a.getScore(),
-                            a.getFeedback()))
+                            a.getFeedback(),
+                            a.getCreatedByPerspectiveId(),
+                            a.getCreatedByPerspectiveName(),
+                            a.getIsFollowUp(),
+                            a.getRelatedIndex(),
+                            a.getRelatedQuestion()))
                     .toList();
 
-            // AI会根据简历和历史自行决定问题内容和分类
+            // AI会根据简历和历史自行决定问题内容和分类，使用视角prompt
             nextQuestion = questionGenerationService.generateSingleQuestion(
-                    session, newIndex, resumeText, history);
+                    session, newIndex, resumeText, history,
+                    nextPerspectiveId, nextPerspectivePrompt, nextPerspectiveName);
 
-            // 保存下一题到数据库
-            // 使用AI返回的分类（nextQuestion.category()），而不是预设的分类
+            // 保存下一题到数据库（含视角信息）
+            // AI返回的relatedIndex已经是全局questionIndex，无需转换
+            Integer globalRelatedIndex = null;
+            if (Boolean.TRUE.equals(nextQuestion.isFollowUp()) && nextQuestion.relatedIndex() != null) {
+                globalRelatedIndex = nextQuestion.relatedIndex();
+            }
             persistenceService.saveAnswerWithDifficulty(
                     sessionId,
                     newIndex,
@@ -701,8 +849,34 @@ public class InterviewSessionService {
                     nextQuestion.knowledgeBaseId(),
                     nextQuestion.referenceContext(),
                     0,  // 初始评分为0
-                    null // 初始反馈为null
+                    null, // 初始反馈为null
+                    nextPerspectiveId,
+                    nextPerspectiveName,
+                    nextQuestion.isFollowUp(),
+                    globalRelatedIndex,
+                    nextQuestion.relatedQuestion(),
+                    null,
+                    null
             );
+
+            // 构建包含视角信息的nextQuestionDTO
+            final Long finalPerspectiveId = nextPerspectiveId;
+            final String finalPerspectiveName = nextPerspectiveName;
+            nextQuestion = new CurrentQuestionDTO(
+                    nextQuestion.questionIndex(),
+                    nextQuestion.question(),
+                    nextQuestion.category(),
+                    nextQuestion.difficulty(),
+                    nextQuestion.knowledgeBaseId(),
+                    nextQuestion.knowledgeBaseName(),
+                    nextQuestion.referenceContext(),
+                    nextQuestion.isFollowUp(),
+                    globalRelatedIndex,
+                    nextQuestion.relatedQuestion(),
+                    finalPerspectiveId,
+                    finalPerspectiveName
+            );
+
             // 确保状态保持 IN_PROGRESS
             if (session.getStatus() != InterviewSessionEntity.SessionStatus.IN_PROGRESS) {
                 session.setStatus(InterviewSessionEntity.SessionStatus.IN_PROGRESS);
@@ -721,8 +895,8 @@ public class InterviewSessionService {
         int generated = session.getQuestionsGenerated() != null ? session.getQuestionsGenerated() : 0;
         persistenceService.updateQuestionsGenerated(sessionId, generated);
 
-        log.info("提交答案完成: sessionId={}, questionIndex={}, score={}, nextDifficulty={}, hasNext={}",
-                sessionId, questionIndex, evaluationResult.score(), nextDifficulty, hasNextQuestion);
+        log.info("提交答案完成: sessionId={}, questionIndex={}, score={}, adjustedDifficulty={}, hasNext={}",
+                sessionId, questionIndex, evaluationResult.score(), adjustedDifficulty, hasNextQuestion);
 
         return new SubmitAnswerResponse(
                 hasNextQuestion,
@@ -731,7 +905,7 @@ public class InterviewSessionService {
                 generated,
                 currentScore,
                 categoryScores,
-                nextDifficulty
+                adjustedDifficulty
         );
     }
 

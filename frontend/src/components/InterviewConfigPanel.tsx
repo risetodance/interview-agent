@@ -1,5 +1,9 @@
 import {AnimatePresence, motion} from 'framer-motion';
 import type {InterviewSession} from '../types/interview';
+import type {InterviewerRole} from '../types/interviewerRole';
+import PerspectiveSelector from './interview/PerspectiveSelector';
+import {Loader2} from 'lucide-react';
+import {useState} from 'react';
 
 interface InterviewConfigPanelProps {
   questionCount: number;
@@ -13,6 +17,14 @@ interface InterviewConfigPanelProps {
   resumeText: string;
   onBack: () => void;
   error?: string;
+  // 多视角支持
+  availableRoles?: InterviewerRole[];
+  selectedPerspectives?: number[];
+  onPerspectivesChange?: (ids: number[]) => void;
+  loadingRoles?: boolean;
+  // 会话级权重配置
+  perspectiveWeights?: Record<number, number>;
+  onPerspectiveWeightsChange?: (weights: Record<number, number>) => void;
 }
 
 /**
@@ -29,9 +41,16 @@ export default function InterviewConfigPanel({
   onStartNew,
   resumeText,
   onBack,
-  error
+  error,
+  availableRoles = [],
+  selectedPerspectives = [],
+  onPerspectivesChange,
+  loadingRoles = false,
+  perspectiveWeights = {},
+  onPerspectiveWeightsChange,
 }: InterviewConfigPanelProps) {
   const questionCounts = [6, 8, 10, 12, 15];
+  const [weightError, setWeightError] = useState<string | null>(null);
 
   return (
     <motion.div 
@@ -116,6 +135,37 @@ export default function InterviewConfigPanel({
         </AnimatePresence>
         
         <div className="space-y-6">
+          {/* 视角选择器 */}
+          {onPerspectivesChange && (
+            <div>
+              {loadingRoles ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-primary-500 animate-spin" />
+                  <span className="ml-2 text-sm text-slate-500">加载面试官角色...</span>
+                </div>
+              ) : availableRoles.length > 0 ? (
+                <PerspectiveSelector
+                  roles={availableRoles}
+                  selectedIds={selectedPerspectives}
+                  onChange={onPerspectivesChange}
+                  weights={perspectiveWeights}
+                  onWeightsChange={onPerspectiveWeightsChange}
+                  onWeightValidationChange={(isValid, totalWeight) => {
+                    if (!isValid && selectedPerspectives.length > 0) {
+                      setWeightError(`权重总和需为100%（当前${(totalWeight * 100).toFixed(0)}%），请调整后开始面试`);
+                    } else {
+                      setWeightError(null);
+                    }
+                  }}
+                />
+              ) : (
+                <div className="p-4 bg-slate-50 rounded-xl text-sm text-slate-500 text-center">
+                  暂无可用面试官角色，请先在管理后台配置
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-3">
               题目数量
@@ -161,6 +211,19 @@ export default function InterviewConfigPanel({
               </motion.div>
             )}
           </AnimatePresence>
+
+          <AnimatePresence>
+            {weightError && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm"
+              >
+                ⚠️ {weightError}
+              </motion.div>
+            )}
+          </AnimatePresence>
           
           <div className="flex justify-center gap-4">
             <motion.button 
@@ -173,10 +236,10 @@ export default function InterviewConfigPanel({
             </motion.button>
             <motion.button
               onClick={onStart}
-              disabled={isCreating || checkingUnfinished}
+              disabled={isCreating || checkingUnfinished || !!weightError}
               className="px-8 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-semibold shadow-lg shadow-primary-500/30 hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-              whileHover={{ scale: isCreating || checkingUnfinished ? 1 : 1.02, y: isCreating || checkingUnfinished ? 0 : -1 }}
-              whileTap={{ scale: isCreating || checkingUnfinished ? 1 : 0.98 }}
+              whileHover={{ scale: isCreating || checkingUnfinished || !!weightError ? 1 : 1.02, y: isCreating || checkingUnfinished || !!weightError ? 0 : -1 }}
+              whileTap={{ scale: isCreating || checkingUnfinished || !!weightError ? 1 : 0.98 }}
             >
               {isCreating ? (
                 <>

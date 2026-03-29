@@ -4,12 +4,14 @@ import interview.guide.common.async.AbstractStreamConsumer;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
 import interview.guide.common.model.AsyncTaskStatus;
 import interview.guide.infrastructure.redis.RedisService;
+import interview.guide.modules.interview.model.ComprehensiveReportDTO;
 import interview.guide.modules.interview.model.InterviewQuestionDTO;
 import interview.guide.modules.interview.model.InterviewReportDTO;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.interview.repository.InterviewSessionRepository;
 import interview.guide.modules.interview.service.AnswerEvaluationService;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
+import interview.guide.modules.interview.service.PerspectiveEvaluationService;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.stream.StreamMessageId;
 import org.springframework.stereotype.Component;
@@ -24,27 +26,31 @@ import java.util.stream.Collectors;
 /**
  * 面试评估 Stream 消费者
  * 负责从 Redis Stream 消费消息并执行评估
+ * 支持多视角评估流程：各视角评分 → 汇总报告生成 → 持久化
  */
 @Slf4j
 @Component
 public class EvaluateStreamConsumer extends AbstractStreamConsumer<EvaluateStreamConsumer.EvaluatePayload> {
 
     private final InterviewSessionRepository sessionRepository;
-    private final AnswerEvaluationService evaluationService;
+    private final AnswerEvaluationService answerEvaluationService;
     private final InterviewPersistenceService persistenceService;
+    private final PerspectiveEvaluationService perspectiveEvaluationService;
     private final ObjectMapper objectMapper;
 
     public EvaluateStreamConsumer(
         RedisService redisService,
         InterviewSessionRepository sessionRepository,
-        AnswerEvaluationService evaluationService,
+        AnswerEvaluationService answerEvaluationService,
         InterviewPersistenceService persistenceService,
+        PerspectiveEvaluationService perspectiveEvaluationService,
         ObjectMapper objectMapper
     ) {
         super(redisService);
         this.sessionRepository = sessionRepository;
-        this.evaluationService = evaluationService;
+        this.answerEvaluationService = answerEvaluationService;
         this.persistenceService = persistenceService;
+        this.perspectiveEvaluationService = perspectiveEvaluationService;
         this.objectMapper = objectMapper;
     }
 
@@ -106,22 +112,49 @@ public class EvaluateStreamConsumer extends AbstractStreamConsumer<EvaluateStrea
 
         InterviewSessionEntity session = sessionOpt.get();
 
-        // 自适应面试：从数据库答案构建问题列表
-        List<InterviewQuestionDTO> questions = buildQuestionsFromAnswers(sessionId);
-
-        List<interview.guide.modules.interview.model.InterviewAnswerEntity> answers =
-            persistenceService.findAnswersBySessionId(sessionId);
-        for (interview.guide.modules.interview.model.InterviewAnswerEntity answer : answers) {
-            int index = answer.getQuestionIndex();
-            if (index >= 0 && index < questions.size()) {
-                InterviewQuestionDTO question = questions.get(index);
-                questions.set(index, question.withAnswer(answer.getUserAnswer()));
+        // 判断是否为多视角面试模式
+        if (hasSelectedPerspectives(session.getSelectedPerspectives())) {
+            // 多视角模式：各视角评分 + 汇总报告
+            log.info("多视角评估模式: sessionId={}", sessionId);
+            ComprehensiveReportDTO report = perspectiveEvaluationService.evaluateAndSummarize(sessionId);
+            if (report != null) {
+                log.info("多视角评估完成: sessionId={}, score={}", sessionId, report.overallScore());
             }
-        }
+        } else {
+            // 非多视角模式：使用原有评估流程
+            log.info("普通评估模式: sessionId={}", sessionId);
+            List<InterviewQuestionDTO> questions = buildQuestionsFromAnswers(sessionId);
 
-        String resumeText = session.getResume() != null ? session.getResume().getResumeText() : null;
-        InterviewReportDTO report = evaluationService.evaluateInterview(sessionId, resumeText, questions);
-        persistenceService.saveReport(sessionId, report);
+            List<interview.guide.modules.interview.model.InterviewAnswerEntity> answers =
+                persistenceService.findAnswersBySessionId(sessionId);
+            for (interview.guide.modules.interview.model.InterviewAnswerEntity answer : answers) {
+                int index = answer.getQuestionIndex();
+                if (index >= 0 && index < questions.size()) {
+                    InterviewQuestionDTO question = questions.get(index);
+                    questions.set(index, question.withAnswer(answer.getUserAnswer()));
+                }
+            }
+
+            String resumeText = session.getResume() != null ? session.getResume().getResumeText() : null;
+            InterviewReportDTO report = answerEvaluationService.evaluateInterview(sessionId, resumeText, questions);
+            persistenceService.saveReport(sessionId, report);
+        }
+    }
+
+    /**
+     * 判断是否为多视角面试
+     */
+    private boolean hasSelectedPerspectives(String selectedPerspectivesJson) {
+        if (selectedPerspectivesJson == null || selectedPerspectivesJson.isBlank()) {
+            return false;
+        }
+        try {
+            List<Long> perspectives = objectMapper.readValue(
+                    selectedPerspectivesJson, new TypeReference<List<Long>>() {});
+            return perspectives != null && !perspectives.isEmpty();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**

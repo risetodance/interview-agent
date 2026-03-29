@@ -1,16 +1,36 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue'
-import { getInterviewDetail, getAbilityProfile, type AbilityProfile } from '../../api/interview'
+import { ref, onMounted, computed } from 'vue'
+import { getInterviewDetail, getAbilityProfile, getComprehensiveReport, getSessionPerspectives, getPerspectiveDetail, type ComprehensiveReportDTO, type PerspectiveScoreDTO, type PerspectiveDetailDTO } from '../../api/interview'
 
 // 路由参数
 const pageId = ref<string>('')
 
 // 面试详情数据
 const interview = ref<any>(null)
-const abilityProfile = ref<AbilityProfile | null>(null)
+const comprehensiveReport = ref<ComprehensiveReportDTO | null>(null)
+const perspectives = ref<PerspectiveScoreDTO[]>([])
+const currentPerspectiveDetail = ref<PerspectiveDetailDTO | null>(null)
 const loading = ref(true)
 const abilityLoading = ref(true)
 const expandedQuestions = ref<Set<number>>(new Set())
+
+// Tab 相关
+const currentTabIndex = ref(0)
+const tabs = ref<string[]>(['综合报告'])
+const perspectiveTabs = ref<{ id: number; name: string }[]>([])
+
+// 计算分数颜色
+const getScoreColor = (score: number) => {
+  if (score >= 90) return '#67C23A'
+  if (score >= 70) return '#409EFF'
+  if (score >= 60) return '#E6A23C'
+  return '#F56C6C'
+}
+
+// 切换 Tab
+const switchTab = (index: number) => {
+  currentTabIndex.value = index
+}
 
 // 页面参数
 onMounted(() => {
@@ -19,40 +39,63 @@ onMounted(() => {
   const options = page?.options || {}
   pageId.value = options.id || ''
   if (pageId.value) {
-    loadInterviewDetail()
+    loadReportData()
   }
 })
 
-// 加载面试详情
-const loadInterviewDetail = async () => {
+// 加载报告数据
+const loadReportData = async () => {
   loading.value = true
   abilityLoading.value = true
   try {
-    // 加载基本信息（details接口已包含完整数据）
+    // 加载基本信息
     const detailRes = await getInterviewDetail(pageId.value)
     interview.value = detailRes
 
     // 从详情数据中获取answers
     if (detailRes.answers && detailRes.answers.length > 0) {
-      // 默认展开所有问题
       detailRes.answers.forEach((_: any, idx: number) => {
         expandedQuestions.value.add(idx)
       })
+    }
+
+    // 加载综合报告
+    try {
+      const reportRes = await getComprehensiveReport(pageId.value)
+      console.log('[Report] comprehensiveReport:', reportRes)
+      comprehensiveReport.value = reportRes
+
+      // 构建 Tab 列表
+      tabs.value = ['综合报告']
+      perspectiveTabs.value = []
+      if (reportRes.perspectives && reportRes.perspectives.length > 0) {
+        reportRes.perspectives.forEach((p: any) => {
+          tabs.value.push(p.perspectiveName)
+          perspectiveTabs.value.push({
+            id: p.perspectiveId,
+            name: p.perspectiveName
+          })
+        })
+      }
+    } catch (e) {
+      console.error('获取综合报告失败:', e)
+    }
+
+    // 加载视角评分列表
+    try {
+      const perspectivesRes: any = await getSessionPerspectives(pageId.value)
+      perspectives.value = Array.isArray(perspectivesRes) ? perspectivesRes : ((perspectivesRes as any).list || [])
+    } catch (e) {
+      console.error('获取视角列表失败:', e)
     }
 
     // 加载能力画像数据
     try {
       const profileRes = await getAbilityProfile(pageId.value)
       console.log('[Report] profileRes:', profileRes)
-      console.log('[Report] categoryScores:', profileRes?.categoryScores)
-      console.log('[Report] categoryScores keys:', profileRes?.categoryScores ? Object.keys(profileRes.categoryScores) : 'null')
-      abilityProfile.value = profileRes
-      // 绘制雷达图
-      await nextTick()
-      drawRadarChart()
+      abilityLoading.value = false
     } catch (e) {
       console.error('获取能力画像失败:', e)
-    } finally {
       abilityLoading.value = false
     }
   } catch (error) {
@@ -62,190 +105,28 @@ const loadInterviewDetail = async () => {
   }
 }
 
-// 绘制雷达图
-const drawRadarChart = () => {
-  console.log('[Report] drawRadarChart called')
-  console.log('[Report] abilityProfile:', abilityProfile.value)
-
-  if (!abilityProfile.value || !abilityProfile.value.categoryScores) {
-    console.log('[Report] 雷达图跳过: abilityProfile为空或categoryScores为空')
-    return
-  }
-
-  const categoryScores = abilityProfile.value.categoryScores
-  const categories = Object.keys(categoryScores)
-  console.log('[Report] categories:', categories)
-
-  if (categories.length === 0) {
-    console.log('[Report] 雷达图跳过: categories为空')
-    return
-  }
-
-  // categoryScores 是 Map 格式
-  const data = categories.map(key => ({
-    name: key,
-    score: categoryScores[key].avgScore || 0
-  }))
-
-  console.log('[Report] 开始绘制雷达图')
-
-  // uni-app H5: 直接使用原生 HTML5 Canvas API
-  // 尝试多种方式获取 canvas 元素
-  let canvas = document.querySelector('#radarCanvas canvas') as HTMLCanvasElement
-  if (!canvas) {
-    canvas = document.getElementById('radarCanvas') as HTMLCanvasElement
-  }
-  if (!canvas) {
-    console.error('[Report] Canvas元素获取失败')
-    // 降级到 UNI-API
-    const ctx = uni.createCanvasContext('radarChart')
-    if (!ctx) {
-      console.error('[Report] Canvas上下文创建失败')
-      return
-    }
-    setTimeout(() => {
-      drawRadarChartWithCtx(ctx, data)
-      ctx.draw(true)
-    }, 100)
-    return
-  }
-  console.log('[Report] Canvas元素获取成功:', canvas)
-
-  const ctx2d = canvas.getContext('2d')
-  if (!ctx2d) {
-    console.error('[Report] Canvas 2D上下文获取失败')
-    return
-  }
-  console.log('[Report] Canvas 2D上下文创建成功')
-
-  // 使用原生 Canvas API 绘制
-  setTimeout(() => {
-    drawRadarChartWithCtx(ctx2d, data)
-  }, 100)
-}
-
-function drawRadarChartWithCtx(ctx: any, data: any[]) {
-  // 画布参数
-  const canvasWidth = 320
-  const canvasHeight = 280
-  const centerX = canvasWidth / 2
-  const centerY = canvasHeight / 2 + 10
-  const radius = 85
-  const angleStep = (2 * Math.PI) / data.length
-  const startAngle = -Math.PI / 2
-
-  // 绘制背景网格 (使用原生 Canvas API)
-  ctx.strokeStyle = '#e5e7eb'
-  ctx.lineWidth = 1
-
-  // 绘制3个同心圆
-  for (let i = 1; i <= 3; i++) {
-    const r = (radius / 3) * i
-    ctx.beginPath()
-    for (let j = 0; j <= data.length; j++) {
-      const angle = startAngle + angleStep * (j % data.length)
-      const x = centerX + r * Math.cos(angle)
-      const y = centerY + r * Math.sin(angle)
-      if (j === 0) {
-        ctx.moveTo(x, y)
-      } else {
-        ctx.lineTo(x, y)
-      }
-    }
-    ctx.closePath()
-    ctx.stroke()
-  }
-
-  // 绘制轴线
-  for (let i = 0; i < data.length; i++) {
-    const angle = startAngle + angleStep * i
-    ctx.beginPath()
-    ctx.moveTo(centerX, centerY)
-    ctx.lineTo(
-      centerX + radius * Math.cos(angle),
-      centerY + radius * Math.sin(angle)
-    )
-    ctx.stroke()
-  }
-
-  // 绘制数据区域 (使用原生 Canvas API)
-  ctx.beginPath()
-  ctx.fillStyle = 'rgba(139, 92, 246, 0.3)'
-  ctx.strokeStyle = '#8b5cf6'
-  ctx.lineWidth = 2
-
-  for (let i = 0; i <= data.length; i++) {
-    const idx = i % data.length
-    const angle = startAngle + angleStep * idx
-    const score = data[idx].score / 100
-    const r = radius * score
-    const x = centerX + r * Math.cos(angle)
-    const y = centerY + r * Math.sin(angle)
-
-    if (i === 0) {
-      ctx.moveTo(x, y)
-    } else {
-      ctx.lineTo(x, y)
-    }
-  }
-  ctx.closePath()
-  ctx.fill()
-  ctx.stroke()
-
-  // 绘制数据点
-  for (let i = 0; i < data.length; i++) {
-    const angle = startAngle + angleStep * i
-    const score = data[i].score / 100
-    const r = radius * score
-    const x = centerX + r * Math.cos(angle)
-    const y = centerY + r * Math.sin(angle)
-
-    ctx.beginPath()
-    ctx.fillStyle = '#8b5cf6'
-    ctx.arc(x, y, 5, 0, 2 * Math.PI)
-    ctx.fill()
-  }
-
-  // 绘制标签 (使用原生 Canvas API) - 显示完整标签，放在雷达图外侧
-  ctx.fillStyle = '#64748b'
-  ctx.font = '12px sans-serif'
-
-  for (let i = 0; i < data.length; i++) {
-    const angle = startAngle + angleStep * i
-    const labelRadius = radius + 38
-    const x = centerX + labelRadius * Math.cos(angle)
-    const y = centerY + labelRadius * Math.sin(angle)
-
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(data[i].name, x, y)
-  }
-
-  // 绘制分数 - 放在数据点往外偏移15px的位置，避免重叠
-  for (let i = 0; i < data.length; i++) {
-    const angle = startAngle + angleStep * i
-    const score = data[i].score / 100
-    const scoreRadius = radius * score + 15
-    const x = centerX + scoreRadius * Math.cos(angle)
-    const y = centerY + scoreRadius * Math.sin(angle)
-
-    ctx.fillStyle = '#8b5cf6'
-    ctx.font = 'bold 11px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(String(Math.round(data[i].score)), x, y)
+// 加载指定视角详情
+const loadPerspectiveDetail = async (perspectiveId: number) => {
+  try {
+    const detail = await getPerspectiveDetail(pageId.value, perspectiveId)
+    currentPerspectiveDetail.value = detail
+  } catch (e) {
+    console.error('获取视角详情失败:', e)
   }
 }
 
-// 获取答案列表（从interview中获取）
-const answers = computed(() => interview.value?.answers || [])
-
-// 切换问题展开状态
-const toggleQuestion = (index: number) => {
-  if (expandedQuestions.value.has(index)) {
-    expandedQuestions.value.delete(index)
+// Tab 切换时加载视角详情
+const onTabChange = (index: number) => {
+  currentTabIndex.value = index
+  if (index === 0) {
+    // 综合报告 Tab
+    currentPerspectiveDetail.value = null
   } else {
-    expandedQuestions.value.add(index)
+    // 各视角 Tab
+    const perspectiveIndex = index - 1
+    if (perspectiveTabs.value[perspectiveIndex]) {
+      loadPerspectiveDetail(perspectiveTabs.value[perspectiveIndex].id)
+    }
   }
 }
 
@@ -256,22 +137,45 @@ const formatDate = (dateStr: string) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-// 计算分数颜色
-const getScoreColor = (score: number) => {
-  if (score >= 90) return '#67C23A'
-  if (score >= 70) return '#409EFF'
-  if (score >= 60) return '#E6A23C'
-  return '#F56C6C'
-}
+// 获取答案列表（从interview中获取）
+const answers = computed(() => interview.value?.answers || [])
 
 // 圆形进度相关计算
-const circumference = 2 * Math.PI * 48 // 半径48的圆周长
+const circumference = 2 * Math.PI * 48
 const progressOffset = computed(() => {
-  const score = interview.value?.overallScore || 0
-  // 分数对应的进度，100分=完全显示，0分=不显示
+  const score = comprehensiveReport.value?.overallScore || interview.value?.overallScore || 0
   const progress = score / 100
   return circumference * (1 - progress)
 })
+
+// 切换问题展开状态
+const toggleQuestion = (index: number) => {
+  if (expandedQuestions.value.has(index)) {
+    expandedQuestions.value.delete(index)
+  } else {
+    expandedQuestions.value.add(index)
+  }
+}
+
+// 视角图标映射
+const perspectiveIcons: Record<string, string> = {
+  '技术面试官': '💻',
+  'HR面试官': '👔',
+  '技术总监': '📋',
+  'code': '💻',
+  'user': '👔',
+  'admin': '📋'
+}
+
+// 获取视角图标
+const getPerspectiveIcon = (nameOrIcon: string) => {
+  return perspectiveIcons[nameOrIcon] || '👤'
+}
+
+// 格式化学权重
+const formatWeight = (weight: number) => {
+  return `${Math.round(weight * 100)}%`
+}
 </script>
 
 <template>
@@ -286,131 +190,276 @@ const progressOffset = computed(() => {
         <text class="interview-date">{{ formatDate(interview.completedAt || interview.createdAt) }}</text>
       </view>
 
-      <!-- 评分卡片 -->
-      <view class="score-card">
-        <view class="score-center">
-          <view class="circle-progress">
-            <svg class="progress-ring" width="120" height="120" viewBox="0 0 120 120">
-              <!-- 背景圆 -->
-              <circle
-                cx="60"
-                cy="60"
-                r="48"
-                fill="none"
-                stroke="rgba(255,255,255,0.2)"
-                stroke-width="8"
-              />
-              <!-- 进度圆 -->
-              <circle
-                cx="60"
-                cy="60"
-                r="48"
-                fill="none"
-                stroke="#fff"
-                stroke-width="8"
-                stroke-linecap="round"
-                :stroke-dasharray="circumference"
-                :stroke-dashoffset="progressOffset"
-                transform="rotate(-90 60 60)"
-              />
-            </svg>
-            <view class="circle-inner">
-              <text class="score-number">{{ interview.overallScore || 0 }}</text>
+      <!-- Tab 切换 -->
+      <view class="tabs-container">
+        <scroll-view class="tabs-scroll" scroll-x>
+          <view class="tabs-wrapper">
+            <view
+              v-for="(tab, index) in tabs"
+              :key="index"
+              class="tab-item"
+              :class="{ active: currentTabIndex === index }"
+              @click="switchTab(index); onTabChange(index)"
+            >
+              <text class="tab-text">{{ tab }}</text>
             </view>
           </view>
-          <view class="score-label-text">总分</view>
-        </view>
-        <view class="score-feedback" v-if="interview.overallFeedback">
-          <text class="feedback-text">{{ interview.overallFeedback }}</text>
-        </view>
+        </scroll-view>
       </view>
 
-      <!-- 能力画像雷达图 -->
-      <view v-if="abilityProfile && !abilityLoading" class="section-card ability-profile">
-        <view class="section-header">
-          <text class="section-icon">&#xe605;</text>
-          <text class="section-title">能力画像</text>
-        </view>
-        <view class="radar-container">
-          <canvas
-            id="radarCanvas"
-            canvas-id="radarChart"
-            class="radar-canvas"
-            style="width: 320px; height: 280px;"
-          ></canvas>
-        </view>
-      </view>
-
-      <!-- 表现优势 -->
-      <view v-if="interview.strengths?.length" class="section-card strengths">
-        <view class="section-header">
-          <text class="section-icon">✓</text>
-          <text class="section-title">表现优势</text>
-        </view>
-        <view class="section-content">
-          <view v-for="(item, idx) in interview.strengths" :key="idx" class="list-item">
-            <text class="bullet-point">•</text>
-            <text class="item-text">{{ item }}</text>
-          </view>
-        </view>
-      </view>
-
-      <!-- 改进建议 -->
-      <view v-if="interview.improvements?.length" class="section-card improvements">
-        <view class="section-header">
-          <text class="section-icon">!</text>
-          <text class="section-title">改进建议</text>
-        </view>
-        <view class="section-content">
-          <view v-for="(item, idx) in interview.improvements" :key="idx" class="list-item">
-            <text class="bullet-point">•</text>
-            <text class="item-text">{{ item }}</text>
-          </view>
-        </view>
-      </view>
-
-      <!-- 问答记录 -->
-      <view class="section-card questions">
-        <view class="section-header">
-          <text class="section-icon">&#xe606;</text>
-          <text class="section-title">问答记录</text>
-        </view>
-        <view class="questions-list">
-          <view
-            v-for="(answer, idx) in answers"
-            :key="idx"
-            class="question-item"
-          >
-            <view class="question-header" @click="toggleQuestion(idx)">
-              <view class="question-info">
-                <text class="question-index">题目 {{ idx + 1 }}</text>
-                <text class="question-category">{{ answer.category }}</text>
+      <!-- 综合报告 Tab -->
+      <view v-if="currentTabIndex === 0" class="tab-content">
+        <!-- 评分卡片 -->
+        <view class="score-card">
+          <view class="score-center">
+            <view class="circle-progress">
+              <svg class="progress-ring" width="120" height="120" viewBox="0 0 120 120">
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="48"
+                  fill="none"
+                  stroke="rgba(255,255,255,0.2)"
+                  stroke-width="8"
+                />
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="48"
+                  fill="none"
+                  stroke="#fff"
+                  stroke-width="8"
+                  stroke-linecap="round"
+                  :stroke-dasharray="circumference"
+                  :stroke-dashoffset="progressOffset"
+                  transform="rotate(-90 60 60)"
+                />
+              </svg>
+              <view class="circle-inner">
+                <text class="score-number">{{ comprehensiveReport?.overallScore || interview.overallScore || 0 }}</text>
               </view>
-              <view class="question-score" :style="{ color: getScoreColor(answer.score) }">
-                {{ answer.score }}分
-              </view>
-              <text class="expand-icon">{{ expandedQuestions.has(idx) ? '&#xe601;' : '&#xe600;' }}</text>
             </view>
+            <view class="score-label-text">综合评分</view>
+          </view>
+          <view class="score-feedback" v-if="comprehensiveReport?.comprehensiveFeedback || interview.overallFeedback">
+            <text class="feedback-text">{{ comprehensiveReport?.comprehensiveFeedback || interview.overallFeedback }}</text>
+          </view>
+        </view>
 
-            <view v-if="expandedQuestions.has(idx)" class="question-detail">
-              <view class="detail-block">
-                <text class="detail-label">面试题</text>
-                <text class="detail-text">{{ answer.question }}</text>
-              </view>
-              <view class="detail-block">
-                <text class="detail-label">你的回答</text>
-                <text class="detail-text answer-text">{{ answer.userAnswer }}</text>
-              </view>
-              <view class="detail-block">
-                <text class="detail-label">AI 评价</text>
-                <text class="detail-text feedback-text">{{ answer.feedback }}</text>
-              </view>
-              <view v-if="answer.referenceAnswer" class="detail-block">
-                <text class="detail-label">参考答案</text>
-                <text class="detail-text reference-text">{{ answer.referenceAnswer }}</text>
+        <!-- 各视角得分汇总 -->
+        <view v-if="comprehensiveReport?.perspectives?.length" class="section-card perspectives-summary">
+          <view class="section-header">
+            <text class="section-icon">📊</text>
+            <text class="section-title">各视角得分</text>
+          </view>
+          <view class="perspectives-list">
+            <view
+              v-for="p in comprehensiveReport.perspectives"
+              :key="p.perspectiveId"
+              class="perspective-item"
+            >
+              <text class="perspective-icon">{{ getPerspectiveIcon(p.perspectiveName) }}</text>
+              <text class="perspective-name">{{ p.perspectiveName }}</text>
+              <text class="perspective-weight">权重 {{ formatWeight(p.weight) }}</text>
+              <view class="perspective-score" :style="{ color: getScoreColor(p.score || 0) }">
+                {{ p.score || '--' }}分
               </view>
             </view>
           </view>
+        </view>
+
+        <!-- 表现优势 -->
+        <view v-if="comprehensiveReport?.strengths?.length" class="section-card strengths">
+          <view class="section-header">
+            <text class="section-icon">✓</text>
+            <text class="section-title">综合优势</text>
+          </view>
+          <view class="section-content">
+            <view v-for="(item, idx) in comprehensiveReport.strengths" :key="idx" class="list-item">
+              <text class="bullet-point">•</text>
+              <text class="item-text">{{ item }}</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 改进建议 -->
+        <view v-if="comprehensiveReport?.improvements?.length" class="section-card improvements">
+          <view class="section-header">
+            <text class="section-icon">!</text>
+            <text class="section-title">改进建议</text>
+          </view>
+          <view class="section-content">
+            <view v-for="(item, idx) in comprehensiveReport.improvements" :key="idx" class="list-item">
+              <text class="bullet-point">•</text>
+              <text class="item-text">{{ item }}</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 问答记录 -->
+        <view class="section-card questions">
+          <view class="section-header">
+            <text class="section-icon">&#xe606;</text>
+            <text class="section-title">问答记录</text>
+          </view>
+          <view class="questions-list">
+            <view
+              v-for="(answer, idx) in answers"
+              :key="idx"
+              class="question-item"
+            >
+              <view class="question-header" @click="toggleQuestion(idx)">
+                <view class="question-info">
+                  <text class="question-index">题目 {{ idx + 1 }}</text>
+                  <text class="question-category">{{ answer.category }}</text>
+                  <text v-if="(answer as any).perspectiveName" class="question-perspective">[{{ (answer as any).perspectiveName }}]</text>
+                </view>
+                <view class="question-score" :style="{ color: getScoreColor(answer.score) }">
+                  {{ answer.score }}分
+                </view>
+                <text class="expand-icon">{{ expandedQuestions.has(idx) ? '&#xe601;' : '&#xe600;' }}</text>
+              </view>
+
+              <view v-if="expandedQuestions.has(idx)" class="question-detail">
+                <view class="detail-block">
+                  <text class="detail-label">面试题</text>
+                  <text class="detail-text">{{ answer.question }}</text>
+                </view>
+                <view class="detail-block">
+                  <text class="detail-label">你的回答</text>
+                  <text class="detail-text answer-text">{{ answer.userAnswer }}</text>
+                </view>
+                <view class="detail-block">
+                  <text class="detail-label">AI 评价</text>
+                  <text class="detail-text feedback-text">{{ answer.feedback }}</text>
+                </view>
+                <view v-if="answer.referenceAnswer" class="detail-block">
+                  <text class="detail-label">参考答案</text>
+                  <text class="detail-text reference-text">{{ answer.referenceAnswer }}</text>
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 各视角 Tab -->
+      <view v-else class="tab-content">
+        <view class="perspective-detail" v-if="currentPerspectiveDetail">
+          <!-- 视角评分卡片 -->
+          <view class="perspective-score-card">
+            <view class="perspective-header-info">
+              <text class="perspective-icon-large">{{ getPerspectiveIcon(currentPerspectiveDetail.perspectiveIcon || currentPerspectiveDetail.roleName) }}</text>
+              <view class="perspective-info">
+                <text class="perspective-name">{{ currentPerspectiveDetail.roleName }}</text>
+                <text class="perspective-meta">
+                  共 {{ currentPerspectiveDetail.questionCount }} 题 ·
+                  已评 {{ currentPerspectiveDetail.answeredCount }} 题
+                </text>
+              </view>
+            </view>
+            <view class="perspective-score-display">
+              <text class="score-value" :style="{ color: getScoreColor(currentPerspectiveDetail.score || 0) }">
+                {{ currentPerspectiveDetail.score || '--' }}
+              </text>
+              <text class="score-unit">分</text>
+            </view>
+          </view>
+
+          <!-- 综合评价 -->
+          <view v-if="currentPerspectiveDetail.feedback" class="section-card perspective-feedback">
+            <view class="section-header">
+              <text class="section-icon">💬</text>
+              <text class="section-title">综合评价</text>
+            </view>
+            <text class="feedback-content">{{ currentPerspectiveDetail.feedback }}</text>
+          </view>
+
+          <!-- 优势 -->
+          <view v-if="currentPerspectiveDetail.strengths?.length" class="section-card strengths">
+            <view class="section-header">
+              <text class="section-icon">✓</text>
+              <text class="section-title">优势</text>
+            </view>
+            <view class="section-content">
+              <view v-for="(item, idx) in currentPerspectiveDetail.strengths" :key="idx" class="list-item">
+                <text class="bullet-point">•</text>
+                <text class="item-text">{{ item }}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 改进建议 -->
+          <view v-if="currentPerspectiveDetail.improvements?.length" class="section-card improvements">
+            <view class="section-header">
+              <text class="section-icon">!</text>
+              <text class="section-title">改进建议</text>
+            </view>
+            <view class="section-content">
+              <view v-for="(item, idx) in currentPerspectiveDetail.improvements" :key="idx" class="list-item">
+                <text class="bullet-point">•</text>
+                <text class="item-text">{{ item }}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 该视角的问答记录 -->
+          <view v-if="currentPerspectiveDetail.questionScores?.length" class="section-card questions">
+            <view class="section-header">
+              <text class="section-icon">&#xe606;</text>
+              <text class="section-title">问答记录</text>
+            </view>
+            <view class="questions-list">
+              <view
+                v-for="(answer, idx) in currentPerspectiveDetail.questionScores"
+                :key="idx"
+                class="question-item"
+              >
+                <view class="question-header" @click="toggleQuestion(idx)">
+                  <view class="question-info">
+                    <text class="question-index">第 {{ idx + 1 }} 题</text>
+                    <text class="question-category">{{ answer.category }}</text>
+                    <text class="question-difficulty" :class="'diff-' + answer.difficulty.toLowerCase()">
+                      {{ answer.difficulty }}
+                    </text>
+                  </view>
+                  <view class="question-score" :style="{ color: getScoreColor(answer.score || 0) }">
+                    {{ answer.score || '--' }}分
+                  </view>
+                </view>
+
+                <view v-if="expandedQuestions.has(idx)" class="question-detail">
+                  <view class="detail-block">
+                    <text class="detail-label">面试题</text>
+                    <text class="detail-text">{{ answer.question }}</text>
+                  </view>
+                  <view class="detail-block">
+                    <text class="detail-label">你的回答</text>
+                    <text class="detail-text answer-text">{{ answer.userAnswer }}</text>
+                  </view>
+                  <view v-if="answer.feedback" class="detail-block">
+                    <text class="detail-label">AI 评价</text>
+                    <text class="detail-text feedback-text">{{ answer.feedback }}</text>
+                  </view>
+                  <view v-if="answer.referenceAnswer" class="detail-block">
+                    <text class="detail-label">参考答案</text>
+                    <text class="detail-text reference-text">{{ answer.referenceAnswer }}</text>
+                  </view>
+                  <view v-if="answer.keyPoints?.length" class="detail-block">
+                    <text class="detail-label">关键要点</text>
+                    <view class="key-points-list">
+                      <text v-for="(point, kIdx) in answer.keyPoints" :key="kIdx" class="key-point-tag">{{ point }}</text>
+                    </view>
+                  </view>
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- 视角详情加载中 -->
+        <view v-else class="loading-perspective">
+          <text>加载视角详情...</text>
         </view>
       </view>
     </view>
@@ -442,6 +491,12 @@ $text-secondary: #909399;
   color: $text-secondary;
 }
 
+.loading-perspective {
+  padding: 100rpx;
+  text-align: center;
+  color: $text-secondary;
+}
+
 .report-content {
   padding: 20rpx;
 }
@@ -455,6 +510,53 @@ $text-secondary: #909399;
     color: $text-secondary;
     font-size: 26rpx;
   }
+}
+
+// Tab 样式
+.tabs-container {
+  background-color: #fff;
+  margin-bottom: 20rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+.tabs-scroll {
+  white-space: nowrap;
+}
+
+.tabs-wrapper {
+  display: flex;
+  padding: 0 10rpx;
+}
+
+.tab-item {
+  display: inline-block;
+  padding: 24rpx 30rpx;
+  font-size: 28rpx;
+  color: $text-secondary;
+  position: relative;
+  flex-shrink: 0;
+
+  &.active {
+    color: $primary;
+    font-weight: 600;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60%;
+      height: 4rpx;
+      background-color: $primary;
+      border-radius: 2rpx;
+    }
+  }
+}
+
+.tab-content {
+  // Content styles
 }
 
 .score-card {
@@ -550,7 +652,6 @@ $text-secondary: #909399;
   .section-title {
     font-size: 30rpx;
     font-weight: 600;
-    font-weight: 600;
     color: $text-primary;
   }
 
@@ -561,10 +662,102 @@ $text-secondary: #909399;
   }
 }
 
+// 视角汇总样式
+.perspectives-summary {
+  .perspectives-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16rpx;
+  }
+
+  .perspective-item {
+    display: flex;
+    align-items: center;
+    padding: 20rpx;
+    background-color: #f9fafb;
+    border-radius: 12rpx;
+
+    .perspective-icon {
+      font-size: 32rpx;
+      margin-right: 16rpx;
+    }
+
+    .perspective-name {
+      font-size: 28rpx;
+      font-weight: 600;
+      color: $text-primary;
+      margin-right: 16rpx;
+    }
+
+    .perspective-weight {
+      font-size: 24rpx;
+      color: $text-secondary;
+      flex: 1;
+    }
+
+    .perspective-score {
+      font-size: 32rpx;
+      font-weight: 700;
+    }
+  }
+}
+
+// 分类得分样式
+.category-scores {
+  .category-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20rpx;
+  }
+
+  .category-item {
+    display: flex;
+    align-items: center;
+    gap: 16rpx;
+
+    .category-info {
+      display: flex;
+      flex-direction: column;
+      min-width: 120rpx;
+
+      .category-name {
+        font-size: 26rpx;
+        color: $text-primary;
+        font-weight: 500;
+      }
+
+      .category-count {
+        font-size: 22rpx;
+        color: $text-secondary;
+      }
+    }
+
+    .category-score-bar {
+      flex: 1;
+      height: 12rpx;
+      background-color: #f0f0f0;
+      border-radius: 6rpx;
+      overflow: hidden;
+
+      .bar-fill {
+        height: 100%;
+        border-radius: 6rpx;
+        transition: width 0.3s;
+      }
+    }
+
+    .category-score {
+      font-size: 26rpx;
+      font-weight: 600;
+      min-width: 80rpx;
+      text-align: right;
+    }
+  }
+}
+
 .strengths {
   .section-icon {
     color: $success;
-    font-weight: 600;
   }
 
   .bullet-point {
@@ -572,29 +765,9 @@ $text-secondary: #909399;
   }
 }
 
-.ability-profile {
-  .section-icon {
-    color: $primary;
-    font-weight: 600;
-  }
-
-  .radar-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20rpx 0;
-  }
-
-  .radar-canvas {
-    width: 320px;
-    height: 280px;
-  }
-}
-
 .improvements {
   .section-icon {
     color: $warning;
-    font-weight: 600;
   }
 
   .bullet-point {
@@ -615,6 +788,7 @@ $text-secondary: #909399;
     font-size: 26rpx;
     color: $text-regular;
     line-height: 1.5;
+    flex: 1;
   }
 }
 
@@ -660,7 +834,36 @@ $text-secondary: #909399;
       background: rgba(99, 102, 241, 0.1);
       padding: 4rpx 12rpx;
       border-radius: 6rpx;
-      white-space: nowrap;
+    }
+
+    .question-perspective {
+      font-size: 22rpx;
+      color: $primary;
+      background: rgba(99, 102, 241, 0.15);
+      padding: 4rpx 12rpx;
+      border-radius: 6rpx;
+      font-weight: 600;
+    }
+
+    .question-difficulty {
+      font-size: 22rpx;
+      padding: 4rpx 12rpx;
+      border-radius: 6rpx;
+
+      &.diff-basic {
+        color: #059669;
+        background: #d1fae5;
+      }
+
+      &.diff-advanced {
+        color: #d97706;
+        background: #fef3c7;
+      }
+
+      &.diff-expert {
+        color: #dc2626;
+        background: #fee2e2;
+      }
     }
 
     .question-score {
@@ -714,6 +917,86 @@ $text-secondary: #909399;
       border-radius: 8rpx;
       display: block;
     }
+  }
+
+  .key-points-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12rpx;
+    margin-top: 8rpx;
+
+    .key-point-tag {
+      font-size: 22rpx;
+      color: $primary;
+      background: rgba(99, 102, 241, 0.1);
+      padding: 6rpx 16rpx;
+      border-radius: 20rpx;
+      border: 1rpx solid rgba(99, 102, 241, 0.2);
+    }
+  }
+}
+
+// 视角详情页样式
+.perspective-detail {
+  // ...
+}
+
+.perspective-score-card {
+  background: linear-gradient(135deg, $primary 0%, #818cf8 100%);
+  border-radius: 24rpx;
+  padding: 40rpx;
+  margin-bottom: 20rpx;
+
+  .perspective-header-info {
+    display: flex;
+    align-items: center;
+    margin-bottom: 30rpx;
+
+    .perspective-icon-large {
+      font-size: 56rpx;
+      margin-right: 20rpx;
+    }
+
+    .perspective-info {
+      flex: 1;
+
+      .perspective-name {
+        font-size: 36rpx;
+        font-weight: 700;
+        color: #fff;
+        display: block;
+        margin-bottom: 8rpx;
+      }
+
+      .perspective-meta {
+        font-size: 24rpx;
+        color: rgba(255, 255, 255, 0.8);
+      }
+    }
+  }
+
+  .perspective-score-display {
+    display: flex;
+    align-items: baseline;
+
+    .score-value {
+      font-size: 80rpx;
+      font-weight: 700;
+    }
+
+    .score-unit {
+      font-size: 32rpx;
+      color: rgba(255, 255, 255, 0.8);
+      margin-left: 8rpx;
+    }
+  }
+}
+
+.perspective-feedback {
+  .feedback-content {
+    font-size: 28rpx;
+    color: $text-regular;
+    line-height: 1.6;
   }
 }
 </style>

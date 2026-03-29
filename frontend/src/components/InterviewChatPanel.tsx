@@ -18,6 +18,9 @@ interface Message {
   isFollowUp?: boolean;
   relatedIndex?: number;
   relatedQuestion?: string;
+  // 多视角支持
+  createdByPerspectiveId?: number;
+  createdByPerspectiveName?: string;
 }
 
 interface InterviewChatPanelProps {
@@ -186,16 +189,25 @@ function MessageBubble({ message }: { message: Message }) {
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-sm font-semibold text-slate-700">面试官</span>
+            {/* 视角标签（始终显示） */}
+            {message.createdByPerspectiveName && (
+              <span className="px-2 py-0.5 bg-purple-50 text-purple-600 text-xs rounded-full border border-purple-200 font-medium">
+                [{message.createdByPerspectiveName}]
+              </span>
+            )}
             {isFollowUp ? (
               <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-xs rounded-full border border-amber-200">
                 追问 {message.relatedIndex ? `· 关于问题${message.relatedIndex}` : ''}
               </span>
-            ) : message.category ? (
+            ) : null}
+            {/* 分类（追问时也显示） */}
+            {message.category && (
               <span className="px-2 py-0.5 bg-primary-50 text-primary-600 text-xs rounded-full">
                 {message.category}
               </span>
-            ) : null}
-            {!isFollowUp && difficultyStyle && difficulty && (
+            )}
+            {/* 难度（追问时也显示） */}
+            {difficultyStyle && difficulty && (
               <span className={`px-2 py-0.5 ${difficultyStyle.bg} ${difficultyStyle.text} text-xs rounded-full border ${difficultyStyle.border}`}>
                 {difficultyLabels[difficulty]}
               </span>
