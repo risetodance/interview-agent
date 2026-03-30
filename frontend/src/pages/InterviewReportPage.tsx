@@ -10,8 +10,9 @@ import {
   ThumbsUp,
   ThumbsDown,
   MessageSquare,
-  TrendingUp,
   Award,
+  Lightbulb,
+  TrendingUp, MessagesSquare,
 } from 'lucide-react';
 
 interface InterviewReportPageProps {
@@ -341,18 +342,39 @@ function ComprehensiveReport({ report }: { report: ComprehensiveReportDTO }) {
         </div>
       </div>
 
-      {/* 综合评价 */}
-      {report.comprehensiveFeedback && (
+      {/* 综合评价（父容器） */}
+      {(report.evaluation || report.developmentSuggestions) && (
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-primary-500" />
             综合评价
           </h3>
-          <div className="prose prose-slate max-w-none">
-            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-              {report.comprehensiveFeedback}
-            </p>
-          </div>
+          {report.evaluation && (
+            <div className="mb-4">
+              <h4 className="text-base font-medium text-slate-800 mb-2 flex items-center gap-2">
+                <MessagesSquare className="w-4 h-4 text-primary-500" />
+                评价
+              </h4>
+              <div className="prose prose-slate max-w-none">
+                <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                  {report.evaluation}
+                </p>
+              </div>
+            </div>
+          )}
+          {report.developmentSuggestions && (
+            <div>
+              <h4 className="text-base font-medium text-slate-800 mb-2 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4 text-primary-500" />
+                发展建议
+              </h4>
+              <div className="prose prose-slate max-w-none">
+                <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                  {report.developmentSuggestions}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

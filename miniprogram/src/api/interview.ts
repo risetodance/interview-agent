@@ -373,6 +373,8 @@ export interface ComprehensiveReportDTO {
     questionCount?: number
   }[]
   comprehensiveFeedback: string
+  evaluation?: string
+  developmentSuggestions?: string
   strengths: string[]
   improvements: string[]
   perspectiveDetails?: Record<string, PerspectiveDetailDTO>

@@ -123,9 +123,13 @@ public class InterviewSessionEntity {
     @Column(name = "comprehensive_score")
     private Integer comprehensiveScore;
 
-    // LLM生成的综合评价
+    // LLM生成的综合评价（评价）
     @Column(name = "comprehensive_feedback", columnDefinition = "TEXT")
     private String comprehensiveFeedback;
+
+    // LLM生成的综合评价（发展建议）
+    @Column(name = "development_suggestions", columnDefinition = "TEXT")
+    private String developmentSuggestions;
 
     // 上一题由哪个视角出（用于轮询规则）
     @Column(name = "last_question_perspective_id")
@@ -375,6 +379,14 @@ public class InterviewSessionEntity {
 
     public void setComprehensiveFeedback(String comprehensiveFeedback) {
         this.comprehensiveFeedback = comprehensiveFeedback;
+    }
+
+    public String getDevelopmentSuggestions() {
+        return developmentSuggestions;
+    }
+
+    public void setDevelopmentSuggestions(String developmentSuggestions) {
+        this.developmentSuggestions = developmentSuggestions;
     }
 
     public Long getLastQuestionPerspectiveId() {

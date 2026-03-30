@@ -246,6 +246,24 @@ const formatWeight = (weight: number) => {
           </view>
         </view>
 
+        <!-- 综合评价 -->
+        <view v-if="comprehensiveReport?.evaluation" class="section-card evaluation">
+          <view class="section-header">
+            <text class="section-icon">📝</text>
+            <text class="section-title">综合评价</text>
+          </view>
+          <text class="evaluation-content">{{ comprehensiveReport.evaluation }}</text>
+        </view>
+
+        <!-- 发展建议 -->
+        <view v-if="comprehensiveReport?.developmentSuggestions" class="section-card suggestions">
+          <view class="section-header">
+            <text class="section-icon">💡</text>
+            <text class="section-title">发展建议</text>
+          </view>
+          <text class="suggestions-content">{{ comprehensiveReport.developmentSuggestions }}</text>
+        </view>
+
         <!-- 各视角得分汇总 -->
         <view v-if="comprehensiveReport?.perspectives?.length" class="section-card perspectives-summary">
           <view class="section-header">
@@ -997,6 +1015,30 @@ $text-secondary: #909399;
     font-size: 28rpx;
     color: $text-regular;
     line-height: 1.6;
+  }
+}
+
+.evaluation {
+  .section-icon {
+    color: $primary;
+  }
+
+  .evaluation-content {
+    font-size: 28rpx;
+    color: $text-regular;
+    line-height: 1.8;
+  }
+}
+
+.suggestions {
+  .section-icon {
+    color: $warning;
+  }
+
+  .suggestions-content {
+    font-size: 28rpx;
+    color: $text-regular;
+    line-height: 1.8;
   }
 }
 </style>

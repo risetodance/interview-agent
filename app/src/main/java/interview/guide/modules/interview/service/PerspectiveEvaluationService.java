@@ -81,6 +81,12 @@ public class PerspectiveEvaluationService {
         List<PerspectiveQuestionEvalDTO> questionEvaluations
     ) {}
 
+    // ========== 综合反馈结构化输出 ==========
+    private record ComprehensiveFeedbackDTO(
+        String evaluation,
+        String developmentSuggestions
+    ) {}
+
     private record PerspectiveQuestionEvalDTO(
         int questionIndex,
         String question,
@@ -488,12 +494,13 @@ public class PerspectiveEvaluationService {
         // 计算综合得分
         int comprehensiveScore = totalWeight > 0 ? (int) (weightedScore / totalWeight) : 0;
 
-        // 调用 AI 生成综合评语
-        String comprehensiveFeedback = generateComprehensiveFeedbackFromResults(session, results);
+        // 调用 AI 生成综合评语（评价 + 发展建议）
+        ComprehensiveFeedbackDTO feedback = generateComprehensiveFeedbackFromResults(session, results);
 
         // 更新会话记录
         session.setComprehensiveScore(comprehensiveScore);
-        session.setComprehensiveFeedback(comprehensiveFeedback);
+        session.setComprehensiveFeedback(feedback.evaluation());
+        session.setDevelopmentSuggestions(feedback.developmentSuggestions());
         session.setPerspectiveSummaryStatus(AsyncTaskStatus.COMPLETED);
         interviewSessionRepository.save(session);
 
@@ -503,17 +510,19 @@ public class PerspectiveEvaluationService {
                 session.getSessionId(),
                 comprehensiveScore,
                 perspectiveScoreDTOs,
-                comprehensiveFeedback,
+                feedback.evaluation(),
                 new ArrayList<>(allStrengths),
                 new ArrayList<>(allImprovements),
+                feedback.developmentSuggestions(),
                 perspectiveDetails
         );
     }
 
     /**
      * 调用 AI 生成综合评语（基于各视角批量评估结果）
+     * 返回评价和发展建议两部分
      */
-    private String generateComprehensiveFeedbackFromResults(InterviewSessionEntity session,
+    private ComprehensiveFeedbackDTO generateComprehensiveFeedbackFromResults(InterviewSessionEntity session,
                                                           List<PerspectiveBatchResult> results) {
         try {
             StringBuilder summaryBuilder = new StringBuilder();
@@ -529,29 +538,29 @@ public class PerspectiveEvaluationService {
             }
 
             String prompt = String.format("""
-                    请根据以下各视角的评价，生成一份综合评价：
+                    请根据以下各视角的评价，生成综合评价：
 
                     %s
 
-                    请生成一份200-300字左右的综合评价，内容包括：
-                    1. 对候选人面试表现的总体评价
-                    2. 主要优势
-                    3. 需要改进的地方
-                    4. 发展建议
-
-                    请以面试官的身份，客观、专业地进行评价。
-                    """, summaryBuilder.toString());
+                    请以JSON格式返回：
+                    {"evaluation": "评价内容-对候选人面试表现的总体评价、优势和不足，150-200字", "developmentSuggestions": "发展建议-针对不足的具体改进建议，100-150字"}
+                    """, summaryBuilder);
 
             ChatClient chatClient = chatClientBuilder.build();
-            return chatClient.prompt()
-                    .system("你是一个专业的面试官，负责对候选人进行综合评价。请客观、专业地进行评价。")
-                    .user(prompt)
-                    .call()
-                    .content();
+            return structuredOutputInvoker.invoke(
+                    chatClient,
+                    "你是一个专业的面试官，负责对候选人进行综合评价。请客观、专业地进行评价。",
+                    prompt,
+                    new BeanOutputConverter<>(ComprehensiveFeedbackDTO.class),
+                    ErrorCode.AI_SERVICE_ERROR,
+                    "AI综合评语生成失败：",
+                    "ComprehensiveFeedback",
+                    log
+            );
 
         } catch (Exception e) {
             log.warn("AI综合评语生成失败: {}", e.getMessage());
-            return "综合评价生成失败，请稍后重试。";
+            return new ComprehensiveFeedbackDTO("综合评价生成失败，请稍后重试。", "综合评价生成失败，请稍后重试。");
         }
     }
 
@@ -563,7 +572,8 @@ public class PerspectiveEvaluationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND));
 
         Integer overallScore = session.getComprehensiveScore() != null ? session.getComprehensiveScore() : 0;
-        String comprehensiveFeedback = session.getComprehensiveFeedback();
+        String evaluation = session.getComprehensiveFeedback();
+        String developmentSuggestions = session.getDevelopmentSuggestions();
 
         List<PerspectiveScoreEntity> comprehensiveScores =
                 perspectiveScoreRepository.findComprehensiveScoresBySessionId(sessionId);
@@ -610,9 +620,10 @@ public class PerspectiveEvaluationService {
 
         return new ComprehensiveReportDTO(
                 session.getSessionId(), overallScore, perspectiveScoreDTOs,
-                comprehensiveFeedback,
+                evaluation,
                 new ArrayList<>(new LinkedHashSet<>(allStrengths)),
                 new ArrayList<>(new LinkedHashSet<>(allImprovements)),
+                developmentSuggestions,
                 perspectiveDetails);
     }
 

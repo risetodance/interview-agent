@@ -10,8 +10,9 @@ public record ComprehensiveReportDTO(
     String sessionId,
     Integer overallScore,
     List<PerspectiveScoreDTO> perspectives,
-    String comprehensiveFeedback,
+    String evaluation,
     List<String> strengths,
     List<String> improvements,
+    String developmentSuggestions,
     Map<String, PerspectiveDetailDTO> perspectiveDetails
 ) {}

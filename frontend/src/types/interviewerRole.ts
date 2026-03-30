@@ -103,6 +103,8 @@ export interface ComprehensiveReportDTO {
   overallScore: number; // 加权平均分
   perspectives: PerspectiveScore[]; // 各视角得分详情
   comprehensiveFeedback: string; // 综合评价
+  evaluation?: string; // 候选人面试表现总体评价
+  developmentSuggestions?: string; // 针对不足的具体改进建议
   strengths: string[]; // 综合优势
   improvements: string[]; // 综合改进建议
   perspectiveDetails: Record<string, PerspectiveDetailDTO>; // 视角详情映射
