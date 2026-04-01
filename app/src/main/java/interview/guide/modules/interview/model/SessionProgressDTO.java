@@ -11,5 +11,22 @@ public record SessionProgressDTO(
     int currentQuestionIndex,
     int totalQuestions,
     CurrentQuestionDTO currentQuestion,
-    List<AnswerHistoryDTO> history
-) {}
+    List<AnswerHistoryDTO> history,
+    ProcessingStatus processingStatus  // 新增：处理状态
+) {
+    /**
+     * 处理状态枚举
+     */
+    public enum ProcessingStatus {
+        IDLE,       // 空闲，可以继续答题
+        PROCESSING  // 工作流正在处理中
+    }
+
+    /**
+     * 便捷构造方法（向后兼容）
+     */
+    public SessionProgressDTO(String sessionId, int currentQuestionIndex, int totalQuestions,
+                              CurrentQuestionDTO currentQuestion, List<AnswerHistoryDTO> history) {
+        this(sessionId, currentQuestionIndex, totalQuestions, currentQuestion, history, ProcessingStatus.IDLE);
+    }
+}

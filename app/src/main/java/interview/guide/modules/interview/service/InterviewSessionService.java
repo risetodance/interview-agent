@@ -646,24 +646,39 @@ public class InterviewSessionService {
         int currentIndex = session.getCurrentQuestionIndex() != null ? session.getCurrentQuestionIndex() : 0;
         int totalQuestions = session.getTotalQuestions() != null ? session.getTotalQuestions() : 0;
 
-        // 从已有答案中找出当前问题（未回答的）
+        // 从已有答案中找出当前问题
         InterviewAnswerEntity currentAnswerEntity = existingAnswers.stream()
-                .filter(a -> a.getQuestionIndex() == currentIndex &&
-                             (a.getUserAnswer() == null || a.getUserAnswer().isBlank()))
+                .filter(a -> a.getQuestionIndex() == currentIndex)
                 .findFirst()
                 .orElse(null);
 
-        CurrentQuestionDTO currentQuestion = getCurrentQuestionDTO(currentAnswerEntity);
+        // 判断处理状态
+        SessionProgressDTO.ProcessingStatus processingStatus = SessionProgressDTO.ProcessingStatus.IDLE;
+        CurrentQuestionDTO currentQuestion = null;
 
-        log.info("获取会话进度: sessionId={}, currentIndex={}, total={}, historySize={}",
-                sessionId, currentIndex, totalQuestions, history.size());
+        if (currentAnswerEntity != null) {
+            if (currentAnswerEntity.getUserAnswer() == null || currentAnswerEntity.getUserAnswer().isBlank()) {
+                // 题目已生成，用户未答
+                currentQuestion = getCurrentQuestionDTO(currentAnswerEntity);
+            } else if (currentAnswerEntity.getScore() == null || currentAnswerEntity.getScore() == 0) {
+                // 用户已提交答案，工作流正在处理中（score=0 表示尚未评分）
+                processingStatus = SessionProgressDTO.ProcessingStatus.PROCESSING;
+            } else {
+                // 已评分，返回当前问题（前端应该显示下一题）
+                currentQuestion = getCurrentQuestionDTO(currentAnswerEntity);
+            }
+        }
+
+        log.info("获取会话进度: sessionId={}, currentIndex={}, total={}, historySize={}, processingStatus={}",
+                sessionId, currentIndex, totalQuestions, history.size(), processingStatus);
 
         return new SessionProgressDTO(
                 sessionId,
                 currentIndex,
                 totalQuestions,
                 currentQuestion,
-                history
+                history,
+                processingStatus
         );
     }
 
