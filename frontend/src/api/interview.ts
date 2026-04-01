@@ -8,7 +8,6 @@ import type {
   ScoreTrend,
   SessionProgressDTO,
   SubmitAnswerRequest,
-  SubmitAnswerResponse,
 } from '../types/interview';
 
 export const interviewApi = {
@@ -43,15 +42,12 @@ export const interviewApi = {
   },
 
   /**
-   * 提交答案
+   * 提交答案（工作流模式，立即返回，后台通过 SSE 推送结果）
    */
-  async submitAnswer(req: SubmitAnswerRequest): Promise<SubmitAnswerResponse> {
-    return request.post<SubmitAnswerResponse>(
-      `/api/interview/sessions/${req.sessionId}/answers`,
-      { questionIndex: req.questionIndex, answer: req.answer },
-      {
-        timeout: 180000, // 3分钟超时
-      }
+  async submitAnswer(req: SubmitAnswerRequest): Promise<void> {
+    return request.post<void>(
+      `/api/interview/sessions/${req.sessionId}/answer`,
+      { questionIndex: req.questionIndex, answer: req.answer }
     );
   },
 
@@ -116,5 +112,73 @@ export const interviewApi = {
    */
   async getAbilityProfile(sessionId: string): Promise<AbilityProfileDTO> {
     return request.get<AbilityProfileDTO>(`/api/interview/sessions/${sessionId}/ability-profile`);
+  },
+
+  /**
+   * SSE 连接事件类型
+   */
+  SSE_EVENT_TYPES: {
+    CONNECTED: 'connected',
+    QUESTION: 'question',
+    EVALUATION: 'evaluation',
+    INTERVIEW_COMPLETE: 'interview_complete',
+    ERROR: 'error',
+  } as const,
+
+  /**
+   * 连接面试 SSE 流获取实时事件
+   * @param sessionId 会话 ID
+   * @param callbacks 事件回调
+   * @returns 清理函数，调用后关闭连接
+   */
+  connectInterviewStream(
+    sessionId: string,
+    callbacks: {
+      onConnected?: () => void;
+      onQuestion?: (data: CurrentQuestionDTO) => void;
+      onEvaluation?: (data: { questionIndex: number; score: number; feedback: string }) => void;
+      onComplete?: (data: { overallScore: number; summary: Record<string, unknown> }) => void;
+      onError?: (error: string) => void;
+    }
+  ): () => void {
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+
+    const eventSource = new EventSource(
+      `${apiBaseUrl}/api/interview/sessions/${sessionId}/stream`,
+      { withCredentials: true }
+    );
+
+    eventSource.addEventListener(this.SSE_EVENT_TYPES.CONNECTED, () => {
+      callbacks.onConnected?.();
+    });
+
+    eventSource.addEventListener(this.SSE_EVENT_TYPES.QUESTION, (event: MessageEvent) => {
+      const data = JSON.parse(event.data) as CurrentQuestionDTO;
+      callbacks.onQuestion?.(data);
+    });
+
+    eventSource.addEventListener(this.SSE_EVENT_TYPES.EVALUATION, (event: MessageEvent) => {
+      const data = JSON.parse(event.data);
+      callbacks.onEvaluation?.(data);
+    });
+
+    eventSource.addEventListener(this.SSE_EVENT_TYPES.INTERVIEW_COMPLETE, (event: MessageEvent) => {
+      const data = JSON.parse(event.data);
+      callbacks.onComplete?.(data);
+      eventSource.close();
+    });
+
+    eventSource.addEventListener(this.SSE_EVENT_TYPES.ERROR, (event: MessageEvent) => {
+      const data = JSON.parse(event.data);
+      callbacks.onError?.(data.message || '未知错误');
+      eventSource.close();
+    });
+
+    eventSource.onerror = () => {
+      eventSource.close();
+    };
+
+    // 返回清理函数
+    return () => eventSource.close();
   },
 };

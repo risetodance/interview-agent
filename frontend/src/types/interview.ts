@@ -27,6 +27,7 @@ export interface SessionProgressDTO {
   totalQuestions: number;
   currentQuestion: CurrentQuestionDTO | null;
   history: AnswerHistoryDTO[];
+  processingStatus?: 'IDLE' | 'PROCESSING';
 }
 
 // 历史答题记录 DTO

@@ -58,6 +58,9 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
   // 使用 ref 防止重复请求
   const hasInitialized = useRef(false);
 
+  // SSE 连接 ref
+  const eventSourceRef = useRef<EventSource | null>(null);
+
   // 检查是否有未完成的面试（组件挂载时和resumeId变化时）
   useEffect(() => {
     // 防止重复初始化
@@ -74,6 +77,57 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeId, sessionId]);
+
+  // 连接 SSE，当进入面试阶段时建立连接
+  useEffect(() => {
+    if (!session || stage !== 'interview') return;
+
+    // 清理之前的连接
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    // 连接 SSE
+    const cleanup = interviewApi.connectInterviewStream(session.sessionId, {
+      onConnected: () => {
+        console.log('SSE connected');
+      },
+      onQuestion: (question) => {
+        setCurrentQuestion(question);
+        setMessages(prev => [...prev, {
+          type: 'interviewer',
+          content: question.question,
+          category: question.category,
+          questionIndex: question.questionIndex,
+          difficulty: question.difficulty,
+          knowledgeBaseName: question.knowledgeBaseName,
+          isFollowUp: question.isFollowUp,
+          relatedIndex: question.relatedIndex,
+          relatedQuestion: question.relatedQuestion,
+          createdByPerspectiveId: question.createdByPerspectiveId,
+          createdByPerspectiveName: question.createdByPerspectiveName,
+        }]);
+        setIsSubmitting(false);
+      },
+      onEvaluation: (evaluation) => {
+        // 评估结果可以用于更新显示，但不阻塞流程
+        console.log('Evaluation received:', evaluation);
+      },
+      onComplete: () => {
+        onInterviewComplete();
+      },
+      onError: (errorMsg) => {
+        setError(errorMsg);
+        setIsSubmitting(false);
+      },
+    });
+
+    eventSourceRef.current = cleanup as unknown as EventSource;
+
+    return () => {
+      cleanup();
+    };
+  }, [session, stage]);
 
   // 加载可用的面试官角色（仅在配置阶段）
   useEffect(() => {
@@ -329,37 +383,16 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
     setAnswer(''); // 先清空输入框
 
     try {
-      const response = await interviewApi.submitAnswer({
+      // 调用新的 submitAnswer 接口（立即返回，后台通过 SSE 推送结果）
+      await interviewApi.submitAnswer({
         sessionId: session.sessionId,
         questionIndex: currentQuestion.questionIndex,
         answer: submittedAnswer
       });
-
-      if (response.hasNextQuestion && response.nextQuestion) {
-        // 使用 submitAnswer 返回的 nextQuestion，不需要再调用 /current
-        const nextQ = response.nextQuestion;
-        setCurrentQuestion(nextQ);
-        setMessages(prev => [...prev, {
-          type: 'interviewer',
-          content: nextQ.question,
-          category: nextQ.category,
-          questionIndex: nextQ.questionIndex,
-          difficulty: nextQ.difficulty,
-          knowledgeBaseName: nextQ.knowledgeBaseName,
-          isFollowUp: nextQ.isFollowUp,
-          relatedIndex: nextQ.relatedIndex,
-          relatedQuestion: nextQ.relatedQuestion,
-          createdByPerspectiveId: nextQ.createdByPerspectiveId,
-          createdByPerspectiveName: nextQ.createdByPerspectiveName,
-        }]);
-      } else {
-        // 面试已完成，评估将在后台进行，跳转到面试记录页
-        onInterviewComplete();
-      }
+      // 等待 SSE 事件来更新 UI（nextQuestion 或 complete）
     } catch (err) {
       setError('提交答案失败，请重试');
       console.error(err);
-    } finally {
       setIsSubmitting(false);
     }
   };
