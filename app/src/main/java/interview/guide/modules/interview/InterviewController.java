@@ -9,6 +9,7 @@ import interview.guide.modules.interview.service.InterviewPersistenceService;
 import interview.guide.modules.interview.service.InterviewSessionService;
 import interview.guide.modules.interview.service.PerspectiveEvaluationService;
 import interview.guide.modules.interview.service.ScoreTrendService;
+import interview.guide.modules.interview.workflow.WorkflowExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -35,6 +36,7 @@ public class InterviewController {
     private final InterviewPersistenceService persistenceService;
     private final ScoreTrendService scoreTrendService;
     private final PerspectiveEvaluationService perspectiveEvaluationService;
+    private final WorkflowExecutor workflowExecutor;
     
     /**
      * 创建面试会话
@@ -256,12 +258,14 @@ public class InterviewController {
     }
 
     /**
-     * 提交答案（自适应难度版本）
+     * 提交答案（触发工作流版本）
      * POST /api/interview/sessions/{sessionId}/answer
+     *
+     * 立即返回结果，后台通过 SSE 推送工作流执行进度
      */
     @PostMapping("/api/interview/sessions/{sessionId}/answer")
     @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL}, count = 10)
-    public Result<SubmitAnswerResponse> submitAnswerAdaptive(
+    public Result<Void> submitAnswerAdaptive(
             @CurrentUser Long userId,
             @PathVariable String sessionId,
             @RequestBody Map<String, Object> body) {
@@ -269,8 +273,12 @@ public class InterviewController {
         Integer questionIndex = (Integer) body.get("questionIndex");
         String answer = (String) body.get("answer");
         log.info("提交答案: 用户{}, 会话{}, 问题{}", userId, sessionId, questionIndex);
-        SubmitAnswerResponse response = sessionService.submitAnswerForAdaptive(sessionId, questionIndex, answer);
-        return Result.success(response);
+
+        // 保存答案并触发工作流（异步执行）
+        sessionService.saveAnswerAndTriggerWorkflow(sessionId, questionIndex, answer);
+
+        // 立即返回，后台工作流通过 SSE 推送结果
+        return Result.success(null);
     }
 
     /**

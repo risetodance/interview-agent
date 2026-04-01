@@ -9,6 +9,7 @@ import interview.guide.modules.interview.listener.EvaluateStreamProducer;
 import interview.guide.modules.interview.model.*;
 import interview.guide.modules.interview.model.InterviewSessionDTO.SessionStatus;
 import interview.guide.modules.interview.repository.InterviewerRoleRepository;
+import interview.guide.modules.interview.workflow.WorkflowExecutor;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
 import interview.guide.modules.question.service.QuestionService;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,7 @@ public class InterviewSessionService {
     private final SingleAnswerEvaluationService singleAnswerEvaluationService;
     private final PerspectiveEvaluationService perspectiveEvaluationService;
     private final InterviewerRoleRepository interviewerRoleRepository;
+    private final WorkflowExecutor workflowExecutor;
 
     @Lazy
     private QuestionService questionServiceForBank;
@@ -982,6 +984,54 @@ public class InterviewSessionService {
                 sessionId, overallScore, categoryScores.size());
 
         return new AbilityProfileDTO(categoryScores, overallScore, strengths, weaknesses);
+    }
+
+    /**
+     * 保存答案并触发工作流（异步执行评分、决策、出题等）
+     * 用于新的工作流模式：answer接口立即返回，后台异步执行
+     */
+    public void saveAnswerAndTriggerWorkflow(String sessionId, Integer questionIndex, String answer) {
+        // 获取会话实体
+        InterviewSessionEntity session = persistenceService.findBySessionId(sessionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND));
+
+        // 检查会话状态
+        if (session.getStatus() == InterviewSessionEntity.SessionStatus.COMPLETED ||
+            session.getStatus() == InterviewSessionEntity.SessionStatus.EVALUATED) {
+            throw new BusinessException(ErrorCode.INTERVIEW_ALREADY_COMPLETED, "面试已结束，无法提交答案");
+        }
+
+        // 获取当前问题
+        List<InterviewAnswerEntity> existingAnswers = persistenceService.findAnswersBySessionId(sessionId);
+        InterviewAnswerEntity currentAnswer = existingAnswers.stream()
+                .filter(a -> a.getQuestionIndex().equals(questionIndex))
+                .findFirst()
+                .orElse(null);
+
+        if (currentAnswer == null) {
+            throw new BusinessException(ErrorCode.INTERVIEW_QUESTION_NOT_FOUND, "问题不存在");
+        }
+
+        // 保存用户答案（不含评分，等待工作流评分）
+        persistenceService.saveAnswerWithDifficulty(
+                sessionId,
+                questionIndex,
+                currentAnswer.getQuestion(),
+                currentAnswer.getCategory(),
+                answer,
+                currentAnswer.getDifficulty(),
+                currentAnswer.getKnowledgeBaseId(),
+                currentAnswer.getReferenceContext(),
+                0,  // 初始评分为0，等待工作流更新
+                null  // 初始反馈为null，等待工作流更新
+        );
+
+        log.info("答案已保存，触发工作流: sessionId={}, questionIndex={}", sessionId, questionIndex);
+
+        // 触发工作流异步执行
+        Map<String, Object> initialData = new HashMap<>();
+        initialData.put("questionIndex", questionIndex);
+        workflowExecutor.executeAsync(sessionId, initialData);
     }
 
 }
