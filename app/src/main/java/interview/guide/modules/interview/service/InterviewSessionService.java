@@ -466,8 +466,12 @@ public class InterviewSessionService {
     }
 
     /**
-     * 获取当前问题（自适应难度版本）
-     * 实时生成问题并入库，返回 CurrentQuestionDTO
+     * 获取当前问题（自适应难度版本 - 工作流模式）
+     * 触发工作流执行：entry → question_generator → [中断]
+     * 问题生成后通过 SSE 推送给前端
+     *
+     * @param sessionId 会话ID
+     * @return 当前问题DTO
      */
     public CurrentQuestionDTO getCurrentQuestionForAdaptive(String sessionId) {
         // 获取会话实体
@@ -480,15 +484,6 @@ public class InterviewSessionService {
             throw new BusinessException(ErrorCode.INTERVIEW_ALREADY_COMPLETED, "面试已结束");
         }
 
-        // 获取当前简历文本（可能没有简历）
-        String resumeText = null;
-        if (session.getResume() != null) {
-            resumeText = session.getResume().getResumeText();
-        }
-        if (resumeText == null || resumeText.isBlank()) {
-            resumeText = "通用面试，无特定简历内容";
-        }
-
         // 计算当前问题索引
         int questionIndex = session.getCurrentQuestionIndex() != null ? session.getCurrentQuestionIndex() : 0;
 
@@ -497,94 +492,20 @@ public class InterviewSessionService {
             return null; // 所有问题已回答完毕
         }
 
-        // 多视角模式：轮询选择出题视角
-        Long selectedPerspectiveId = null;
-        String selectedPerspectiveName = null;
-        String selectedPerspectivePrompt = null;
-        if (session.getSelectedPerspectives() != null && !session.getSelectedPerspectives().isBlank()) {
-            try {
-                List<Long> selectedPerspectives = objectMapper.readValue(
-                        session.getSelectedPerspectives(), new TypeReference<List<Long>>() {});
-                if (selectedPerspectives != null && !selectedPerspectives.isEmpty()) {
-                    selectedPerspectiveId = perspectiveEvaluationService.selectNextQuestionPerspective(
-                            selectedPerspectives, session.getLastQuestionPerspectiveId());
-                    // 获取视角名称和prompt
-                    InterviewerRoleEntity role = interviewerRoleRepository.findById(selectedPerspectiveId).orElse(null);
-                    if (role != null) {
-                        selectedPerspectiveName = role.getRoleName();
-                        selectedPerspectivePrompt = role.getQuestionPrompt();
-                    }
-                    // 更新会话的上一题视角ID
-                    session.setLastQuestionPerspectiveId(selectedPerspectiveId);
-                    persistenceService.updateLastQuestionPerspectiveId(sessionId, selectedPerspectiveId);
-
-                    // 获取该视角下的最新难度（按视角隔离，不再使用 session.getCurrentDifficulty()）
-                    Optional<InterviewAnswerEntity> lastAnswerForPerspective =
-                            persistenceService.findLastAnswerBySessionAndPerspective(session.getId(), selectedPerspectiveId);
-                    if (lastAnswerForPerspective.isPresent()) {
-                        session.setCurrentDifficulty(lastAnswerForPerspective.get().getDifficulty());
-                    } else {
-                        // 该视角第一次出题，使用默认难度
-                        session.setCurrentDifficulty("BASIC");
-                    }
-                    log.info("轮询选择出题视角: sessionId={}, perspectiveId={}, perspectiveName={}, difficulty={}",
-                            sessionId, selectedPerspectiveId, selectedPerspectiveName, session.getCurrentDifficulty());
-                }
-            } catch (Exception e) {
-                log.warn("解析selectedPerspectives失败: {}", e.getMessage());
+        // 检查是否有未完成的工作流，如果有则恢复
+        if (workflowExecutor.hasActiveWorkflow(sessionId)) {
+            log.info("发现未完成的工作流，恢复执行: sessionId={}", sessionId);
+            // 获取当前状态
+            var stateSnapshot = workflowExecutor.getWorkflowState(sessionId);
+            if (stateSnapshot.isPresent()) {
+                var state = stateSnapshot.get().getState();
+                return toCurrentQuestionDTO(state);
             }
         }
 
-        // 获取已回答的问题（用于传给AI作为历史上下文）
-        List<InterviewAnswerEntity> existingAnswers = persistenceService.findAnswersBySessionId(sessionId);
-
-        // 构建历史答题记录
-        List<AnswerHistoryDTO> history = existingAnswers.stream()
-                .map(a -> new AnswerHistoryDTO(
-                        a.getQuestionIndex(),
-                        a.getQuestion(),
-                        a.getCategory(),
-                        a.getDifficulty(),
-                        a.getUserAnswer(),
-                        a.getScore(),
-                        a.getFeedback(),
-                        a.getCreatedByPerspectiveId(),
-                        a.getCreatedByPerspectiveName(),
-                        a.getIsFollowUp(),
-                        a.getRelatedIndex(),
-                        a.getRelatedQuestion()))
-                .toList();
-
-        // 生成问题（AI会根据简历和历史自行决定问题内容和分类，使用视角prompt）
-        CurrentQuestionDTO questionDTO = questionGenerationService.generateSingleQuestion(
-                session, questionIndex, resumeText, history,
-                selectedPerspectiveId, selectedPerspectivePrompt, selectedPerspectiveName);
-
-        // 保存生成的问题到数据库（userAnswer为null，等待用户回答后更新）
-        // AI返回的relatedIndex已经是全局questionIndex，无需转换
-        Integer globalRelatedIndex = null;
-        if (Boolean.TRUE.equals(questionDTO.isFollowUp()) && questionDTO.relatedIndex() != null) {
-            globalRelatedIndex = questionDTO.relatedIndex();
-        }
-        persistenceService.saveAnswerWithDifficulty(
-                sessionId,
-                questionIndex,
-                questionDTO.question(),
-                questionDTO.category(),
-                null, // userAnswer为null，等待用户回答后更新
-                questionDTO.difficulty(),
-                questionDTO.knowledgeBaseId(),
-                questionDTO.referenceContext(),
-                0,  // 初始评分为0，等待用户回答后更新
-                null, // 初始反馈为null
-                selectedPerspectiveId,
-                selectedPerspectiveName,
-                questionDTO.isFollowUp(),
-                globalRelatedIndex,
-                questionDTO.relatedQuestion(),
-                null,
-                null
-        );
+        // 触发工作流执行：entry → question_generator → [中断]
+        // 工作流内部会通过 SSE 推送问题
+        com.alibaba.cloud.ai.graph.OverAllState state = workflowExecutor.executeToQuestionGenerator(sessionId);
 
         // 更新会话状态
         if (session.getStatus() == InterviewSessionEntity.SessionStatus.CREATED) {
@@ -592,23 +513,36 @@ public class InterviewSessionService {
             persistenceService.updateSessionStatus(sessionId, InterviewSessionEntity.SessionStatus.IN_PROGRESS);
         }
 
-        log.info("获取当前问题: sessionId={}, index={}, category={}, difficulty={}, perspective={}",
-                sessionId, questionIndex, questionDTO.category(), questionDTO.difficulty(), selectedPerspectiveName);
+        // 从工作流状态中提取问题信息并返回
+        return toCurrentQuestionDTO(state);
+    }
 
-        // 返回包含视角信息的问题DTO
+    /**
+     * 将 OverAllState 转换为 CurrentQuestionDTO
+     */
+    private CurrentQuestionDTO toCurrentQuestionDTO(com.alibaba.cloud.ai.graph.OverAllState state) {
+        Integer questionIndex = (Integer) state.value("currentQuestionIndex").orElse(0);
+        String question = (String) state.value("currentQuestion").orElse("");
+        String category = (String) state.value("currentCategory").orElse("");
+        String difficulty = (String) state.value("currentDifficulty").orElse("BASIC");
+        Long knowledgeBaseId = (Long) state.value("knowledgeBaseId").orElse(null);
+        String knowledgeBaseName = (String) state.value("knowledgeBaseName").orElse(null);
+        Long createdByPerspectiveId = (Long) state.value("createdByPerspectiveId").orElse(null);
+        String createdByPerspectiveName = (String) state.value("createdByPerspectiveName").orElse(null);
+
         return new CurrentQuestionDTO(
-                questionDTO.questionIndex(),
-                questionDTO.question(),
-                questionDTO.category(),
-                questionDTO.difficulty(),
-                questionDTO.knowledgeBaseId(),
-                questionDTO.knowledgeBaseName(),
-                questionDTO.referenceContext(),
-                questionDTO.isFollowUp(),
-                questionDTO.relatedIndex(),
-                questionDTO.relatedQuestion(),
-                selectedPerspectiveId,
-                selectedPerspectiveName
+                questionIndex,
+                question,
+                category,
+                difficulty,
+                knowledgeBaseId,
+                knowledgeBaseName,
+                null, // referenceContext
+                false, // isFollowUp
+                null, // relatedIndex
+                null, // relatedQuestion
+                createdByPerspectiveId,
+                createdByPerspectiveName
         );
     }
 
@@ -1002,10 +936,18 @@ public class InterviewSessionService {
     }
 
     /**
-     * 保存答案并触发工作流（异步执行评分、决策、出题等）
-     * 用于新的工作流模式：answer接口立即返回，后台异步执行
+     * 保存答案并恢复工作流执行（工作流模式）
+     * 恢复工作流：scorer → decider → [ASK] question_generator → [中断]
+     *                   → [SWITCH] role_switcher → question_generator → [中断]
+     *                   → [FINISH] final_reporter → [完成]
+     * 问题生成后通过 SSE 推送给前端
+     *
+     * @param sessionId 会话ID
+     * @param questionIndex 问题索引
+     * @param answer 用户答案
+     * @return 提交答案响应（包含下一题信息，但实际下一题通过 SSE 推送）
      */
-    public void saveAnswerAndTriggerWorkflow(String sessionId, Integer questionIndex, String answer) {
+    public SubmitAnswerResponse saveAnswerAndTriggerWorkflow(String sessionId, Integer questionIndex, String answer) {
         // 获取会话实体
         InterviewSessionEntity session = persistenceService.findBySessionId(sessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND));
@@ -1041,12 +983,40 @@ public class InterviewSessionService {
                 null  // 初始反馈为null，等待工作流更新
         );
 
-        log.info("答案已保存，触发工作流: sessionId={}, questionIndex={}", sessionId, questionIndex);
+        log.info("答案已保存，恢复工作流执行: sessionId={}, questionIndex={}", sessionId, questionIndex);
 
-        // 触发工作流异步执行
-        Map<String, Object> initialData = new HashMap<>();
-        initialData.put("questionIndex", questionIndex);
-        workflowExecutor.executeAsync(sessionId, initialData);
+        // 恢复工作流执行：scorer → decider → [分支]
+        // 工作流内部会通过 SSE 推送下一题或完成事件
+        com.alibaba.cloud.ai.graph.OverAllState state = workflowExecutor.resumeWorkflow(sessionId, questionIndex, answer);
+
+        // 检查是否完成
+        Boolean isComplete = (Boolean) state.value("isComplete").orElse(false);
+        if (Boolean.TRUE.equals(isComplete)) {
+            // 工作流完成，返回完成响应
+            log.info("工作流执行完成: sessionId={}", sessionId);
+            return new SubmitAnswerResponse(
+                    false, // hasNextQuestion
+                    null,  // nextQuestion
+                    questionIndex + 1,
+                    session.getQuestionsGenerated() != null ? session.getQuestionsGenerated() : 0,
+                    0, // currentScore - 稍后从数据库获取
+                    Map.of(), // categoryScores - 稍后从数据库获取
+                    null // nextDifficulty
+            );
+        }
+
+        // 工作流在 question_generator 处中断，SSE 已推送下一题
+        // 返回占位响应，实际问题通过 SSE 推送
+        int newIndex = questionIndex + 1;
+        return new SubmitAnswerResponse(
+                true, // hasNextQuestion - SSE 会推送下一题
+                null, // nextQuestion - 通过 SSE 推送
+                newIndex,
+                session.getQuestionsGenerated() != null ? session.getQuestionsGenerated() : 0,
+                0, // currentScore - 稍后从数据库获取
+                Map.of(), // categoryScores - 稍后从数据库获取
+                null // nextDifficulty
+        );
     }
 
 }
