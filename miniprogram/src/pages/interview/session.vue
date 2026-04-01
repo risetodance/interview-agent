@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useInterviewStore, type InterviewQuestion, type QuestionEvaluation } from '../../stores/interview'
-import { endInterview, getSessionProgress, type AnswerHistoryDTO } from '../../api/interview'
+import { endInterview, getSessionProgress, connectInterviewStream, SSE_EVENT_TYPES, type AnswerHistoryDTO } from '../../api/interview'
 
 // 路由参数
 const pageId = ref<string>('')
@@ -35,6 +35,10 @@ const scrollViewRef = ref<any>(null)
 const interviewStatus = ref<'idle' | 'connected' | 'answering' | 'evaluating' | 'completed'>('idle')
 // 跳转报告页面时的加载蒙版
 const showReportLoading = ref(false)
+// SSE 连接清理函数
+const sseCleanup = ref<(() => void) | null>(null)
+// 是否正在加载下一题（显示遮罩）
+const isLoadingNextQuestion = ref(false)
 
 // 恢复的当前问题（用于会话进度恢复）
 const restoredCurrentQuestion = ref<{
@@ -259,6 +263,10 @@ const initInterview = async () => {
     // 开始面试状态
     console.log('[Session] starting interview with restored session...')
     interviewStatus.value = 'answering'
+
+    // 建立 SSE 连接
+    setupSSEConnection()
+
     console.log('[Session] initInterview done')
   } catch (error) {
     console.error('初始化面试失败:', error)
@@ -267,6 +275,74 @@ const initInterview = async () => {
       icon: 'none'
     })
   }
+}
+
+// 建立 SSE 连接
+const setupSSEConnection = () => {
+  // 清理之前的连接
+  if (sseCleanup.value) {
+    sseCleanup.value()
+    sseCleanup.value = null
+  }
+
+  // 建立 SSE 连接
+  sseCleanup.value = connectInterviewStream(pageId.value, {
+    onConnected: () => {
+      console.log('[SSE] connected')
+      interviewStatus.value = 'connected'
+    },
+    onQuestion: (question) => {
+      console.log('[SSE] received question:', question)
+      // 更新当前问题
+      restoredCurrentQuestion.value = {
+        questionIndex: question.questionIndex,
+        question: question.question,
+        category: question.category,
+        difficulty: question.difficulty,
+        knowledgeBaseName: question.knowledgeBaseName,
+        createdByPerspectiveId: question.createdByPerspectiveId,
+        createdByPerspectiveName: question.createdByPerspectiveName
+      }
+      // 添加问题到消息列表
+      messages.value.push({
+        id: Date.now() + Math.random(),
+        type: 'interviewer',
+        content: question.question,
+        category: question.category,
+        questionIndex: question.questionIndex,
+        difficulty: question.difficulty,
+        knowledgeBaseName: question.knowledgeBaseName,
+        timestamp: Date.now(),
+        createdByPerspectiveId: question.createdByPerspectiveId,
+        createdByPerspectiveName: question.createdByPerspectiveName
+      })
+      // 隐藏加载遮罩
+      isLoadingNextQuestion.value = false
+      interviewStatus.value = 'answering'
+      scrollToBottom()
+    },
+    onEvaluation: (evaluation) => {
+      console.log('[SSE] received evaluation:', evaluation)
+      // 评估结果可以用于更新显示，但不阻塞流程
+    },
+    onComplete: (data) => {
+      console.log('[SSE] interview complete:', data)
+      interviewStatus.value = 'completed'
+      addSystemMessage('面试已完成')
+      // 跳转到报告页面
+      uni.redirectTo({
+        url: `/pages/interview/report?id=${pageId.value}`
+      })
+    },
+    onError: (errorMsg) => {
+      console.error('[SSE] error:', errorMsg)
+      uni.showToast({
+        title: errorMsg || '连接错误',
+        icon: 'none'
+      })
+      isLoadingNextQuestion.value = false
+    }
+  })
 }
 
 // 显示当前问题
@@ -399,54 +475,22 @@ const submitAnswer = async () => {
   // 清空输入
   answerText.value = ''
 
-  // 设置为评价中
+  // 显示正在加载下一题
+  isLoadingNextQuestion.value = true
   interviewStatus.value = 'evaluating'
 
   try {
-    // 使用自适应难度 API 提交答案
-    const result = await interviewStore.submitQuestionAnswer({
+    // 使用自适应难度 API 提交答案（立即返回，SSE 推送下一题）
+    await interviewStore.submitQuestionAnswer({
       interviewId: Number(pageId.value),
       questionId: Number(questionIndex),  // 使用 questionIndex 作为 questionId
       answer
     })
-
-    // 检查是否有下一题
-    if (result.hasNextQuestion && result.nextQuestion) {
-      // 更新当前问题索引
-      restoredCurrentQuestion.value = {
-        questionIndex: result.nextQuestion.questionIndex,
-        question: result.nextQuestion.question,
-        category: result.nextQuestion.category,
-        difficulty: result.nextQuestion.difficulty,
-        knowledgeBaseName: result.nextQuestion.knowledgeBaseName,
-        createdByPerspectiveId: result.nextQuestion.createdByPerspectiveId,
-        createdByPerspectiveName: result.nextQuestion.createdByPerspectiveName
-      }
-      // 添加下一题到消息列表
-      messages.value.push({
-        id: Date.now() + Math.random(),
-        type: 'interviewer',
-        content: result.nextQuestion.question,
-        category: result.nextQuestion.category,
-        questionIndex: result.nextQuestion.questionIndex,
-        difficulty: result.nextQuestion.difficulty,
-        knowledgeBaseName: result.nextQuestion.knowledgeBaseName,
-        timestamp: Date.now(),
-        createdByPerspectiveId: result.nextQuestion.createdByPerspectiveId,
-        createdByPerspectiveName: result.nextQuestion.createdByPerspectiveName
-      })
-      interviewStatus.value = 'answering'
-      scrollToBottom()
-    } else {
-      // 面试完成，跳转到报告页面
-      interviewStatus.value = 'completed'
-      uni.redirectTo({
-        url: `/pages/interview/report?id=${pageId.value}`
-      })
-    }
+    // 等待 SSE 事件来更新 UI（nextQuestion 或 complete）
   } catch (error) {
     console.error('提交答案失败:', error)
     interviewStatus.value = 'answering'
+    isLoadingNextQuestion.value = false
     uni.showToast({
       title: '提交失败，请重试',
       icon: 'none'
@@ -614,6 +658,12 @@ onUnmounted(() => {
   if (pollTimer.value) {
     clearTimeout(pollTimer.value)
   }
+
+  // 关闭 SSE 连接
+  if (sseCleanup.value) {
+    sseCleanup.value()
+    sseCleanup.value = null
+  }
 })
 </script>
 
@@ -711,13 +761,13 @@ onUnmounted(() => {
         </view>
 
         <!-- 加载状态 -->
-        <view v-if="interviewStatus === 'evaluating'" class="loading-indicator">
+        <view v-if="isLoadingNextQuestion || interviewStatus === 'evaluating'" class="loading-indicator">
           <view class="loading-dots">
             <view class="dot"></view>
             <view class="dot"></view>
             <view class="dot"></view>
           </view>
-          <text class="loading-text">AI 正在分析你的回答...</text>
+          <text class="loading-text">{{ isLoadingNextQuestion ? '正在出题中...' : 'AI 正在分析你的回答...' }}</text>
         </view>
       </scroll-view>
 

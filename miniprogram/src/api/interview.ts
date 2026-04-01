@@ -512,3 +512,124 @@ export const submitAnswerAdaptive = (sessionId: string | number, questionIndex: 
     answer
   }, { timeout: 180000 })  // 3分钟超时，AI生成下一题需要时间
 }
+
+// ========== SSE 实时事件流 API ==========
+
+/**
+ * SSE 事件类型
+ */
+export const SSE_EVENT_TYPES = {
+  CONNECTED: 'connected',
+  QUESTION: 'question',
+  EVALUATION: 'evaluation',
+  INTERVIEW_COMPLETE: 'interview_complete',
+  ERROR: 'error',
+} as const
+
+/**
+ * SSE 连接回调接口
+ */
+export interface SSECallbacks {
+  onConnected?: () => void
+  onQuestion?: (data: StreamCurrentQuestionDTO) => void
+  onEvaluation?: (data: { questionIndex: number; score: number; feedback: string }) => void
+  onComplete?: (data: { overallScore: number; summary: Record<string, unknown> }) => void
+  onError?: (error: string) => void
+}
+
+/**
+ * 当前问题 DTO（与前端统一）
+ */
+export interface StreamCurrentQuestionDTO {
+  questionIndex: number
+  question: string
+  category: string
+  difficulty?: string
+  knowledgeBaseId?: number | null
+  knowledgeBaseName?: string | null
+  referenceContext?: string | null
+  isFollowUp?: boolean
+  relatedIndex?: number
+  relatedQuestion?: string
+  // 多视角支持
+  createdByPerspectiveId?: number
+  createdByPerspectiveName?: string
+}
+
+/**
+ * 连接面试 SSE 流获取实时事件
+ * @param sessionId 会话 ID
+ * @param callbacks 事件回调
+ * @returns 清理函数，调用后关闭连接
+ */
+export const connectInterviewStream = (
+  sessionId: string | number,
+  callbacks: SSECallbacks
+): (() => void) => {
+  // 获取环境配置的基础URL
+  const env = process.env as Record<string, string>
+  const apiBaseUrl = env.VITE_API_BASE_URL || ''
+
+  // 构建 SSE URL
+  const sseUrl = `${apiBaseUrl}/api/interview/sessions/${sessionId}/stream`
+
+  // 创建 EventSource
+  const eventSource = new EventSource(sseUrl, { withCredentials: true })
+
+  // 连接成功事件
+  eventSource.addEventListener(SSE_EVENT_TYPES.CONNECTED, () => {
+    callbacks.onConnected?.()
+  })
+
+  // 收到问题事件
+  eventSource.addEventListener(SSE_EVENT_TYPES.QUESTION, (event: MessageEvent) => {
+    try {
+      const data = JSON.parse(event.data) as StreamCurrentQuestionDTO
+      callbacks.onQuestion?.(data)
+    } catch (e) {
+      console.error('解析问题数据失败:', e)
+    }
+  })
+
+  // 收到评估事件
+  eventSource.addEventListener(SSE_EVENT_TYPES.EVALUATION, (event: MessageEvent) => {
+    try {
+      const data = JSON.parse(event.data)
+      callbacks.onEvaluation?.(data)
+    } catch (e) {
+      console.error('解析评估数据失败:', e)
+    }
+  })
+
+  // 面试完成事件
+  eventSource.addEventListener(SSE_EVENT_TYPES.INTERVIEW_COMPLETE, (event: MessageEvent) => {
+    try {
+      const data = JSON.parse(event.data)
+      callbacks.onComplete?.(data)
+    } catch (e) {
+      console.error('解析完成数据失败:', e)
+    } finally {
+      eventSource.close()
+    }
+  })
+
+  // 错误事件
+  eventSource.addEventListener(SSE_EVENT_TYPES.ERROR, (event: MessageEvent) => {
+    try {
+      const data = JSON.parse(event.data)
+      callbacks.onError?.(data.message || '未知错误')
+    } catch (e) {
+      callbacks.onError?.('SSE 连接错误')
+    } finally {
+      eventSource.close()
+    }
+  })
+
+  // 处理 EventSource 错误
+  eventSource.onerror = () => {
+    eventSource.close()
+  }
+
+  // 返回清理函数
+  return () => eventSource.close()
+}

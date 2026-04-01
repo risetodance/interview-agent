@@ -256,38 +256,14 @@ export const useInterviewStore = defineStore('interview', () => {
 
   /**
    * 提交答案（自适应难度版本）
+   * 新模式：立即返回，SSE 推送下一题
    */
   const submitQuestionAnswer = async (params: AnswerParams) => {
     isSubmitting.value = true
     try {
-      // 使用自适应难度 API 提交答案
-      const result = await submitAnswerAdaptive(params.interviewId, params.questionId, params.answer)
-
-      // 更新本地问题状态
-      const questionIndex = currentQuestions.value.findIndex(
-        q => q.id === params.questionId
-      )
-      if (questionIndex > -1) {
-        currentQuestions.value[questionIndex].answer = params.answer
-        currentQuestions.value[questionIndex].answerStatus = 'answered'
-      }
-
-      // 如果有下一题，更新当前问题索引
-      if (result.hasNextQuestion && result.nextQuestion) {
-        currentQuestionIndex.value = result.newIndex
-        // 添加下一题到问题列表
-        currentQuestions.value.push({
-          id: result.nextQuestion.questionIndex,
-          questionIndex: result.nextQuestion.questionIndex,
-          question: result.nextQuestion.question,
-          content: result.nextQuestion.question,
-          category: result.nextQuestion.category,
-          type: result.nextQuestion.type as 'text' | 'audio' | 'video',
-          answerStatus: 'pending'
-        })
-      }
-
-      return result
+      // 使用自适应难度 API 提交答案（立即返回，SSE 推送下一题）
+      await submitAnswerAdaptive(params.interviewId, params.questionId, params.answer)
+      // 不再等待下一题，SSE 会推送
     } finally {
       isSubmitting.value = false
     }

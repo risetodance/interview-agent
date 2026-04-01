@@ -18,3 +18,4 @@ app/src/main/resources/application-dev.yml
 /frontend/CLAUDE.md
 /app/CLAUDE.md
 *.md
+/sql/
