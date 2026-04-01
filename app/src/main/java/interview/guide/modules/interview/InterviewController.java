@@ -265,7 +265,7 @@ public class InterviewController {
      */
     @PostMapping("/api/interview/sessions/{sessionId}/answer")
     @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL}, count = 10)
-    public Result<Void> submitAnswerAdaptive(
+    public Result<SubmitAnswerResponse> submitAnswerAdaptive(
             @CurrentUser Long userId,
             @PathVariable String sessionId,
             @RequestBody Map<String, Object> body) {
@@ -274,11 +274,11 @@ public class InterviewController {
         String answer = (String) body.get("answer");
         log.info("提交答案: 用户{}, 会话{}, 问题{}", userId, sessionId, questionIndex);
 
-        // 保存答案并触发工作流（异步执行）
-        sessionService.saveAnswerAndTriggerWorkflow(sessionId, questionIndex, answer);
+        // 保存答案并恢复工作流执行
+        // 工作流内部通过 SSE 推送下一题或完成事件
+        SubmitAnswerResponse response = sessionService.saveAnswerAndTriggerWorkflow(sessionId, questionIndex, answer);
 
-        // 立即返回，后台工作流通过 SSE 推送结果
-        return Result.success(null);
+        return Result.success(response);
     }
 
     /**
