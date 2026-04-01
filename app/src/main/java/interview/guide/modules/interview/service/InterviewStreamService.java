@@ -88,6 +88,19 @@ public class InterviewStreamService {
         return sink.asFlux();
     }
 
+    /**
+     * 发送连接成功事件
+     */
+    public void sendConnectedEvent(String sessionId) {
+        Sinks.Many<ServerSentEvent<String>> sink = sessionSinks.get(sessionId);
+        if (sink != null) {
+            sink.emitNext(ServerSentEvent.<String>builder()
+                    .event("connected")
+                    .data("{\"sessionId\": \"" + sessionId + "\", \"status\": \"connected\"}")
+                    .build(), Sinks.EmitFailureHandler.FAIL_FAST);
+        }
+    }
+
     private String toJson(Map<String, Object> data) {
         try {
             return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(data);
