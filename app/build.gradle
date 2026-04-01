@@ -31,9 +31,11 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
 
     // Spring AI 2.0 - OpenAI兼容模式 (阿里云DashScope)
-    implementation "org.springframework.ai:spring-ai-starter-model-openai:${libs.versions.spring.ai.get()}"
+    implementation "org.springframework.ai:spring-ai-starter-model-openai:${libs.versions.springAi.get()}"
+    // Spring AI Alibaba Graph - 工作流编排
+    implementation libs.springAiAlibabaGraphCore
     // Spring AI 2.0 - PostgreSQL Vector Store (pgvector)
-    implementation "org.springframework.ai:spring-ai-starter-vector-store-pgvector:${libs.versions.spring.ai.get()}"
+    implementation "org.springframework.ai:spring-ai-starter-vector-store-pgvector:${libs.versions.springAi.get()}"
 
     // Apache Tika for document parsing (PDF, DOCX, TXT)
     implementation libs.tika.core
