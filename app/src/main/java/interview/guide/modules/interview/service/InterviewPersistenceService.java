@@ -636,4 +636,12 @@ public class InterviewPersistenceService {
     public Optional<InterviewAnswerEntity> findLastAnswerBySessionAndPerspective(Long sessionDbId, Long perspectiveId) {
         return answerRepository.findLastAnswerBySessionAndPerspective(sessionDbId, perspectiveId);
     }
+
+    /**
+     * 获取指定会话在指定视角下的所有已回答问题（按问题索引排序）
+     * 用于工作流节点只获取当前角色的历史答题记录
+     */
+    public List<InterviewAnswerEntity> findAnswersBySessionAndPerspective(String sessionId, Long perspectiveId) {
+        return answerRepository.findBySessionIdForPerspective(sessionId, perspectiveId);
+    }
 }

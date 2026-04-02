@@ -1,12 +1,27 @@
 package interview.guide.modules.interview.workflow;
 
 import com.alibaba.cloud.ai.graph.OverAllState;
+import interview.guide.common.ai.StructuredOutputInvoker;
+import interview.guide.common.exception.ErrorCode;
+import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
+import interview.guide.modules.interview.model.InterviewerRoleEntity;
+import interview.guide.modules.interview.repository.InterviewerRoleRepository;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -16,27 +31,58 @@ import java.util.Optional;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class DeciderNode {
 
-    private static final String DECISION_ASK = "ASK";
-    private static final String DECISION_SWITCH = "SWITCH";
-    private static final String DECISION_FINISH = "FINISH";
-
     private final InterviewPersistenceService persistenceService;
+    private final InterviewerRoleRepository interviewerRoleRepository;
+    private final ChatClient chatClient;
+    private final StructuredOutputInvoker structuredOutputInvoker;
+    private final ObjectMapper objectMapper;
+
+    @Autowired
+    public DeciderNode(InterviewPersistenceService persistenceService,
+                       InterviewerRoleRepository interviewerRoleRepository,
+                       ChatClient.Builder chatClientBuilder,
+                       StructuredOutputInvoker structuredOutputInvoker,
+                       ObjectMapper objectMapper) {
+        this.persistenceService = persistenceService;
+        this.interviewerRoleRepository = interviewerRoleRepository;
+        this.chatClient = chatClientBuilder.build();
+        this.structuredOutputInvoker = structuredOutputInvoker;
+        this.objectMapper = objectMapper;
+    }
+
+    // LLM 输出结构（decision 直接用枚举）
+    private record DecisionOutput(
+            DecisionAction decision,  // ASK, SWITCH, FINISH
+            Long nextPerspectiveId,   // 如果是 SWITCH，指定下一个视角ID
+            String reason            // 决策原因
+    ) {
+    }
+
+    private final BeanOutputConverter<DecisionOutput> outputConverter =
+            new BeanOutputConverter<>(DecisionOutput.class);
+
+    @Value("classpath:prompts/interview-decider-system.st")
+    private Resource systemPromptResource;
+
+    @Value("classpath:prompts/interview-decider-user.st")
+    private Resource userPromptResource;
 
     public OverAllState execute(OverAllState state) {
         String sessionId = (String) state.value("sessionId").orElse(null);
-        Integer currentIndex = (Integer) state.value("currentQuestionIndex").orElse(0);
+        int currentIndex = (Integer) state.value("currentQuestionIndex").orElse(0);
         Integer score = (Integer) state.value("score").orElse(0);
-        String adjustedDifficulty = (String) state.value("adjustedDifficulty").orElse(null);
+        String feedback = (String) state.value("feedback").orElse("");
+        String adjustedDifficulty = (String) state.value("adjustedDifficulty").orElse("BASIC");
+        Long currentPerspectiveId = ((Number) state.value("currentPerspectiveId").orElse(0L)).longValue();
 
-        log.info("Decider node: sessionId={}, index={}, score={}, adjustedDifficulty={}",
-                sessionId, currentIndex, score, adjustedDifficulty);
+        log.info("Decider node: sessionId={}, index={}, score={}, feedback={}, difficulty={}, perspectiveId={}",
+                sessionId, currentIndex, score, feedback, adjustedDifficulty, currentPerspectiveId);
 
         if (sessionId == null) {
             log.error("Decider node: sessionId is null");
-            state.updateState(Map.of("decisionAction", DECISION_FINISH));
+            state.updateState(Map.of("decisionAction", DecisionAction.FINISH));
             return state;
         }
 
@@ -45,7 +91,7 @@ public class DeciderNode {
             Optional<InterviewSessionEntity> sessionOpt = persistenceService.findBySessionId(sessionId);
             if (sessionOpt.isEmpty()) {
                 log.error("Decider node: session not found, sessionId={}", sessionId);
-                state.updateState(Map.of("decisionAction", DECISION_FINISH));
+                state.updateState(Map.of("decisionAction", DecisionAction.FINISH));
                 return state;
             }
             InterviewSessionEntity session = sessionOpt.get();
@@ -53,10 +99,9 @@ public class DeciderNode {
             // 检查是否已超出总题数
             Integer totalQuestions = session.getTotalQuestions();
             if (totalQuestions != null && currentIndex >= totalQuestions - 1) {
-                // 最后一题，结束面试
                 log.info("Decider node: last question reached, finishing interview");
                 state.updateState(Map.of(
-                        "decisionAction", DECISION_FINISH,
+                        "decisionAction", DecisionAction.FINISH,
                         "isComplete", true
                 ));
                 return state;
@@ -64,46 +109,199 @@ public class DeciderNode {
 
             // 检查面试是否已完成
             if (session.getStatus() == InterviewSessionEntity.SessionStatus.COMPLETED ||
-                session.getStatus() == InterviewSessionEntity.SessionStatus.EVALUATED) {
+                    session.getStatus() == InterviewSessionEntity.SessionStatus.EVALUATED) {
                 log.info("Decider node: interview already completed");
                 state.updateState(Map.of(
-                        "decisionAction", DECISION_FINISH,
+                        "decisionAction", DecisionAction.FINISH,
                         "isComplete", true
                 ));
                 return state;
             }
 
-            // 简单决策逻辑：
-            // - 如果分数低于60且难度不是BASIC，降低难度继续问
-            // - 如果分数高于80，考虑切换视角
-            // - 否则继续当前视角问下一题
-            String decision = DECISION_ASK;
-            if (score > 0 && score < 60 && adjustedDifficulty != null && !adjustedDifficulty.equals("BASIC")) {
-                // 答得不好，降低难度继续问
-                decision = DECISION_ASK;
-            } else if (score >= 90 && session.getSelectedPerspectives() != null && !session.getSelectedPerspectives().isBlank()) {
-                // 答得很好，考虑切换视角
-                decision = DECISION_SWITCH;
-            } else {
-                // 继续当前视角问下一题
-                decision = DECISION_ASK;
+            // 获取当前视角信息
+            String currentPerspectiveName = "";
+            if (currentPerspectiveId > 0) {
+                Optional<InterviewerRoleEntity> roleOpt = interviewerRoleRepository.findById(currentPerspectiveId);
+                if (roleOpt.isPresent()) {
+                    currentPerspectiveName = roleOpt.get().getRoleName();
+                }
             }
 
-            // 更新问题索引，准备下一题
-            int nextIndex = currentIndex + 1;
-            state.updateState(Map.of(
-                    "decisionAction", decision,
-                    "nextQuestionIndex", nextIndex,
-                    "currentQuestionIndex", nextIndex
-            ));
+            // 获取所有视角的历史答题记录（按视角分组）
+            Map<Long, List<InterviewAnswerEntity>> answersByPerspective = getAnswersByPerspective(session);
 
-            log.info("Decider node: decision={}, nextIndex={}", decision, nextIndex);
+            // 调用 LLM 决策
+            DecisionOutput decision = makeDecision(
+                    session, currentPerspectiveId, currentPerspectiveName,
+                    currentIndex, score, feedback, adjustedDifficulty,
+                    answersByPerspective
+            );
+
+            // 更新状态
+            int nextIndex = currentIndex + 1;
+            Map<String, Object> updatedState = new HashMap<>();
+            updatedState.put("decisionAction", decision.decision());
+            updatedState.put("currentQuestionIndex", nextIndex);
+            updatedState.put("nextQuestionIndex", nextIndex);
+            updatedState.put("decisionReason", decision.reason());
+
+            // 如果是 SWITCH，设置下一个视角
+            if (decision.decision() == DecisionAction.SWITCH && decision.nextPerspectiveId() != null) {
+                updatedState.put("nextPerspectiveId", decision.nextPerspectiveId());
+                updatedState.put("currentPerspectiveId", decision.nextPerspectiveId());
+            }
+
+            state.updateState(updatedState);
+
+            log.info("Decider node: decision={}, reason={}, nextIndex={}, nextPerspective={}",
+                    decision.decision(), decision.reason(), nextIndex, decision.nextPerspectiveId());
 
         } catch (Exception e) {
             log.error("Decider node error: sessionId={}, error={}", sessionId, e.getMessage(), e);
-            state.updateState(Map.of("decisionAction", DECISION_FINISH));
+            state.updateState(Map.of("decisionAction", DecisionAction.FINISH));
         }
 
         return state;
+    }
+
+    /**
+     * 获取各视角的答题记录
+     */
+    private Map<Long, List<InterviewAnswerEntity>> getAnswersByPerspective(
+            InterviewSessionEntity session) {
+        Map<Long, List<InterviewAnswerEntity>> result = new HashMap<>();
+
+        if (session.getSelectedPerspectives() == null || session.getSelectedPerspectives().isBlank()) {
+            return result;
+        }
+
+        try {
+            List<Long> selectedPerspectives = objectMapper.readValue(
+                    session.getSelectedPerspectives(), new TypeReference<List<Long>>() {
+                    });
+
+            for (Long perspectiveId : selectedPerspectives) {
+                List<InterviewAnswerEntity> answers =
+                        persistenceService.findAnswersBySessionAndPerspective(session.getSessionId(), perspectiveId);
+                if (!answers.isEmpty()) {
+                    result.put(perspectiveId, answers);
+                }
+            }
+        } catch (Exception e) {
+            log.error("<UNK> selectedPerspectives <UNK>: {}", e.getMessage(), e);
+        }
+
+        return result;
+    }
+
+    /**
+     * 调用 LLM 做决策
+     */
+    private DecisionOutput makeDecision(
+            InterviewSessionEntity session,
+            Long currentPerspectiveId,
+            String currentPerspectiveName,
+            int questionIndex,
+            int score,
+            String feedback,
+            String difficulty,
+            Map<Long, List<InterviewAnswerEntity>> answersByPerspective) throws IOException {
+
+        // 构建提示词
+        String systemPrompt = systemPromptResource.getContentAsString(StandardCharsets.UTF_8);
+        String userPromptTemplate = userPromptResource.getContentAsString(StandardCharsets.UTF_8);
+
+        // 构建当前视角的答题历史
+        StringBuilder historyBuilder = new StringBuilder();
+        List<InterviewAnswerEntity> currentPerspectiveAnswers = answersByPerspective.get(currentPerspectiveId);
+        if (currentPerspectiveAnswers != null && !currentPerspectiveAnswers.isEmpty()) {
+            historyBuilder.append(String.format("【%s】视角答题记录：\n", currentPerspectiveName));
+            for (InterviewAnswerEntity answer : currentPerspectiveAnswers) {
+                historyBuilder.append(String.format("Q%d: %s\n得分: %d\n反馈: %s\n\n",
+                        answer.getQuestionIndex(),
+                        answer.getQuestion(),
+                        answer.getScore() != null ? answer.getScore() : 0,
+                        answer.getFeedback() != null ? answer.getFeedback() : "无"));
+            }
+        }
+
+        // 检查其他视角的答题情况
+        StringBuilder otherPerspectivesBuilder = new StringBuilder();
+        for (Map.Entry<Long, List<InterviewAnswerEntity>> entry : answersByPerspective.entrySet()) {
+            if (!entry.getKey().equals(currentPerspectiveId)) {
+                Optional<InterviewerRoleEntity> roleOpt = interviewerRoleRepository.findById(entry.getKey());
+                String perspectiveName = roleOpt.map(InterviewerRoleEntity::getRoleName).orElse("未知视角");
+                otherPerspectivesBuilder.append(String.format("【%s】已回答 %d 题\n", perspectiveName, entry.getValue().size()));
+            }
+        }
+
+        // 获取可选视角列表（包含权重、已出题数量）
+        StringBuilder availablePerspectivesBuilder = new StringBuilder();
+        if (session.getSelectedPerspectives() != null && !session.getSelectedPerspectives().isBlank()) {
+            try {
+                List<Long> selectedPerspectives = objectMapper.readValue(
+                        session.getSelectedPerspectives(), new TypeReference<>() {
+                        });
+                for (Long perspectiveId : selectedPerspectives) {
+                    Optional<InterviewerRoleEntity> roleOpt = interviewerRoleRepository.findById(perspectiveId);
+                    roleOpt.ifPresent(role -> {
+                        int answeredCount = 0;
+                        List<InterviewAnswerEntity> answers = answersByPerspective.get(perspectiveId);
+                        if (answers != null) {
+                            answeredCount = answers.size();
+                        }
+                        availablePerspectivesBuilder.append(String.format("- %s (ID:%d, 权重:%.0f%%, 已出题:%d): %s\n",
+                                role.getRoleName(),
+                                role.getId(),
+                                (role.getWeight() != null ? role.getWeight() : 1.0) * 100,
+                                answeredCount,
+                                role.getDescription()));
+                    });
+                }
+            } catch (Exception e) {
+                log.warn("解析 selectedPerspectives 失败: {}", e.getMessage());
+            }
+        }
+
+        // 渲染用户提示词
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("currentPerspective", currentPerspectiveName);
+        variables.put("currentQuestionIndex", questionIndex + 1);
+        variables.put("totalQuestions", session.getTotalQuestions() != null ? session.getTotalQuestions() : 10);
+        variables.put("score", score);
+        variables.put("feedback", feedback != null ? feedback : "无");
+        variables.put("difficulty", difficulty);
+        variables.put("currentPerspectiveHistory", historyBuilder.toString());
+        variables.put("otherPerspectivesSummary", otherPerspectivesBuilder.toString());
+        variables.put("availablePerspectives", availablePerspectivesBuilder.toString());
+
+        String userPrompt = userPromptTemplate;
+        for (Map.Entry<String, Object> entry : variables.entrySet()) {
+            userPrompt = userPrompt.replace("{{" + entry.getKey() + "}}",
+                    entry.getValue() != null ? entry.getValue().toString() : "");
+        }
+
+        // 使用 StructuredOutputInvoker 调用 LLM 结构化输出
+        DecisionOutput output = structuredOutputInvoker.invoke(
+                chatClient,
+                systemPrompt,
+                userPrompt,
+                outputConverter,
+                ErrorCode.AI_SERVICE_ERROR,
+                "LLM决策解析失败",
+                "DeciderNode",
+                log
+        );
+
+        log.info("Decider LLM parsed: decision={}, nextPerspective={}, reason={}",
+                output.decision(), output.nextPerspectiveId(), output.reason());
+
+        // 验证并返回
+        if (output.decision() == null) {
+            log.warn("LLM 返回的决策为空，使用默认 ASK");
+            return new DecisionOutput(DecisionAction.ASK, null, "默认继续");
+        }
+
+        return output;
     }
 }

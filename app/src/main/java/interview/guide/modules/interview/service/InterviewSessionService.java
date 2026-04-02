@@ -14,6 +14,7 @@ import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
 import interview.guide.modules.question.service.QuestionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.ai.document.Document;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class InterviewSessionService {
 
-    private final InterviewQuestionService questionService;
     private final AnswerEvaluationService evaluationService;
     private final InterviewPersistenceService persistenceService;
     private final InterviewSessionCache sessionCache;
@@ -45,9 +45,6 @@ public class InterviewSessionService {
     private final PerspectiveEvaluationService perspectiveEvaluationService;
     private final InterviewerRoleRepository interviewerRoleRepository;
     private final WorkflowExecutor workflowExecutor;
-
-    @Lazy
-    private QuestionService questionServiceForBank;
 
     /**
      * 创建新的面试会话
@@ -786,29 +783,7 @@ public class InterviewSessionService {
 
             // 保存下一题到数据库（含视角信息）
             // AI返回的relatedIndex已经是全局questionIndex，无需转换
-            Integer globalRelatedIndex = null;
-            if (Boolean.TRUE.equals(nextQuestion.isFollowUp()) && nextQuestion.relatedIndex() != null) {
-                globalRelatedIndex = nextQuestion.relatedIndex();
-            }
-            persistenceService.saveAnswerWithDifficulty(
-                    sessionId,
-                    newIndex,
-                    nextQuestion.question(),
-                    nextQuestion.category(),
-                    null, // userAnswer为null，等待用户回答后更新
-                    nextQuestion.difficulty(),
-                    nextQuestion.knowledgeBaseId(),
-                    nextQuestion.referenceContext(),
-                    0,  // 初始评分为0
-                    null, // 初始反馈为null
-                    nextPerspectiveId,
-                    nextPerspectiveName,
-                    nextQuestion.isFollowUp(),
-                    globalRelatedIndex,
-                    nextQuestion.relatedQuestion(),
-                    null,
-                    null
-            );
+            Integer globalRelatedIndex = getGlobalRelatedIndex(sessionId, nextQuestion, newIndex, nextPerspectiveId, nextPerspectiveName);
 
             // 构建包含视角信息的nextQuestionDTO
             final Long finalPerspectiveId = nextPerspectiveId;
@@ -858,6 +833,34 @@ public class InterviewSessionService {
                 categoryScores,
                 adjustedDifficulty
         );
+    }
+
+    @Nullable
+    private Integer getGlobalRelatedIndex(String sessionId, CurrentQuestionDTO nextQuestion, int newIndex, Long nextPerspectiveId, String nextPerspectiveName) {
+        Integer globalRelatedIndex = null;
+        if (Boolean.TRUE.equals(nextQuestion.isFollowUp()) && nextQuestion.relatedIndex() != null) {
+            globalRelatedIndex = nextQuestion.relatedIndex();
+        }
+        persistenceService.saveAnswerWithDifficulty(
+                sessionId,
+                newIndex,
+                nextQuestion.question(),
+                nextQuestion.category(),
+                null, // userAnswer为null，等待用户回答后更新
+                nextQuestion.difficulty(),
+                nextQuestion.knowledgeBaseId(),
+                nextQuestion.referenceContext(),
+                0,  // 初始评分为0
+                null, // 初始反馈为null
+                nextPerspectiveId,
+                nextPerspectiveName,
+                nextQuestion.isFollowUp(),
+                globalRelatedIndex,
+                nextQuestion.relatedQuestion(),
+                null,
+                null
+        );
+        return globalRelatedIndex;
     }
 
     /**

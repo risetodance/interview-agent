@@ -63,13 +63,6 @@ public class WorkflowExecutor {
     private static final String NODE_FINAL_REPORTER = "final_reporter";
 
     /**
-     * 决策结果常量
-     */
-    private static final String DECISION_ASK = "ASK";
-    private static final String DECISION_SWITCH = "SWITCH";
-    private static final String DECISION_FINISH = "FINISH";
-
-    /**
      * Redis 中存储工作流检查点的 key 前缀
      */
     private static final String WORKFLOW_CHECKPOINT_PREFIX = "workflow:checkpoint:";
@@ -129,9 +122,9 @@ public class WorkflowExecutor {
 
             // 添加条件边 - decider 根据决策结果决定下一步
             Map<String, String> edgeMapping = new HashMap<>();
-            edgeMapping.put(DECISION_ASK, NODE_QUESTION_GENERATOR);
-            edgeMapping.put(DECISION_SWITCH, NODE_ROLE_SWITCHER);
-            edgeMapping.put(DECISION_FINISH, NODE_FINAL_REPORTER);
+            edgeMapping.put(DecisionAction.ASK.name(), NODE_QUESTION_GENERATOR);
+            edgeMapping.put(DecisionAction.SWITCH.name(), NODE_ROLE_SWITCHER);
+            edgeMapping.put(DecisionAction.FINISH.name(), NODE_FINAL_REPORTER);
 
             // 使用 AsyncCommandAction.of 将 AsyncEdgeAction 转换为 AsyncCommandAction
             stateGraph.addConditionalEdges(NODE_DECIDER, AsyncCommandAction.of(createDeciderAsyncEdgeAction()), edgeMapping);
@@ -177,9 +170,10 @@ public class WorkflowExecutor {
      * 创建异步决策边缘动作 - 决定下一步走哪个分支
      */
     private AsyncEdgeAction createDeciderAsyncEdgeAction() {
-        return state -> CompletableFuture.completedFuture(
-                (String) state.value("decisionAction").orElse(DECISION_ASK).toString()
-        );
+        return state -> {
+            DecisionAction action = (DecisionAction) state.value("decisionAction").orElse(DecisionAction.ASK);
+            return CompletableFuture.completedFuture(action.name());
+        };
     }
 
     /**

@@ -1,6 +1,8 @@
 package interview.guide.modules.interview.workflow;
 
 import com.alibaba.cloud.ai.graph.OverAllState;
+import interview.guide.common.model.AsyncTaskStatus;
+import interview.guide.modules.interview.listener.EvaluateStreamProducer;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +14,7 @@ import java.util.Optional;
 
 /**
  * 最终报告节点 - 生成面试最终报告
- * 设置 isComplete 标志，触发 SSE 推送面试完成事件
+ * 设置 isComplete 标志，发送评估任务到消息队列
  */
 @Slf4j
 @Component
@@ -20,6 +22,7 @@ import java.util.Optional;
 public class FinalReporterNode {
 
     private final InterviewPersistenceService persistenceService;
+    private final EvaluateStreamProducer evaluateStreamProducer;
 
     public OverAllState execute(OverAllState state) {
         String sessionId = (String) state.value("sessionId").orElse(null);
@@ -46,10 +49,15 @@ public class FinalReporterNode {
                 persistenceService.updateSessionStatus(sessionId, InterviewSessionEntity.SessionStatus.COMPLETED);
             }
 
+            // 发送评估任务到 Redis Stream（让消息队列开始分析面试报告）
+            persistenceService.updateEvaluateStatus(sessionId, AsyncTaskStatus.PENDING, null);
+            evaluateStreamProducer.sendEvaluateTask(sessionId);
+            log.info("Final reporter: 评估任务已入队, sessionId={}", sessionId);
+
             // 设置完成标志
             state.updateState(Map.of(
                     "isComplete", true,
-                    "decisionAction", "FINISH"
+                    "decisionAction", DecisionAction.FINISH
             ));
 
             log.info("Final reporter node: interview completed, sessionId={}", sessionId);

@@ -1,15 +1,12 @@
 package interview.guide.modules.interview.workflow;
 
 import com.alibaba.cloud.ai.graph.OverAllState;
-import com.alibaba.cloud.ai.graph.RunnableConfig;
 import interview.guide.modules.interview.model.AnswerHistoryDTO;
 import interview.guide.modules.interview.model.CurrentQuestionDTO;
 import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewerRoleEntity;
 import interview.guide.modules.interview.repository.InterviewerRoleRepository;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
-import interview.guide.infrastructure.redis.InterviewSessionCache;
-import interview.guide.modules.interview.service.PerspectiveEvaluationService;
 import interview.guide.modules.interview.service.QuestionGenerationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +20,7 @@ import java.util.Optional;
 
 /**
  * 问题生成节点 - 生成面试问题
+ * 关键：只获取当前角色的历史答题记录，切换角色后只看新角色的历史
  */
 @Slf4j
 @Component
@@ -31,8 +29,6 @@ public class QuestionGeneratorNode {
 
     private final QuestionGenerationService questionGenerationService;
     private final InterviewPersistenceService persistenceService;
-    private final InterviewSessionCache sessionCache;
-    private final PerspectiveEvaluationService perspectiveEvaluationService;
     private final InterviewerRoleRepository interviewerRoleRepository;
     private final ObjectMapper objectMapper;
 
@@ -40,7 +36,11 @@ public class QuestionGeneratorNode {
         String sessionId = (String) state.value("sessionId").orElse(null);
         Integer questionIndex = (Integer) state.value("currentQuestionIndex").orElse(0);
 
-        log.info("Question generator node: sessionId={}, index={}", sessionId, questionIndex);
+        // 从状态中获取当前视角
+        Long currentPerspectiveId = ((Number) state.value("currentPerspectiveId").orElse(0L)).longValue();
+
+        log.info("Question generator node: sessionId={}, index={}, perspectiveId={}",
+                sessionId, questionIndex, currentPerspectiveId);
 
         if (sessionId == null) {
             log.error("Question generator node: sessionId is null");
@@ -65,22 +65,28 @@ public class QuestionGeneratorNode {
                 resumeText = "通用面试，无特定简历内容";
             }
 
-            // 多视角模式：轮询选择出题视角
-            Long selectedPerspectiveId = null;
+            // 确定出题视角
+            Long selectedPerspectiveId = currentPerspectiveId;
             String selectedPerspectiveName = null;
             String selectedPerspectivePrompt = null;
+
             if (session.getSelectedPerspectives() != null && !session.getSelectedPerspectives().isBlank()) {
                 try {
                     List<Long> selectedPerspectives = objectMapper.readValue(
                             session.getSelectedPerspectives(), new TypeReference<List<Long>>() {});
+
                     if (selectedPerspectives != null && !selectedPerspectives.isEmpty()) {
-                        selectedPerspectiveId = perspectiveEvaluationService.selectNextQuestionPerspective(
-                                selectedPerspectives, session.getLastQuestionPerspectiveId());
+                        // 如果没有指定视角，选择第一个
+                        if (selectedPerspectiveId == 0) {
+                            selectedPerspectiveId = selectedPerspectives.get(0);
+                        }
+
                         InterviewerRoleEntity role = interviewerRoleRepository.findById(selectedPerspectiveId).orElse(null);
                         if (role != null) {
                             selectedPerspectiveName = role.getRoleName();
                             selectedPerspectivePrompt = role.getQuestionPrompt();
                         }
+
                         // 更新会话的上一题视角ID
                         session.setLastQuestionPerspectiveId(selectedPerspectiveId);
                         persistenceService.updateLastQuestionPerspectiveId(sessionId, selectedPerspectiveId);
@@ -93,7 +99,7 @@ public class QuestionGeneratorNode {
                         } else {
                             session.setCurrentDifficulty("BASIC");
                         }
-                        log.info("轮询选择出题视角: sessionId={}, perspectiveId={}, perspectiveName={}, difficulty={}",
+                        log.info("问题生成选择视角: sessionId={}, perspectiveId={}, perspectiveName={}, difficulty={}",
                                 sessionId, selectedPerspectiveId, selectedPerspectiveName, session.getCurrentDifficulty());
                     }
                 } catch (Exception e) {
@@ -101,11 +107,16 @@ public class QuestionGeneratorNode {
                 }
             }
 
-            // 获取已回答的问题（用于传给AI作为历史上下文）
-            List<InterviewAnswerEntity> existingAnswers = persistenceService.findAnswersBySessionId(sessionId);
+            // 关键：只获取当前角色的历史答题记录，而不是所有历史
+            List<InterviewAnswerEntity> perspectiveAnswers = List.of();
+            if (selectedPerspectiveId != null && selectedPerspectiveId > 0) {
+                perspectiveAnswers = persistenceService.findAnswersBySessionAndPerspective(sessionId, selectedPerspectiveId);
+                log.info("获取当前角色历史答题记录: sessionId={}, perspectiveId={}, count={}",
+                        sessionId, selectedPerspectiveId, perspectiveAnswers.size());
+            }
 
-            // 构建历史答题记录
-            List<AnswerHistoryDTO> history = existingAnswers.stream()
+            // 构建历史答题记录（只包含当前角色的）
+            List<AnswerHistoryDTO> history = perspectiveAnswers.stream()
                     .map(a -> new AnswerHistoryDTO(
                             a.getQuestionIndex(),
                             a.getQuestion(),
@@ -173,7 +184,8 @@ public class QuestionGeneratorNode {
                     "knowledgeBaseId", questionDTO.knowledgeBaseId() != null ? questionDTO.knowledgeBaseId() : 0L,
                     "knowledgeBaseName", questionDTO.knowledgeBaseName() != null ? questionDTO.knowledgeBaseName() : "",
                     "createdByPerspectiveId", selectedPerspectiveId != null ? selectedPerspectiveId : 0L,
-                    "createdByPerspectiveName", selectedPerspectiveName != null ? selectedPerspectiveName : ""
+                    "createdByPerspectiveName", selectedPerspectiveName != null ? selectedPerspectiveName : "",
+                    "currentPerspectiveId", selectedPerspectiveId != null ? selectedPerspectiveId : 0L
             );
             state.updateState(updatedState);
 
