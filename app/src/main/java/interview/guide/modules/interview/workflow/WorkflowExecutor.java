@@ -23,6 +23,7 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -98,6 +99,20 @@ public class WorkflowExecutor {
                 Map<String, KeyStrategy> strategies = new HashMap<>();
                 // 所有 key 都使用 REPLACE 策略
                 strategies.put("*", KeyStrategy.REPLACE);
+                // 显式注册关键 key，确保框架能识别
+                strategies.put("sessionId", KeyStrategy.REPLACE);
+                strategies.put("currentQuestionIndex", KeyStrategy.REPLACE);
+                strategies.put("score", KeyStrategy.REPLACE);
+                strategies.put("feedback", KeyStrategy.REPLACE);
+                strategies.put("adjustedDifficulty", KeyStrategy.REPLACE);
+                strategies.put("currentPerspectiveId", KeyStrategy.REPLACE);
+                strategies.put("nextPerspectiveId", KeyStrategy.REPLACE);
+                strategies.put("decisionAction", KeyStrategy.REPLACE);
+                strategies.put("decisionReason", KeyStrategy.REPLACE);
+                strategies.put("currentQuestion", KeyStrategy.REPLACE);
+                strategies.put("currentCategory", KeyStrategy.REPLACE);
+                strategies.put("currentDifficulty", KeyStrategy.REPLACE);
+                strategies.put("isComplete", KeyStrategy.REPLACE);
                 return strategies;
             };
 
@@ -192,10 +207,10 @@ public class WorkflowExecutor {
             initialStateData.put("sessionId", sessionId);
             initialStateData.put("currentQuestionIndex", 0);
 
-            // 创建 RunnableConfig，设置 threadId 和 checkPointId 为 sessionId
+            // 创建 RunnableConfig，只设置 threadId（不设置 checkPointId，让框架创建新 checkpoint）
+            // checkpoint 会在 question_generator 节点中断后自动保存
             RunnableConfig config = RunnableConfig.builder()
                     .threadId(sessionId)
-                    .checkPointId(sessionId)
                     .build();
 
             // 执行工作流
@@ -203,15 +218,12 @@ public class WorkflowExecutor {
 
             if (resultOpt.isPresent()) {
                 OverAllState state = resultOpt.get();
-                log.info("Workflow interrupted at question_generator: sessionId={}, questionIndex={}",
+                log.info("Workflow interrupted at init question: sessionId={}, questionIndex={}",
                         sessionId, state.value("currentQuestionIndex").orElse(0));
-
-                // 推送问题到 SSE
-                pushQuestionToSSE(state);
 
                 return state;
             } else {
-                log.warn("Workflow returned empty result: sessionId={}", sessionId);
+                log.warn("init Workflow returned empty result: sessionId={}", sessionId);
                 throw new RuntimeException("工作流执行返回空结果");
             }
 
@@ -371,6 +383,10 @@ public class WorkflowExecutor {
                     .build();
 
             return compiledGraph.stateOf(config);
+        } catch (NoSuchElementException e) {
+            // checkpoint 不存在，返回空
+            log.info("Workflow checkpoint not found: sessionId={}", sessionId);
+            return Optional.empty();
         } catch (Exception e) {
             log.error("Failed to get workflow state: sessionId={}, error={}", sessionId, e.getMessage(), e);
             return Optional.empty();

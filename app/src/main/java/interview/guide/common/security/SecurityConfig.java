@@ -81,6 +81,8 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         // 临时允许admin接口（测试用）
                         .requestMatchers("/api/admin/**").permitAll()
+                        // SSE stream 接口（通过 URL 参数传递 token 验证）
+                        .requestMatchers("/api/interview/sessions/*/stream").permitAll()
 
                         // 其他请求需要认证
                         .anyRequest().authenticated()

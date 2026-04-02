@@ -142,11 +142,14 @@ export const interviewApi = {
     }
   ): () => void {
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+    const token = localStorage.getItem('auth_token');
 
-    const eventSource = new EventSource(
-      `${apiBaseUrl}/api/interview/sessions/${sessionId}/stream`,
-      { withCredentials: true }
-    );
+    // EventSource 不支持自定义 header，通过 URL 参数传递 token
+    const streamUrl = token
+      ? `${apiBaseUrl}/api/interview/sessions/${sessionId}/stream?token=${encodeURIComponent(token)}`
+      : `${apiBaseUrl}/api/interview/sessions/${sessionId}/stream`;
+
+    const eventSource = new EventSource(streamUrl, { withCredentials: true });
 
     eventSource.addEventListener(this.SSE_EVENT_TYPES.CONNECTED, () => {
       callbacks.onConnected?.();

@@ -1,5 +1,6 @@
 package interview.guide.modules.interview.service;
 
+import com.alibaba.cloud.ai.graph.OverAllState;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.common.model.AsyncTaskStatus;
@@ -11,12 +12,10 @@ import interview.guide.modules.interview.model.InterviewSessionDTO.SessionStatus
 import interview.guide.modules.interview.repository.InterviewerRoleRepository;
 import interview.guide.modules.interview.workflow.WorkflowExecutor;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
-import interview.guide.modules.question.service.QuestionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.ai.document.Document;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -502,7 +501,7 @@ public class InterviewSessionService {
 
         // 触发工作流执行：entry → question_generator → [中断]
         // 工作流内部会通过 SSE 推送问题
-        com.alibaba.cloud.ai.graph.OverAllState state = workflowExecutor.executeToQuestionGenerator(sessionId);
+        OverAllState state = workflowExecutor.executeToQuestionGenerator(sessionId);
 
         // 更新会话状态
         if (session.getStatus() == InterviewSessionEntity.SessionStatus.CREATED) {
