@@ -985,30 +985,13 @@ public class InterviewSessionService {
                 null  // 初始反馈为null，等待工作流更新
         );
 
-        log.info("答案已保存，恢复工作流执行: sessionId={}, questionIndex={}", sessionId, questionIndex);
+        log.info("答案已保存，启动异步工作流执行: sessionId={}, questionIndex={}", sessionId, questionIndex);
 
-        // 恢复工作流执行：scorer → decider → [分支]
+        // 异步恢复工作流执行：scorer → decider → [分支]
         // 工作流内部会通过 SSE 推送下一题或完成事件
-        com.alibaba.cloud.ai.graph.OverAllState state = workflowExecutor.resumeWorkflow(sessionId, questionIndex, answer);
+        workflowExecutor.resumeAsync(sessionId, questionIndex, answer);
 
-        // 检查是否完成
-        Boolean isComplete = (Boolean) state.value("isComplete").orElse(false);
-        if (Boolean.TRUE.equals(isComplete)) {
-            // 工作流完成，返回完成响应
-            log.info("工作流执行完成: sessionId={}", sessionId);
-            return new SubmitAnswerResponse(
-                    false, // hasNextQuestion
-                    null,  // nextQuestion
-                    questionIndex + 1,
-                    session.getQuestionsGenerated() != null ? session.getQuestionsGenerated() : 0,
-                    0, // currentScore - 稍后从数据库获取
-                    Map.of(), // categoryScores - 稍后从数据库获取
-                    null // nextDifficulty
-            );
-        }
-
-        // 工作流在 question_generator 处中断，SSE 已推送下一题
-        // 返回占位响应，实际问题通过 SSE 推送
+        // 立即返回成功响应，实际结果通过 SSE 推送
         int newIndex = questionIndex + 1;
         return new SubmitAnswerResponse(
                 true, // hasNextQuestion - SSE 会推送下一题

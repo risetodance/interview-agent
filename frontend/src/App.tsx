@@ -318,6 +318,7 @@ function InterviewHistoryWrapper() {
 function InterviewReportPageWrapper() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
 
   if (!sessionId) {
     navigate('/interviews');
@@ -325,7 +326,12 @@ function InterviewReportPageWrapper() {
   }
 
   const handleBack = () => {
-    navigate('/interviews');
+    // 优先返回上一页（history state），否则返回面试列表
+    if (location.state?.from) {
+      navigate(-1);
+    } else {
+      navigate('/interviews');
+    }
   };
 
   return <InterviewReportPage sessionId={sessionId} onBack={handleBack} />;

@@ -28,7 +28,7 @@ public class ScorerNode {
 
     public OverAllState execute(OverAllState state) {
         String sessionId = (String) state.value("sessionId").orElse(null);
-        Integer questionIndex = (Integer) state.value("questionIndex").orElse(null);
+        Integer questionIndex = (Integer) state.value("currentQuestionIndex").orElse(null);
         String userAnswer = (String) state.value("userAnswer").orElse(null);
 
         log.info("Scorer node: sessionId={}, questionIndex={}, hasAnswer={}",

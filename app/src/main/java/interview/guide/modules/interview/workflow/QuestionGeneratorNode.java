@@ -7,6 +7,7 @@ import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewerRoleEntity;
 import interview.guide.modules.interview.repository.InterviewerRoleRepository;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
+import interview.guide.modules.interview.service.InterviewStreamService;
 import interview.guide.modules.interview.service.QuestionGenerationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +32,7 @@ public class QuestionGeneratorNode {
     private final QuestionGenerationService questionGenerationService;
     private final InterviewPersistenceService persistenceService;
     private final InterviewerRoleRepository interviewerRoleRepository;
+    private final InterviewStreamService interviewStreamService;
     private final ObjectMapper objectMapper;
 
     public OverAllState execute(OverAllState state) {
@@ -48,8 +51,8 @@ public class QuestionGeneratorNode {
         }
 
         try {
-            // 获取会话实体
-            var sessionOpt = persistenceService.findBySessionId(sessionId);
+            // 获取会话实体（同时加载简历，避免懒加载问题）
+            var sessionOpt = persistenceService.findBySessionIdWithResume(sessionId);
             if (sessionOpt.isEmpty()) {
                 log.error("Question generator node: session not found, sessionId={}", sessionId);
                 return state;
@@ -70,10 +73,15 @@ public class QuestionGeneratorNode {
             String selectedPerspectiveName = null;
             String selectedPerspectivePrompt = null;
 
+            log.info("开始确定出题视角: sessionId={}, currentPerspectiveId={}, selectedPerspectives字符串={}",
+                    sessionId, currentPerspectiveId, session.getSelectedPerspectives());
+
             if (session.getSelectedPerspectives() != null && !session.getSelectedPerspectives().isBlank()) {
                 try {
                     List<Long> selectedPerspectives = objectMapper.readValue(
                             session.getSelectedPerspectives(), new TypeReference<List<Long>>() {});
+
+                    log.info("解析selectedPerspectives成功: {}", selectedPerspectives);
 
                     if (selectedPerspectives != null && !selectedPerspectives.isEmpty()) {
                         // 如果没有指定视角，选择第一个
@@ -81,10 +89,14 @@ public class QuestionGeneratorNode {
                             selectedPerspectiveId = selectedPerspectives.get(0);
                         }
 
+                        log.info("即将查询视角: selectedPerspectiveId={}", selectedPerspectiveId);
                         InterviewerRoleEntity role = interviewerRoleRepository.findById(selectedPerspectiveId).orElse(null);
+                        log.info("视角查询结果: role={}", role);
                         if (role != null) {
                             selectedPerspectiveName = role.getRoleName();
                             selectedPerspectivePrompt = role.getQuestionPrompt();
+                        } else {
+                            log.warn("视角未找到: perspectiveId={}", selectedPerspectiveId);
                         }
 
                         // 更新会话的上一题视角ID
@@ -103,8 +115,10 @@ public class QuestionGeneratorNode {
                                 sessionId, selectedPerspectiveId, selectedPerspectiveName, session.getCurrentDifficulty());
                     }
                 } catch (Exception e) {
-                    log.warn("解析selectedPerspectives失败: {}", e.getMessage());
+                    log.warn("解析selectedPerspectives失败: {}", e.getMessage(), e);
                 }
+            } else {
+                log.warn("session.getSelectedPerspectives() 为空: sessionId={}", sessionId);
             }
 
             // 关键：只获取当前角色的历史答题记录，而不是所有历史
@@ -175,22 +189,42 @@ public class QuestionGeneratorNode {
             int generated = session.getQuestionsGenerated() != null ? session.getQuestionsGenerated() : 0;
             persistenceService.updateQuestionsGenerated(sessionId, generated + 1);
 
-            // 更新状态，以便 SSE 推送
-            Map<String, Object> updatedState = Map.of(
-                    "currentQuestionIndex", questionIndex,
-                    "currentQuestion", questionDTO.question(),
-                    "currentCategory", questionDTO.category(),
-                    "currentDifficulty", questionDTO.difficulty() != null ? questionDTO.difficulty() : "BASIC",
-                    "knowledgeBaseId", questionDTO.knowledgeBaseId() != null ? questionDTO.knowledgeBaseId() : 0L,
-                    "knowledgeBaseName", questionDTO.knowledgeBaseName() != null ? questionDTO.knowledgeBaseName() : "",
-                    "createdByPerspectiveId", selectedPerspectiveId != null ? selectedPerspectiveId : 0L,
-                    "createdByPerspectiveName", selectedPerspectiveName != null ? selectedPerspectiveName : "",
-                    "currentPerspectiveId", selectedPerspectiveId != null ? selectedPerspectiveId : 0L
-            );
+            // 更新状态，以便 SSE 推送和 checkpoint 恢复
+            Map<String, Object> updatedState = new HashMap<>();
+            updatedState.put("currentQuestionIndex", questionIndex);
+            updatedState.put("currentQuestion", questionDTO.question());
+            updatedState.put("currentCategory", questionDTO.category());
+            updatedState.put("currentDifficulty", questionDTO.difficulty() != null ? questionDTO.difficulty() : "BASIC");
+            updatedState.put("knowledgeBaseId", questionDTO.knowledgeBaseId() != null ? questionDTO.knowledgeBaseId() : 0L);
+            updatedState.put("knowledgeBaseName", questionDTO.knowledgeBaseName() != null ? questionDTO.knowledgeBaseName() : "");
+            updatedState.put("createdByPerspectiveId", selectedPerspectiveId != null ? selectedPerspectiveId : 0L);
+            updatedState.put("createdByPerspectiveName", selectedPerspectiveName != null ? selectedPerspectiveName : "");
+            updatedState.put("currentPerspectiveId", selectedPerspectiveId != null ? selectedPerspectiveId : 0L);
+            // 追问相关字段也需要放入状态，以便 checkpoint 恢复后 SSE 推送
+            updatedState.put("isFollowUp", questionDTO.isFollowUp() != null ? questionDTO.isFollowUp() : false);
+            updatedState.put("relatedIndex", questionDTO.relatedIndex());
+            updatedState.put("relatedQuestion", questionDTO.relatedQuestion());
             state.updateState(updatedState);
 
-            log.info("问题生成完成: sessionId={}, index={}, category={}, difficulty={}, perspective={}",
-                    sessionId, questionIndex, questionDTO.category(), questionDTO.difficulty(), selectedPerspectiveName);
+            log.info("问题生成完成: sessionId={}, index={}, category={}, difficulty={}, perspective={}, isFollowUp={}, relatedIndex={}",
+                    sessionId, questionIndex, questionDTO.category(), questionDTO.difficulty(), selectedPerspectiveName,
+                    questionDTO.isFollowUp(), questionDTO.relatedIndex());
+
+            // 直接推送问题到 SSE，不再依赖 WorkflowExecutor
+            Map<String, Object> questionData = new HashMap<>();
+            questionData.put("sessionId", sessionId);
+            questionData.put("questionIndex", questionIndex);
+            questionData.put("question", questionDTO.question());
+            questionData.put("category", questionDTO.category());
+            questionData.put("difficulty", questionDTO.difficulty() != null ? questionDTO.difficulty() : "BASIC");
+            questionData.put("knowledgeBaseId", questionDTO.knowledgeBaseId() != null ? questionDTO.knowledgeBaseId() : 0L);
+            questionData.put("knowledgeBaseName", questionDTO.knowledgeBaseName() != null ? questionDTO.knowledgeBaseName() : "");
+            questionData.put("createdByPerspectiveId", selectedPerspectiveId != null ? selectedPerspectiveId : 0L);
+            questionData.put("createdByPerspectiveName", selectedPerspectiveName != null ? selectedPerspectiveName : "");
+            questionData.put("isFollowUp", questionDTO.isFollowUp() != null ? questionDTO.isFollowUp() : false);
+            questionData.put("relatedIndex", questionDTO.relatedIndex());
+            questionData.put("relatedQuestion", questionDTO.relatedQuestion());
+            interviewStreamService.publishQuestion(sessionId, questionData);
 
         } catch (Exception e) {
             log.error("问题生成失败: sessionId={}, error={}", sessionId, e.getMessage(), e);

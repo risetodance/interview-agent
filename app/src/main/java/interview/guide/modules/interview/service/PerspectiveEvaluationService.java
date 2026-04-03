@@ -585,10 +585,6 @@ public class PerspectiveEvaluationService {
         List<String> allStrengths = new ArrayList<>();
         List<String> allImprovements = new ArrayList<>();
 
-        List<PerspectiveScoreEntity> allScores = perspectiveScoreRepository.findBySessionIdWithPerspective(sessionId);
-        Map<Long, List<PerspectiveScoreEntity>> scoresByPerspective = allScores.stream()
-                .collect(Collectors.groupingBy(ps -> ps.getPerspective().getId()));
-
         for (PerspectiveScoreEntity cs : comprehensiveScores) {
             InterviewerRoleEntity role = cs.getPerspective();
             List<String> strengths = parseJsonList(cs.getStrengthsJson());
@@ -604,14 +600,22 @@ public class PerspectiveEvaluationService {
                     cs.getCreatedAt() != null ? cs.getCreatedAt().toString() : null
             ));
 
-            List<PerspectiveScoreEntity> detailScores = scoresByPerspective.get(role.getId());
-            List<PerspectiveQuestionScoreDTO> questionScores = detailScores != null
-                    ? detailScores.stream()
-                            .filter(s -> s.getQuestionIndex() >= 0)
-                            .map(s -> new PerspectiveQuestionScoreDTO(
-                                    s.getQuestionIndex(), s.getScore(), s.getFeedback(), null, null, null, null))
-                            .toList()
-                    : List.of();
+            // 从 InterviewAnswerEntity 获取完整的问题详情
+            List<InterviewAnswerEntity> perspectiveAnswers =
+                    interviewAnswerRepository.findBySessionIdAndCreatedByPerspectiveIdOrderByQuestionIndexAsc(sessionId, role.getId());
+            List<PerspectiveQuestionScoreDTO> questionScores = new ArrayList<>();
+            for (InterviewAnswerEntity answer : perspectiveAnswers) {
+                if (answer.getQuestionIndex() < 0) continue;
+                questionScores.add(new PerspectiveQuestionScoreDTO(
+                        answer.getQuestionIndex(),
+                        answer.getScore(),
+                        answer.getFeedback(),
+                        answer.getQuestion(),
+                        answer.getUserAnswer(),
+                        answer.getReferenceAnswer(),
+                        parseJsonList(answer.getKeyPointsJson())
+                ));
+            }
 
             perspectiveDetails.put(role.getRoleCode(), new PerspectiveDetailDTO(
                     role.getId(), role.getRoleName(), role.getIcon(),

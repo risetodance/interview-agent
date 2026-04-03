@@ -1,11 +1,6 @@
 package interview.guide.modules.interview.workflow;
 
-import com.alibaba.cloud.ai.graph.CompiledGraph;
-import com.alibaba.cloud.ai.graph.KeyStrategy;
-import com.alibaba.cloud.ai.graph.KeyStrategyFactory;
-import com.alibaba.cloud.ai.graph.OverAllState;
-import com.alibaba.cloud.ai.graph.RunnableConfig;
-import com.alibaba.cloud.ai.graph.StateGraph;
+import com.alibaba.cloud.ai.graph.*;
 import com.alibaba.cloud.ai.graph.action.AsyncCommandAction;
 import com.alibaba.cloud.ai.graph.action.AsyncEdgeAction;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeAction;
@@ -154,7 +149,7 @@ public class WorkflowExecutor {
 
             // 创建编译配置，使用框架的 CompileConfig
             // 设置在 question_generator 节点之后中断
-            com.alibaba.cloud.ai.graph.CompileConfig compileConfig = com.alibaba.cloud.ai.graph.CompileConfig.builder()
+            CompileConfig compileConfig = CompileConfig.builder()
                     .saverConfig(saverConfig)
                     .interruptAfter(NODE_QUESTION_GENERATOR)
                     .build();
@@ -235,139 +230,42 @@ public class WorkflowExecutor {
     }
 
     /**
-     * 恢复工作流执行（用于 /answer 接口）
-     * 执行流程：从 question_generator 之后继续 → scorer → decider → [ASK] question_generator → [中断]
-     *                                                      → [SWITCH] role_switcher → question_generator → [中断]
-     *                                                      → [FINISH] final_reporter → [完成]
+     * 异步恢复工作流执行（用于 /answer 接口）
+     * 工作流在后台执行，通过 SSE 推送结果
      *
      * @param sessionId 会话ID
      * @param questionIndex 当前问题索引（恢复时传入，用于验证）
      * @param userAnswer 用户答案
-     * @return 恢复执行后的状态（可能在 question_generator 中断，或在 final_reporter 完成）
      */
-    public OverAllState resumeWorkflow(String sessionId, Integer questionIndex, String userAnswer) {
-        log.info("Resuming workflow: sessionId={}, questionIndex={}", sessionId, questionIndex);
+    @Async
+    public void resumeAsync(String sessionId, Integer questionIndex, String userAnswer) {
+        log.info("Starting async workflow resume: sessionId={}, questionIndex={}", sessionId, questionIndex);
 
         try {
             // 创建 HumanFeedback，包含用户答案
             Map<String, Object> feedbackData = new HashMap<>();
             feedbackData.put("userAnswer", userAnswer);
-            feedbackData.put("questionIndex", questionIndex);
+            feedbackData.put("currentQuestionIndex", questionIndex);
 
             OverAllState.HumanFeedback humanFeedback = new OverAllState.HumanFeedback(feedbackData, NODE_SCORER);
 
-            // 创建 RunnableConfig，设置 threadId 和 checkPointId 为 sessionId
+            // 创建 RunnableConfig，只设置 threadId（不设置 checkPointId，让框架自动找到最近的中断点）
             RunnableConfig config = RunnableConfig.builder()
                     .threadId(sessionId)
-                    .checkPointId(sessionId)
                     .build();
 
             // 恢复工作流执行
+            // 注意：SSE 推送由各个节点（QuestionGeneratorNode、FinalReporterNode）直接调用
             Optional<OverAllState> resultOpt = compiledGraph.resume(humanFeedback, config);
 
-            if (resultOpt.isPresent()) {
-                OverAllState state = resultOpt.get();
-                String sessionIdFromState = (String) state.value("sessionId").orElse(sessionId);
-
-                // 检查是否完成
-                Boolean isComplete = (Boolean) state.value("isComplete").orElse(false);
-                if (Boolean.TRUE.equals(isComplete)) {
-                    log.info("Workflow completed: sessionId={}", sessionIdFromState);
-                    handleWorkflowResult(state);
-                } else {
-                    // 工作流在 question_generator 中断
-                    log.info("Workflow interrupted at question_generator: sessionId={}, questionIndex={}",
-                            sessionIdFromState, state.value("currentQuestionIndex").orElse(0));
-                    pushQuestionToSSE(state);
-                }
-
-                return state;
-            } else {
+            if (resultOpt.isEmpty()) {
                 log.warn("Workflow resume returned empty result: sessionId={}", sessionId);
-                throw new RuntimeException("工作流恢复执行返回空结果");
+                interviewStreamService.publishError(sessionId, "工作流恢复执行返回空结果");
             }
 
         } catch (Exception e) {
-            log.error("Workflow resume failed: sessionId={}, error={}", sessionId, e.getMessage(), e);
+            log.error("Async workflow resume failed: sessionId={}, error={}", sessionId, e.getMessage(), e);
             interviewStreamService.publishError(sessionId, "工作流恢复失败: " + e.getMessage());
-            throw new RuntimeException("工作流恢复失败: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 异步执行工作流（保留原有方法，用于其他场景）
-     */
-    @Async
-    public void executeAsync(String sessionId, Map<String, Object> initialData) {
-        log.info("Starting async workflow execution: sessionId={}", sessionId);
-
-        try {
-            // 创建初始状态
-            Map<String, Object> initialStateData = new HashMap<>();
-            initialStateData.put("sessionId", sessionId);
-            initialStateData.put("currentQuestionIndex", 0);
-
-            // 如果有初始数据，则合并
-            if (initialData != null && !initialData.isEmpty()) {
-                initialStateData.putAll(initialData);
-            }
-
-            // 创建 RunnableConfig
-            RunnableConfig config = RunnableConfig.builder()
-                    .threadId(sessionId)
-                    .checkPointId(sessionId)
-                    .build();
-
-            // 执行工作流
-            Optional<OverAllState> resultOpt = compiledGraph.invoke(initialStateData, config);
-
-            // 处理工作流结果
-            if (resultOpt.isPresent()) {
-                handleWorkflowResult(resultOpt.get());
-            } else {
-                log.warn("Workflow returned empty result: sessionId={}", sessionId);
-            }
-
-            log.info("Workflow execution completed: sessionId={}", sessionId);
-
-        } catch (Exception e) {
-            log.error("Workflow execution failed: sessionId={}, error={}", sessionId, e.getMessage(), e);
-            interviewStreamService.publishError(sessionId, "工作流执行失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 推送问题到 SSE
-     */
-    private void pushQuestionToSSE(OverAllState state) {
-        String sessionId = (String) state.value("sessionId").orElse(null);
-        if (sessionId == null) return;
-
-        Map<String, Object> questionData = new HashMap<>();
-        questionData.put("sessionId", sessionId);
-        questionData.put("questionIndex", state.value("currentQuestionIndex").orElse(0));
-        questionData.put("question", state.value("currentQuestion").orElse(""));
-        questionData.put("category", state.value("currentCategory").orElse(""));
-        questionData.put("difficulty", state.value("currentDifficulty").orElse("BASIC"));
-        questionData.put("knowledgeBaseName", state.value("knowledgeBaseName").orElse(null));
-        questionData.put("createdByPerspectiveId", state.value("createdByPerspectiveId").orElse(null));
-        questionData.put("createdByPerspectiveName", state.value("createdByPerspectiveName").orElse(null));
-
-        interviewStreamService.publishQuestion(sessionId, questionData);
-    }
-
-    /**
-     * 处理工作流执行结果
-     */
-    private void handleWorkflowResult(OverAllState result) {
-        String sessionId = (String) result.value("sessionId").orElse(null);
-
-        // 检查是否有最终报告
-        Object finalReportObj = result.value("finalReport").orElse(null);
-        if (finalReportObj != null) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> reportData = (Map<String, Object>) finalReportObj;
-            interviewStreamService.publishComplete(sessionId, reportData);
         }
     }
 
@@ -415,18 +313,5 @@ public class WorkflowExecutor {
         } catch (Exception e) {
             log.error("Failed to clear workflow checkpoint: sessionId={}, error={}", sessionId, e.getMessage(), e);
         }
-    }
-
-    /**
-     * 构建问题数据，用于 SSE 推送
-     */
-    public Map<String, Object> buildQuestionData(OverAllState state) {
-        return Map.of(
-                "sessionId", state.value("sessionId").orElse(""),
-                "questionIndex", state.value("currentQuestionIndex").orElse(0),
-                "question", state.value("currentQuestion").orElse(""),
-                "category", state.value("currentCategory").orElse(""),
-                "difficulty", state.value("currentDifficulty").orElse("BASIC")
-        );
     }
 }

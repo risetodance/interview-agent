@@ -1,5 +1,6 @@
 package interview.guide.modules.interview.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
@@ -103,7 +104,7 @@ public class InterviewStreamService {
 
     private String toJson(Map<String, Object> data) {
         try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(data);
+            return new ObjectMapper().writeValueAsString(data);
         } catch (Exception e) {
             return "{}";
         }

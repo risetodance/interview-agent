@@ -5,6 +5,7 @@ import interview.guide.common.model.AsyncTaskStatus;
 import interview.guide.modules.interview.listener.EvaluateStreamProducer;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
+import interview.guide.modules.interview.service.InterviewStreamService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -23,6 +24,7 @@ public class FinalReporterNode {
 
     private final InterviewPersistenceService persistenceService;
     private final EvaluateStreamProducer evaluateStreamProducer;
+    private final InterviewStreamService interviewStreamService;
 
     public OverAllState execute(OverAllState state) {
         String sessionId = (String) state.value("sessionId").orElse(null);
@@ -58,6 +60,13 @@ public class FinalReporterNode {
             state.updateState(Map.of(
                     "isComplete", true,
                     "decisionAction", DecisionAction.FINISH
+            ));
+
+            // 直接推送面试完成事件到 SSE
+            interviewStreamService.publishComplete(sessionId, Map.of(
+                    "sessionId", sessionId,
+                    "status", "COMPLETED",
+                    "message", "面试已结束，评估报告生成中..."
             ));
 
             log.info("Final reporter node: interview completed, sessionId={}", sessionId);

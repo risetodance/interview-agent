@@ -172,9 +172,10 @@ export default function ResumeDetailPage({ resumeId, onBack, onStartInterview }:
         return;
       }
 
-      // 否则显示详情面板
-      setSelectedInterview(detail);
-      setDetailView('interviewDetail');
+      // 已完成的面试，跳转到报告页面（与 /interviews/:id/report 一样的综合报告页面）
+      navigate(`/interviews/${sessionId}/report`, {
+        state: { sessionId, resumeId, from: 'resumeDetail' }
+      });
     } catch (err) {
       alert('加载面试详情失败');
     } finally {
