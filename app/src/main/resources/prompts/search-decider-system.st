@@ -13,5 +13,14 @@
 - 传统技术标准答案（如 HashMap 底层实现）
 - 历史项目经验描述
 
+topK参考范围：
+- 简单问题：3-5
+- 一般问题：5-8
+- 复杂/热门问题：8-10
+
 请以JSON格式返回：
-{"needSearch": true/false, "keywords": "搜索关键词", "reason": "决策原因"}
+{
+  "needSearch": true/false,
+  "keywords": {"query": "搜索关键词", "topK": 数字},
+  "reason": "决策原因"
+}

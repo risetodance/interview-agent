@@ -36,8 +36,7 @@ public class InterviewController {
     private final InterviewPersistenceService persistenceService;
     private final ScoreTrendService scoreTrendService;
     private final PerspectiveEvaluationService perspectiveEvaluationService;
-    private final WorkflowExecutor workflowExecutor;
-    
+
     /**
      * 创建面试会话
      */

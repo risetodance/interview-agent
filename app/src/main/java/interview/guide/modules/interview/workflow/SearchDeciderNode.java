@@ -33,11 +33,40 @@ public class SearchDeciderNode {
         this.structuredOutputInvoker = structuredOutputInvoker;
     }
 
+    /**
+     * Web搜索关键词对象
+     */
+    private record WebSearchKeywords(
+            String query,
+            int topK
+    ) {
+        /**
+         * 序列化为JSON字符串供WebSearchNode使用
+         */
+        public String toJson() {
+            return String.format("{\"query\": \"%s\", \"top_k\": %d}",
+                query != null ? query.replace("\"", "\\\"") : "", topK);
+        }
+    }
+
+    /**
+     * 搜索决策输出 - 包含是否需要搜索、关键词对象、原因
+     */
     private record SearchDecisionOutput(
             boolean needSearch,
-            String keywords,
+            WebSearchKeywords keywords,
             String reason
-    ) {}
+    ) {
+        /**
+         * 序列化为WebSearchNode可用的JSON字符串
+         */
+        public String toWebSearchJson() {
+            if (!needSearch || keywords == null) {
+                return "";
+            }
+            return keywords.toJson();
+        }
+    }
 
     private final BeanOutputConverter<SearchDecisionOutput> outputConverter =
             new BeanOutputConverter<>(SearchDecisionOutput.class);
@@ -95,7 +124,7 @@ public class SearchDeciderNode {
 
             state.updateState(Map.of(
                     "searchEnabled", decision.needSearch(),
-                    "searchKeywords", decision.keywords() != null ? decision.keywords() : "",
+                    "searchKeywords", decision.toWebSearchJson(),
                     "searchDecisionReason", decision.reason()
             ));
 
