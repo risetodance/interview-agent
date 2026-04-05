@@ -516,7 +516,7 @@ public class InterviewSessionService {
             // 获取当前状态
             var stateSnapshot = workflowExecutor.getWorkflowState(sessionId);
             if (stateSnapshot.isPresent()) {
-                var state = stateSnapshot.get().getState();
+                var state = stateSnapshot.get().state();
                 return toCurrentQuestionDTO(state);
             }
         }
@@ -547,6 +547,8 @@ public class InterviewSessionService {
         String knowledgeBaseName = (String) state.value("knowledgeBaseName").orElse(null);
         Long createdByPerspectiveId = (Long) state.value("createdByPerspectiveId").orElse(null);
         String createdByPerspectiveName = (String) state.value("createdByPerspectiveName").orElse(null);
+
+        log.info("toCurrentQuestionDTO: perspectiveId={}, perspectiveName={}", createdByPerspectiveId, createdByPerspectiveName);
 
         return new CurrentQuestionDTO(
                 questionIndex,
@@ -800,7 +802,8 @@ public class InterviewSessionService {
             // AI会根据简历和历史自行决定问题内容和分类，使用视角prompt
             nextQuestion = questionGenerationService.generateSingleQuestion(
                     session, newIndex, resumeText, history,
-                    nextPerspectiveId, nextPerspectivePrompt, nextPerspectiveName);
+                    nextPerspectiveId, nextPerspectivePrompt, nextPerspectiveName,
+                    null);
 
             // 保存下一题到数据库（含视角信息）
             // AI返回的relatedIndex已经是全局questionIndex，无需转换

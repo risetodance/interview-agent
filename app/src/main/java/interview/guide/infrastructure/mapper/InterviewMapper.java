@@ -118,13 +118,15 @@ public interface InterviewMapper {
      */
     default java.util.Map<String, Object> toInterviewHistoryItem(InterviewSessionEntity session) {
         java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
+        // 优先使用 comprehensiveScore，如果没有则用 overallScore
+        Integer score = session.getComprehensiveScore() != null ? session.getComprehensiveScore() : session.getOverallScore();
         map.put("id", session.getId());
         map.put("sessionId", session.getSessionId());
         map.put("totalQuestions", session.getTotalQuestions());
         map.put("status", session.getStatus().toString());
         map.put("evaluateStatus", session.getEvaluateStatus() != null ? session.getEvaluateStatus().name() : null);
         map.put("evaluateError", session.getEvaluateError());
-        map.put("overallScore", session.getOverallScore());
+        map.put("overallScore", score);
         map.put("createdAt", session.getCreatedAt());
         map.put("completedAt", session.getCompletedAt());
         return map;

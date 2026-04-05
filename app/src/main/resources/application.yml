@@ -12,10 +12,6 @@ server:
   servlet:
     session:
       timeout: 30m  # 30分钟
-  # 错误处理
-  error:
-    include-message: always
-    include-binding-errors: always
 
 spring:
   application:
@@ -100,6 +96,26 @@ spring:
         dimensions: 1024  # text-embedding-v3实际生成的向量维度
         initialize-schema: true # 开发环境设置为 true，方便快速启动。生产环境设置为 false，手动管理数据库 schema，避免意外变更。
         remove-existing-vector-store-table: false  # 保留现有表和数据
+    # MCP Client配置 - 使用 stdio 传输
+    mcp:
+      client:
+        enabled: true
+        toolcallback:
+          enabled: true
+        stdio:
+          connections:
+            minimax:
+              command: uvx
+              args:
+                - minimax-coding-plan-mcp
+                - -y
+              env:
+                MINIMAX_API_KEY: ${MINIMAX_API_KEY}
+                MINIMAX_API_HOST: ${MINIMAX_API_HOST:https://api.minimaxi.com}
+  web:
+    error:
+      include-message: always
+      include-binding-errors: always
 
 # Application custom configuration
 app:
@@ -173,3 +189,8 @@ app:
       appid: ${WECHAT_WEB_APPID:your_web_appid_here}
       # 微信网页应用AppSecret（需替换为实际值）
       secret: ${WECHAT_WEB_SECRET:your_web_secret_here}
+
+  mcp:
+    websearch:
+      enabled: ${APP_MCP_WEBSEARCH_ENABLED:true}
+      timeout: ${APP_MCP_WEBSEARCH_TIMEOUT:10000}

@@ -69,7 +69,7 @@ public class QuestionGenerationService {
     public CurrentQuestionDTO generateSingleQuestion(InterviewSessionEntity session, int questionIndex,
                                                      String resumeText, List<AnswerHistoryDTO> history) {
         return generateSingleQuestion(session, questionIndex, resumeText, history,
-                null, null, null);
+                null, null, null, null);
     }
 
     /**
@@ -83,12 +83,14 @@ public class QuestionGenerationService {
      * @param perspectiveId     视角ID（用于过滤历史和选择prompt）
      * @param perspectivePrompt 视角的评分prompt（作为系统提示词）
      * @param perspectiveName   视角名称
+     * @param mcpSearchContext  MCP搜索结果上下文
      * @return 包含问题内容和参考上下文的 DTO
      */
     public CurrentQuestionDTO generateSingleQuestion(InterviewSessionEntity session, int questionIndex,
                                                      String resumeText, List<AnswerHistoryDTO> history,
                                                      Long perspectiveId, String perspectivePrompt,
-                                                     String perspectiveName) {
+                                                     String perspectiveName,
+                                                     String mcpSearchContext) {
         String difficulty = session.getCurrentDifficulty() != null ? session.getCurrentDifficulty() : "BASIC";
 
         log.info("生成问题: sessionId={}, index={}, difficulty={}, perspective={}",
@@ -128,6 +130,16 @@ public class QuestionGenerationService {
             }
         }
 
+        // 合并 MCP 搜索结果到参考上下文
+        String combinedReferenceContext = referenceContext;
+        if (mcpSearchContext != null && !mcpSearchContext.isBlank()) {
+            combinedReferenceContext = (referenceContext != null && !referenceContext.isBlank())
+                ? referenceContext + "\n\n【最新搜索结果】\n" + mcpSearchContext
+                : "【最新搜索结果】\n" + mcpSearchContext;
+            log.info("Merged MCP search context: sessionId={}, mcpLength={}",
+                    session.getSessionId(), mcpSearchContext.length());
+        }
+
         // 过滤历史记录：只保留当前视角的 Q&A（隐私隔离）
         List<AnswerHistoryDTO> filteredHistory = history;
         if (perspectiveId != null && history != null && !history.isEmpty()) {
@@ -140,7 +152,7 @@ public class QuestionGenerationService {
 
         // 使用AI生成，传入视角的prompt和过滤后的历史记录
         SimpleQuestionDTO aiResult = generateQuestionByAI(
-                resumeText, difficulty, referenceContext, questionIndex,
+                resumeText, difficulty, combinedReferenceContext, questionIndex,
                 filteredHistory, perspectiveId, perspectivePrompt, perspectiveName);
 
         // 更新会话的 questionsGenerated 计数
@@ -157,7 +169,7 @@ public class QuestionGenerationService {
                 difficulty,
                 usedKnowledgeBaseId,
                 knowledgeBaseName,
-                referenceContext,
+                combinedReferenceContext,
                 aiResult.isFollowUp(),
                 aiResult.relatedIndex(),
                 aiResult.relatedQuestion(),

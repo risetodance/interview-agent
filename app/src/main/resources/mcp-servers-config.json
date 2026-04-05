@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "minimax": {
+      "url": "${MINIMAX_MCP_BASE_URL:https://api.minimaxi.com/mcp}",
+      "headers": {
+        "Authorization": "Bearer ${MINIMAX_API_KEY}"
+      }
+    }
+  }
+}

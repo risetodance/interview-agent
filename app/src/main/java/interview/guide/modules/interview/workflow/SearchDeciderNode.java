@@ -1,0 +1,113 @@
+package interview.guide.modules.interview.workflow;
+
+import com.alibaba.cloud.ai.graph.OverAllState;
+import interview.guide.common.ai.StructuredOutputInvoker;
+import interview.guide.common.exception.ErrorCode;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.stereotype.Component;
+
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * 搜索决策节点 - 决定是否需要搜索最新题目
+ * 位于 question_generator 之前
+ * Decider 和 RoleSwitcher 都指向此节点
+ */
+@Slf4j
+@Component
+public class SearchDeciderNode {
+
+    private final ChatClient chatClient;
+    private final StructuredOutputInvoker structuredOutputInvoker;
+
+    public SearchDeciderNode(ChatClient.Builder chatClientBuilder,
+                             StructuredOutputInvoker structuredOutputInvoker,
+                             @Value("${app.mcp.websearch.enabled:true}") boolean mcpSearchEnabled) {
+        this.chatClient = chatClientBuilder.build();
+        this.structuredOutputInvoker = structuredOutputInvoker;
+    }
+
+    private record SearchDecisionOutput(
+            boolean needSearch,
+            String keywords,
+            String reason
+    ) {}
+
+    private final BeanOutputConverter<SearchDecisionOutput> outputConverter =
+            new BeanOutputConverter<>(SearchDecisionOutput.class);
+
+    @Value("classpath:prompts/search-decider-system.st")
+    private Resource systemPromptResource;
+
+    @Value("classpath:prompts/search-decider-user.st")
+    private Resource userPromptResource;
+
+    @Value("${app.mcp.websearch.enabled:true}")
+    private boolean mcpSearchEnabled;
+
+    public OverAllState execute(OverAllState state) {
+        String sessionId = (String) state.value("sessionId").orElse(null);
+        String currentQuestion = (String) state.value("currentQuestion").orElse("");
+        String userAnswer = (String) state.value("userAnswer").orElse("");
+        String feedback = (String) state.value("feedback").orElse("");
+        String category = (String) state.value("currentCategory").orElse("");
+
+        log.info("Search decider node: sessionId={}, category={}, mcpEnabled={}", sessionId, category, mcpSearchEnabled);
+
+        if (!mcpSearchEnabled) {
+            log.info("MCP search is disabled, skip search decision");
+            state.updateState(Map.of(
+                    "searchEnabled", false,
+                    "searchKeywords", "",
+                    "searchDecisionReason", "MCP搜索未启用"
+            ));
+            return state;
+        }
+
+        try {
+            String systemPrompt = systemPromptResource.getContentAsString(StandardCharsets.UTF_8);
+            String userPromptTemplate = userPromptResource.getContentAsString(StandardCharsets.UTF_8);
+
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("currentQuestion", currentQuestion);
+            variables.put("userAnswer", userAnswer);
+            variables.put("feedback", feedback);
+            variables.put("category", category);
+
+            String userPrompt = userPromptTemplate;
+            for (Map.Entry<String, Object> entry : variables.entrySet()) {
+                userPrompt = userPrompt.replace("{{" + entry.getKey() + "}}",
+                        entry.getValue() != null ? entry.getValue().toString() : "");
+            }
+
+            SearchDecisionOutput decision = structuredOutputInvoker.invoke(
+                    chatClient, systemPrompt, userPrompt, outputConverter,
+                    ErrorCode.AI_SERVICE_ERROR, "搜索决策解析失败", "SearchDeciderNode", log
+            );
+
+            log.info("Search decider: needSearch={}, keywords={}, reason={}", decision.needSearch(), decision.keywords(), decision.reason());
+
+            state.updateState(Map.of(
+                    "searchEnabled", decision.needSearch(),
+                    "searchKeywords", decision.keywords() != null ? decision.keywords() : "",
+                    "searchDecisionReason", decision.reason()
+            ));
+
+        } catch (Exception e) {
+            log.error("Search decider error: {}", e.getMessage(), e);
+            state.updateState(Map.of(
+                    "searchEnabled", false,
+                    "searchKeywords", "",
+                    "searchDecisionReason", "决策失败: " + e.getMessage()
+            ));
+        }
+
+        return state;
+    }
+}

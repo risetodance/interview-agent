@@ -59,6 +59,15 @@ public class QuestionGeneratorNode {
             }
             var session = sessionOpt.get();
 
+            // 获取 MCP 搜索结果作为补充上下文
+            String mcpSearchResult = (String) state.value("searchResult").orElse(null);
+            Boolean searchEnabled = (Boolean) state.value("searchEnabled").orElse(false);
+
+            if (searchEnabled && mcpSearchResult != null && !mcpSearchResult.isBlank()) {
+                log.info("Using MCP search result: sessionId={}, resultLength={}",
+                        sessionId, mcpSearchResult.length());
+            }
+
             // 获取简历文本
             String resumeText = null;
             if (session.getResume() != null) {
@@ -149,7 +158,8 @@ public class QuestionGeneratorNode {
             // 生成问题
             CurrentQuestionDTO questionDTO = questionGenerationService.generateSingleQuestion(
                     session, questionIndex, resumeText, history,
-                    selectedPerspectiveId, selectedPerspectivePrompt, selectedPerspectiveName);
+                    selectedPerspectiveId, selectedPerspectivePrompt, selectedPerspectiveName,
+                    mcpSearchResult);
 
             // 保存生成的问题到数据库
             Integer globalRelatedIndex = null;

@@ -27,6 +27,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.io.ByteArrayOutputStream;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -256,7 +257,7 @@ public class PdfExportService {
         if (answers != null && !answers.isEmpty()) {
             document.add(new Paragraph("\n"));
             document.add(createSectionTitle("问答详情"));
-            
+            answers.sort(Comparator.comparingInt(InterviewAnswerEntity::getQuestionIndex));
             for (InterviewAnswerEntity answer : answers) {
                 document.add(new Paragraph("\n"));
                 document.add(new Paragraph("问题 " + (answer.getQuestionIndex() + 1) + 

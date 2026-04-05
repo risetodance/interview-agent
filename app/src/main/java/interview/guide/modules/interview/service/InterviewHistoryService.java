@@ -232,6 +232,11 @@ public class InterviewHistoryService {
      * 将实体转换为列表项DTO
      */
     private InterviewSessionListItemDTO toListItemDTO(InterviewSessionEntity session) {
+        // 优先使用 comprehensiveScore，如果没有则用 overallScore
+        Integer score = session.getComprehensiveScore() != null ? session.getComprehensiveScore()
+                : session.getOverallScore();
+        log.info("toListItemDTO: sessionId={}, comprehensiveScore={}, overallScore={}, finalScore={}",
+                session.getSessionId(), session.getComprehensiveScore(), session.getOverallScore(), score);
         return new InterviewSessionListItemDTO(
             session.getId(),
             session.getSessionId(),
@@ -240,7 +245,7 @@ public class InterviewHistoryService {
             null, // position - could be extracted from resume
             null, // company - could be extracted from resume
             session.getStatus().toString(),
-            session.getOverallScore(),
+            score,
             session.getCompletedAt() != null && session.getCreatedAt() != null
                 ? (int) java.time.Duration.between(session.getCreatedAt(), session.getCompletedAt()).toMinutes()
                 : null,

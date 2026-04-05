@@ -36,6 +36,8 @@ dependencies {
     implementation libs.springAiAlibabaGraphCore
     // Spring AI 2.0 - PostgreSQL Vector Store (pgvector)
     implementation "org.springframework.ai:spring-ai-starter-vector-store-pgvector:${libs.versions.springAi.get()}"
+    // Spring AI 2.0 - MCP Client
+    implementation "org.springframework.ai:spring-ai-starter-mcp-client-webflux:${libs.versions.springAi.get()}"
 
     // Apache Tika for document parsing (PDF, DOCX, TXT)
     implementation libs.tika.core

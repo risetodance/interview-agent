@@ -223,7 +223,7 @@ function MessageBubble({ message }: { message: Message }) {
             {isFollowUp && message.relatedQuestion ? (
               <>
                 <div className="text-xs text-amber-600 mb-2 pb-2 border-b border-amber-200">
-                  {message.relatedIndex ? `关于问题${message.relatedIndex}：` : ''}{message.relatedQuestion}
+                  {message.relatedIndex ? `关于问题${message.relatedIndex + 1}：` : ''}{message.relatedQuestion}
                 </div>
                 <div>{message.content}</div>
               </>

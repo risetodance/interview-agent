@@ -31,6 +31,11 @@ public class InterviewWorkflowState {
     private String nextPerspectiveId;
     private String nextPerspectiveName;
 
+    // 搜索结果（来自 MCP web_search）
+    private String searchResult;        // MCP 搜索结果
+    private Boolean searchEnabled;      // 本轮是否启用了搜索
+    private String searchKeywords;      // 搜索关键词（用于调试）
+
     // 评估结果
     private Integer score;
     private String feedback;
