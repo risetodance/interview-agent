@@ -245,11 +245,11 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
       setCheckingUnfinished(false);
     }
   };
-  
-  const handleContinueUnfinished = async () => {
+
+  const handleContinueUnfinished = async (sessionId: string) => {
     if (!unfinishedSession) return;
-    setForceCreateNew(false);  // 重置强制创建标志
-    await restoreSession(unfinishedSession);
+    // 直接调用 restoreSessionById 继续面试，不进行页面导航
+    await restoreSessionById(sessionId);
     setUnfinishedSession(null);
   };
   
@@ -257,66 +257,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
     setUnfinishedSession(null);
     setForceCreateNew(true);  // 标记需要强制创建新会话
   };
-  
-  const restoreSession = async (sessionToRestore: InterviewSession) => {
-    setSession(sessionToRestore);
-    setIsLoadingQuestion(true);
 
-    // 调用 getCurrentQuestion 获取当前问题
-    try {
-      const currentQ = await interviewApi.getCurrentQuestion(sessionToRestore.sessionId);
-      setCurrentQuestion(currentQ);
-
-      // 自适应版本 InterviewSessionBasicDTO 没有 questions 列表
-      // 只能显示当前问题，无法恢复完整消息历史
-      if (sessionToRestore.questions && sessionToRestore.questions.length > 0) {
-        // 旧版本数据，可以恢复完整历史
-        const restoredMessages: Message[] = [];
-        for (let i = 0; i <= sessionToRestore.currentQuestionIndex; i++) {
-          const q = sessionToRestore.questions[i];
-          restoredMessages.push({
-            type: 'interviewer',
-            content: q.question,
-            category: q.category,
-            questionIndex: i
-          });
-          if (q.userAnswer) {
-            restoredMessages.push({
-              type: 'user',
-              content: q.userAnswer
-            });
-          }
-        }
-        setMessages(restoredMessages);
-
-        // 如果当前问题已有答案，显示在输入框中
-        const currentQuestionData = sessionToRestore.questions[sessionToRestore.currentQuestionIndex];
-        if (currentQuestionData?.userAnswer) {
-          setAnswer(currentQuestionData.userAnswer);
-        }
-      } else {
-        // 新版本：只显示当前问题作为第一条消息
-        setMessages([{
-          type: 'interviewer',
-          content: currentQ.question,
-          category: currentQ.category,
-          questionIndex: currentQ.questionIndex,
-          difficulty: currentQ.difficulty,
-          knowledgeBaseName: currentQ.knowledgeBaseName,
-          createdByPerspectiveId: currentQ.createdByPerspectiveId,
-          createdByPerspectiveName: currentQ.createdByPerspectiveName,
-        }]);
-      }
-    } catch (err) {
-      console.error('恢复会话获取当前问题失败', err);
-      setError('恢复面试失败，请重新开始');
-    } finally {
-      setIsLoadingQuestion(false);
-    }
-
-    setStage('interview');
-  };
-  
   const startInterview = async () => {
     setIsCreating(true);
     setError('');

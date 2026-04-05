@@ -51,6 +51,7 @@ public class InterviewSessionCache {
         private SessionStatus status;
         private List<Long> knowledgeBaseIds;  // 关联的知识库ID列表
         private Integer questionsGenerated = 0;  // 已生成的问题数量
+        private Integer totalQuestions = 0;  // 用户选择的总题数
 
         public CachedSession() {
         }

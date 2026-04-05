@@ -138,17 +138,19 @@ function InterviewWrapper() {
   const [loading, setLoading] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
+  // 从location state同步获取sessionId（继续面试）
+  const stateSessionId = (location.state as { sessionId?: string })?.sessionId;
+  const stateResumeText = (location.state as { resumeText?: string })?.resumeText;
+
   useEffect(() => {
-    // 从location state获取sessionId（继续面试）
-    const stateSessionId = (location.state as { sessionId?: string })?.sessionId;
+    // 如果有state带的sessionId，优先使用
     if (stateSessionId) {
       setSessionId(stateSessionId);
     }
 
     // 优先从location state获取resumeText
-    const stateText = (location.state as { resumeText?: string })?.resumeText;
-    if (stateText) {
-      setResumeText(stateText);
+    if (stateResumeText) {
+      setResumeText(stateResumeText);
       setLoading(false);
     } else if (resumeId) {
       // 如果没有，从API获取简历详情
@@ -164,9 +166,9 @@ function InterviewWrapper() {
     } else {
       setLoading(false);
     }
-  }, [resumeId, location.state]);
+  }, [resumeId, stateSessionId, stateResumeText]);
 
-  if (!resumeId && !sessionId) {
+  if (!resumeId && !stateSessionId) {
     return <Navigate to="/history" replace />;
   }
 
@@ -199,7 +201,7 @@ function InterviewWrapper() {
     <Interview
       resumeText={resumeText}
       resumeId={resumeId ? parseInt(resumeId, 10) : undefined}
-      sessionId={sessionId || undefined}
+      sessionId={stateSessionId || sessionId || undefined}
       onBack={handleBack}
       onInterviewComplete={handleInterviewComplete}
     />

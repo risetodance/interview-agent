@@ -363,8 +363,8 @@ export default function ResumeDetailPage({ resumeId, onBack, onStartInterview }:
                   reanalyzing={reanalyzing}
                 />
               ) : (
-                <InterviewPanel 
-                  interviews={resume.interviews || []} 
+                <InterviewPanel
+                  interviews={resume.interviews || []}
                   onStartInterview={() => onStartInterview(resume.resumeText, resumeId)}
                   onViewInterview={handleViewInterview}
                   onExportInterview={handleExportInterviewPdf}

@@ -79,8 +79,8 @@ public class SecurityConfig {
                         .requestMatchers("/doc.html").permitAll()
                         .requestMatchers("/favicon.ico").permitAll()
                         .requestMatchers("/error").permitAll()
-                        // 临时允许admin接口（测试用）
-                        .requestMatchers("/api/admin/**").permitAll()
+                        // 管理后台接口需要管理员角色
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // SSE stream 接口（通过 URL 参数传递 token 验证）
                         .requestMatchers("/api/interview/sessions/*/stream").permitAll()
 

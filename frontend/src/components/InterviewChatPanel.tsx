@@ -197,7 +197,7 @@ function MessageBubble({ message }: { message: Message }) {
             )}
             {isFollowUp ? (
               <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-xs rounded-full border border-amber-200">
-                追问 {message.relatedIndex ? `· 关于问题${message.relatedIndex}` : ''}
+                追问 {message.relatedIndex ? `· 关于问题${message.relatedIndex + 1}` : ''}
               </span>
             ) : null}
             {/* 分类（追问时也显示） */}

@@ -109,7 +109,8 @@ public class InterviewSessionService {
                 "CREATED",
                 "BASIC",
                 null,
-                0
+                0,
+                0  // 新创建的会话，已答题数量为0
         );
     }
 
@@ -120,10 +121,15 @@ public class InterviewSessionService {
         // 验证会话所有权
         validateSessionOwnership(userId, sessionId);
 
+        // 计算已答题数量
+        int answeredCount = persistenceService.findAnswersBySessionId(sessionId).stream()
+                .filter(a -> a.getUserAnswer() != null && !a.getUserAnswer().isBlank())
+                .toList().size();
+
         // 1. 尝试从 Redis 缓存获取
         Optional<CachedSession> cachedOpt = sessionCache.getSession(sessionId);
         if (cachedOpt.isPresent()) {
-            return toDTO(cachedOpt.get());
+            return toDTO(cachedOpt.get(), answeredCount);
         }
 
         // 2. 缓存未命中，从数据库恢复
@@ -132,7 +138,7 @@ public class InterviewSessionService {
             throw new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND);
         }
 
-        return toDTO(restoredSession);
+        return toDTO(restoredSession, answeredCount);
     }
 
     /**
@@ -185,8 +191,12 @@ public class InterviewSessionService {
                     // 验证所有权
                     InterviewSessionEntity entity = persistenceService.findBySessionId(sessionId).orElse(null);
                     if (entity != null && userId.equals(entity.getResume().getUserId())) {
-                        log.debug("从 Redis 缓存找到未完成会话: userId={}, resumeId={}, sessionId={}", userId, resumeId, sessionId);
-                        return Optional.of(toDTO(cachedOpt.get()));
+                        // 计算已答题数量（userAnswer 不为空的答案）
+                        int answeredCount = persistenceService.findAnswersBySessionId(sessionId).stream()
+                                .filter(a -> a.getUserAnswer() != null && !a.getUserAnswer().isBlank())
+                                .toList().size();
+                        log.debug("从 Redis 缓存找到未完成会话: userId={}, resumeId={}, sessionId={}, answeredCount={}", userId, resumeId, sessionId, answeredCount);
+                        return Optional.of(toDTO(cachedOpt.get(), answeredCount));
                     }
                 }
             }
@@ -203,9 +213,14 @@ public class InterviewSessionService {
                 return Optional.empty();
             }
 
+            // 计算已答题数量
+            int answeredCount = persistenceService.findAnswersBySessionId(entity.getSessionId()).stream()
+                    .filter(a -> a.getUserAnswer() != null && !a.getUserAnswer().isBlank())
+                    .toList().size();
+
             CachedSession restoredSession = restoreSessionFromEntity(entity);
             if (restoredSession != null) {
-                return Optional.of(toDTO(restoredSession));
+                return Optional.of(toDTO(restoredSession, answeredCount));
             }
         } catch (Exception e) {
             log.error("恢复未完成会话失败: {}", e.getMessage(), e);
@@ -252,6 +267,7 @@ public class InterviewSessionService {
             cachedSession.setCurrentIndex(entity.getCurrentQuestionIndex() != null ? entity.getCurrentQuestionIndex() : 0);
             cachedSession.setStatus(status);
             cachedSession.setQuestionsGenerated(entity.getQuestionsGenerated() != null ? entity.getQuestionsGenerated() : 0);
+            cachedSession.setTotalQuestions(entity.getTotalQuestions() != null ? entity.getTotalQuestions() : 0);
 
             // 解析并设置知识库ID列表
             if (entity.getKnowledgeBaseIds() != null && !entity.getKnowledgeBaseIds().isBlank()) {
@@ -381,9 +397,9 @@ public class InterviewSessionService {
     /**
      * 将缓存会话转换为 DTO（不包含问题列表）
      */
-    private InterviewSessionBasicDTO toDTO(CachedSession session) {
-        // 自适应面试：问题数量从 questionsGenerated 获取
-        int totalQuestions = session.getQuestionsGenerated() != null ? session.getQuestionsGenerated() : 0;
+    private InterviewSessionBasicDTO toDTO(CachedSession session, int answeredCount) {
+        // 总题数使用 totalQuestions（用户选择的），不是 questionsGenerated（已生成的）
+        int totalQuestions = session.getTotalQuestions() != null ? session.getTotalQuestions() : 0;
 
         return new InterviewSessionBasicDTO(
                 session.getSessionId(),
@@ -393,7 +409,8 @@ public class InterviewSessionService {
                 session.getStatus().name(),
                 "BASIC",
                 null,
-                totalQuestions
+                totalQuestions,
+                answeredCount
         );
     }
 
@@ -426,7 +443,12 @@ public class InterviewSessionService {
 
         log.info("切换知识库完成: sessionId={}", sessionId);
 
-        return toDTO(session);
+        // 计算已答题数量
+        int answeredCount = persistenceService.findAnswersBySessionId(sessionId).stream()
+                .filter(a -> a.getUserAnswer() != null && !a.getUserAnswer().isBlank())
+                .toList().size();
+
+        return toDTO(session, answeredCount);
     }
 
     /**

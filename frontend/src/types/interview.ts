@@ -53,6 +53,7 @@ export interface InterviewSession {
   currentQuestionIndex: number;
   questions: InterviewQuestion[];
   status: 'CREATED' | 'IN_PROGRESS' | 'COMPLETED' | 'EVALUATED';
+  answeredCount?: number;  // 已答题数量
 }
 
 export interface InterviewQuestion {

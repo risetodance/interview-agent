@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../../store/user';
+import { pointsApi } from '../../api/points';
+import { membershipApi, MembershipType } from '../../api/membership';
 import { User, Mail, Award, Crown, Lock, LogOut, Save, Eye, EyeOff } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -27,6 +29,14 @@ export default function ProfilePage() {
   // 登出确认
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
+  // 积分状态
+  const [points, setPoints] = useState<number>(0);
+  const [pointsLoading, setPointsLoading] = useState(false);
+
+  // 会员等级状态
+  const [membership, setMembership] = useState<MembershipType>('FREE');
+  const [membershipLoading, setMembershipLoading] = useState(false);
+
   // 初始化表单数据
   useEffect(() => {
     if (user) {
@@ -34,6 +44,38 @@ export default function ProfilePage() {
       setAvatar(user.avatar || '');
     }
   }, [user]);
+
+  // 获取积分
+  useEffect(() => {
+    const fetchPoints = async () => {
+      setPointsLoading(true);
+      try {
+        const data = await pointsApi.getPoints();
+        setPoints(data);
+      } catch (err) {
+        console.error('获取积分失败', err);
+      } finally {
+        setPointsLoading(false);
+      }
+    };
+    fetchPoints();
+  }, []);
+
+  // 获取会员等级
+  useEffect(() => {
+    const fetchMembership = async () => {
+      setMembershipLoading(true);
+      try {
+        const data = await membershipApi.getMembership();
+        setMembership(data.membership);
+      } catch (err) {
+        console.error('获取会员等级失败', err);
+      } finally {
+        setMembershipLoading(false);
+      }
+    };
+    fetchMembership();
+  }, []);
 
   // 处理资料更新
   const handleProfileSubmit = async (e: React.FormEvent) => {
@@ -113,7 +155,7 @@ export default function ProfilePage() {
     );
   }
 
-  const membershipInfo = getMembershipDisplay(user.membership);
+  const membershipInfo = getMembershipDisplay(membership);
 
   return (
     <motion.div
@@ -162,7 +204,7 @@ export default function ProfilePage() {
               </div>
             )}
             <div className={`absolute -bottom-1 -right-1 px-2 py-0.5 rounded-full text-xs font-medium ${membershipInfo.className}`}>
-              {user.membership === 'FREE' ? <Crown className="w-3 h-3 inline mr-1" /> : null}
+              {membership === 'FREE' ? <Crown className="w-3 h-3 inline mr-1" /> : null}
               {membershipInfo.label}
             </div>
           </div>
@@ -193,7 +235,9 @@ export default function ProfilePage() {
               </div>
               <div>
                 <p className="text-xs text-slate-400">积分</p>
-                <p className="font-medium text-slate-800">{user.points}</p>
+                <p className="font-medium text-slate-800">
+                  {pointsLoading ? '加载中...' : points.toLocaleString()}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">

@@ -12,5 +12,6 @@ public record InterviewSessionBasicDTO(
     String status,
     String currentDifficulty,
     Integer overallScore,
-    Integer questionsGenerated
+    Integer questionsGenerated,
+    int answeredCount  // 已答题数量
 ) {}

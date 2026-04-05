@@ -12,7 +12,7 @@ interface InterviewConfigPanelProps {
   isCreating: boolean;
   checkingUnfinished: boolean;
   unfinishedSession: InterviewSession | null;
-  onContinueUnfinished: () => void;
+  onContinueUnfinished: (sessionId: string, resumeId?: number) => void;
   onStartNew: () => void;
   resumeText: string;
   onBack: () => void;
@@ -108,13 +108,13 @@ export default function InterviewConfigPanel({
                 <div className="flex-1">
                   <h3 className="font-semibold text-amber-900 mb-1">检测到未完成的模拟面试</h3>
                   <p className="text-sm text-amber-700">
-                    已完成 {unfinishedSession.currentQuestionIndex} / {unfinishedSession.totalQuestions} 题
+                    已完成 {(unfinishedSession.answeredCount ?? unfinishedSession.currentQuestionIndex)} / {unfinishedSession.totalQuestions} 题
                   </p>
                 </div>
               </div>
               <div className="flex gap-3">
                 <motion.button
-                  onClick={onContinueUnfinished}
+                  onClick={() => onContinueUnfinished(unfinishedSession.sessionId)}
                   className="flex-1 px-4 py-2.5 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}

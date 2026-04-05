@@ -29,10 +29,19 @@ public class ScorerNode {
     public OverAllState execute(OverAllState state) {
         String sessionId = (String) state.value("sessionId").orElse(null);
         Integer questionIndex = (Integer) state.value("currentQuestionIndex").orElse(null);
-        String userAnswer = (String) state.value("userAnswer").orElse(null);
 
-        log.info("Scorer node: sessionId={}, questionIndex={}, hasAnswer={}",
-                sessionId, questionIndex, userAnswer != null && !userAnswer.isBlank());
+        // 从 HumanFeedback 获取用户答案
+        String userAnswer = null;
+        OverAllState.HumanFeedback humanFeedback = state.humanFeedback();
+        if (humanFeedback != null && humanFeedback.data() != null) {
+            Object answerObj = humanFeedback.data().get("userAnswer");
+            if (answerObj != null) {
+                userAnswer = answerObj.toString();
+            }
+        }
+
+        log.info("Scorer node: sessionId={}, questionIndex={}, hasAnswer={}, fromHumanFeedback={}",
+                sessionId, questionIndex, userAnswer != null && !userAnswer.isBlank(), userAnswer != null);
 
         if (sessionId == null || questionIndex == null) {
             log.error("Scorer node: missing required parameters");
@@ -45,8 +54,8 @@ public class ScorerNode {
         }
 
         try {
-            // 获取会话
-            Optional<InterviewSessionEntity> sessionOpt = persistenceService.findBySessionId(sessionId);
+            // 获取会话（使用 JOIN FETCH 加载简历，避免懒加载问题）
+            Optional<InterviewSessionEntity> sessionOpt = persistenceService.findBySessionIdWithResume(sessionId);
             if (sessionOpt.isEmpty()) {
                 log.error("Scorer node: session not found, sessionId={}", sessionId);
                 return state;
