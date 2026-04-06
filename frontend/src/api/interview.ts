@@ -126,10 +126,7 @@ export const interviewApi = {
   } as const,
 
   /**
-   * 连接面试 SSE 流获取实时事件
-   * @param sessionId 会话 ID
-   * @param callbacks 事件回调
-   * @returns 清理函数，调用后关闭连接
+   * SSE 连接结果
    */
   connectInterviewStream(
     sessionId: string,
@@ -140,7 +137,7 @@ export const interviewApi = {
       onComplete?: (data: { overallScore: number; summary: Record<string, unknown> }) => void;
       onError?: (error: string) => void;
     }
-  ): () => void {
+  ): { eventSource: EventSource; cleanup: () => void } {
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
     const token = localStorage.getItem('auth_token');
 
@@ -181,7 +178,10 @@ export const interviewApi = {
       eventSource.close();
     };
 
-    // 返回清理函数
-    return () => eventSource.close();
+    // 返回 EventSource 对象和清理函数
+    return {
+      eventSource,
+      cleanup: () => eventSource.close()
+    };
   },
 };

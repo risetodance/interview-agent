@@ -38,7 +38,8 @@ public class ScorerNode {
         String userAnswer = null;
         OverAllState.HumanFeedback humanFeedback = state.humanFeedback();
         if (humanFeedback != null && humanFeedback.data() != null) {
-            Object answerObj = humanFeedback.data().get("userAnswer");
+            // WorkflowExecutor 传递的是 CURRENT_ANSWER，不是 "userAnswer"
+            Object answerObj = humanFeedback.data().get(InterviewWorkflowState.CURRENT_ANSWER);
             if (answerObj != null) {
                 userAnswer = answerObj.toString();
             }
@@ -113,6 +114,10 @@ public class ScorerNode {
                 adjustedDifficulty = evaluationResult.adjustedDifficulty().getCode();
             }
 
+            log.info("难度调整判定: sessionId={}, questionIndex={}, score={}, adjustDifficulty={}, adjustedDifficulty={}, adjustReason={}",
+                    sessionId, questionIndex, evaluationResult.score(), evaluationResult.adjustDifficulty(),
+                    adjustedDifficulty, evaluationResult.adjustReason());
+
             // 保存评估结果
             persistenceService.saveAnswerWithDifficulty(
                     sessionId,
@@ -138,7 +143,8 @@ public class ScorerNode {
             Map<String, Object> updatedState = Map.of(
                     InterviewWorkflowState.SCORE, evaluationResult.score(),
                     InterviewWorkflowState.FEEDBACK, evaluationResult.feedback(),
-                    InterviewWorkflowState.ADJUSTED_DIFFICULTY, adjustedDifficulty
+                    InterviewWorkflowState.ADJUSTED_DIFFICULTY, adjustedDifficulty,
+                    InterviewWorkflowState.CURRENT_ANSWER, userAnswer
             );
             state.updateState(updatedState);
 

@@ -394,7 +394,14 @@ public class PerspectiveEvaluationService {
     ) {}
 
     // ========== 选择下一个问题的视角（轮询算法）==========
-    public Long selectNextQuestionPerspective(List<Long> selectedPerspectives, Long lastPerspectiveId) {
+    /**
+     * 选择下一个问题的视角
+     * @param selectedPerspectives 已选择的视角列表
+     * @param lastPerspectiveId 上一个出题的视角ID
+     * @param sessionWeights 会话级权重配置（如果为null或空，则使用角色表中的默认权重）
+     */
+    public Long selectNextQuestionPerspective(List<Long> selectedPerspectives, Long lastPerspectiveId,
+                                              Map<Long, Double> sessionWeights) {
         if (selectedPerspectives == null || selectedPerspectives.isEmpty()) {
             return null;
         }
@@ -412,7 +419,14 @@ public class PerspectiveEvaluationService {
         }
 
         List<InterviewerRoleEntity> roles = interviewerRoleRepository.findAllById(candidates);
-        roles.sort(Comparator.comparingDouble(InterviewerRoleEntity::getWeight).reversed());
+        // 优先使用会话级权重，否则使用角色表中的默认权重
+        roles.sort((r1, r2) -> {
+            double w1 = sessionWeights != null && sessionWeights.containsKey(r1.getId())
+                    ? sessionWeights.get(r1.getId()) : (r1.getWeight() != null ? r1.getWeight() : 1.0);
+            double w2 = sessionWeights != null && sessionWeights.containsKey(r2.getId())
+                    ? sessionWeights.get(r2.getId()) : (r2.getWeight() != null ? r2.getWeight() : 1.0);
+            return Double.compare(w2, w1); // 降序排列
+        });
         return roles.get(0).getId();
     }
 

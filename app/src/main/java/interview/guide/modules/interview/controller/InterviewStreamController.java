@@ -66,9 +66,11 @@ public class InterviewStreamController {
         Flux<ServerSentEvent<String>> flux = streamService.getStream(sessionId)
                 .doOnCancel(() -> {
                     log.info("SSE connection cancelled: sessionId={}", sessionId);
+                    streamService.removeSink(sessionId);
                 })
                 .doOnError(e -> {
                     log.error("SSE error: sessionId={}", sessionId, e);
+                    streamService.removeSink(sessionId);
                 });
 
         return ResponseEntity.ok(flux);

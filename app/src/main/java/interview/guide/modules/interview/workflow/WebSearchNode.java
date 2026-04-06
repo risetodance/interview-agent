@@ -43,12 +43,19 @@ public class WebSearchNode {
     }
 
     /**
-     * Web搜索结果输出 - 包含题目、参考答案、知识点
+     * 单个面试题目
      */
-    public record WebSearchOutput(
+    public record QuestionItem(
             String question,
             String referenceAnswer,
             List<String> keyPoints
+    ) {}
+
+    /**
+     * Web搜索结果输出 - 包含多个题目、参考答案、知识点
+     */
+    public record WebSearchOutput(
+            List<QuestionItem> questions
     ) {
         /**
          * 序列化为JSON字符串

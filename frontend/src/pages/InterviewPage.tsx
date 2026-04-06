@@ -60,6 +60,8 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
 
   // SSE 连接 ref
   const eventSourceRef = useRef<EventSource | null>(null);
+  // 使用 ref 存储 sessionId，避免因 session 对象引用变化导致 SSE 频繁重连
+  const sessionIdRef = useRef<string | null>(null);
 
   // 检查是否有未完成的面试（组件挂载时和resumeId变化时）
   useEffect(() => {
@@ -80,20 +82,40 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
 
   // 连接 SSE，当进入面试阶段时建立连接
   useEffect(() => {
-    if (!session || stage !== 'interview') return;
+    // 只有在 stage 为 'interview' 且有 session 时才连接
+    // 使用 sessionIdRef 而不是 session 对象来判断，避免因 session 引用变化导致重连
+    const currentSessionId = session?.sessionId;
+    if (!currentSessionId || stage !== 'interview') return;
+
+    // 如果 sessionId 没变且已有连接，不重连
+    if (sessionIdRef.current === currentSessionId && eventSourceRef.current) {
+      return;
+    }
 
     // 清理之前的连接
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
 
+    // 更新 ref
+    sessionIdRef.current = currentSessionId;
+
     // 连接 SSE
-    const cleanup = interviewApi.connectInterviewStream(session.sessionId, {
+    const { eventSource, cleanup } = interviewApi.connectInterviewStream(currentSessionId, {
       onConnected: () => {
         console.log('SSE connected');
       },
       onQuestion: (question) => {
+        console.log('SSE onQuestion received, current readyState:', eventSourceRef.current?.readyState);
         setCurrentQuestion(question);
+        // 使用函数式更新，不创建新的 session 对象引用
+        // 只更新 currentQuestionIndex，不触发 session 对象变化
+        setSession(prev => {
+          if (!prev) return null;
+          // 如果 questionIndex 没变，不需要更新
+          if (prev.currentQuestionIndex === question.questionIndex) return prev;
+          return { ...prev, currentQuestionIndex: question.questionIndex };
+        });
         setMessages(prev => [...prev, {
           type: 'interviewer',
           content: question.question,
@@ -122,12 +144,14 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
       },
     });
 
-    eventSourceRef.current = cleanup as unknown as EventSource;
+    eventSourceRef.current = eventSource;
 
     return () => {
+      console.log('SSE cleanup called, closing connection');
       cleanup();
+      eventSourceRef.current = null;
     };
-  }, [session, stage]);
+  }, [session?.sessionId, stage]); // 只依赖 sessionId 和 stage，不依赖整个 session 对象
 
   // 加载可用的面试官角色（仅在配置阶段）
   useEffect(() => {

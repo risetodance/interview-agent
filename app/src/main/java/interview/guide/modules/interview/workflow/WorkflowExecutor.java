@@ -101,8 +101,6 @@ public class WorkflowExecutor {
             // 创建 KeyStrategyFactory - 使用 REPLACE 策略覆盖所有值
             KeyStrategyFactory keyStrategyFactory = () -> {
                 Map<String, KeyStrategy> strategies = new HashMap<>();
-                // 所有 key 都使用 REPLACE 策略
-                strategies.put("*", KeyStrategy.REPLACE);
                 // 显式注册关键 key，确保框架能识别
                 strategies.put(InterviewWorkflowState.SESSION_ID, KeyStrategy.REPLACE);
                 strategies.put(InterviewWorkflowState.CURRENT_QUESTION_INDEX, KeyStrategy.REPLACE);
@@ -119,6 +117,11 @@ public class WorkflowExecutor {
                 strategies.put(InterviewWorkflowState.CURRENT_CATEGORY, KeyStrategy.REPLACE);
                 strategies.put(InterviewWorkflowState.CURRENT_DIFFICULTY, KeyStrategy.REPLACE);
                 strategies.put(InterviewWorkflowState.IS_COMPLETE, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.CURRENT_ANSWER, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.SEARCH_ENABLED, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.SEARCH_RESULT, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.SEARCH_KEYWORDS, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.SEARCH_DECISION_REASON, KeyStrategy.REPLACE);
                 return strategies;
             };
 
@@ -161,6 +164,7 @@ public class WorkflowExecutor {
             stateGraph.addConditionalEdges(NODE_SEARCH_DECIDER,
                     AsyncCommandAction.of(state -> {
                         Boolean searchEnabled = (Boolean) state.value(InterviewWorkflowState.SEARCH_ENABLED).orElse(false);
+                        log.info("Search decider condition: searchEnabled={}", searchEnabled);
                         return CompletableFuture.completedFuture(searchEnabled.toString());
                     }),
                     searchEdgeMapping);

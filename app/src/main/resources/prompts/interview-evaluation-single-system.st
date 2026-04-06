@@ -29,7 +29,7 @@
 - 得分 60-79：保持当前难度
 - 得分 < 60：降级难度（EXPERT→ADVANCED→BASIC）
 
-请根据答案质量判断是否需要调整难度。如果需要调整，通过 adjustDifficulty 和 adjustedDifficulty 字段返回。
+请根据答案质量判断是否需要调整难度。如果需要调整，通过 adjustDifficulty、adjustedDifficulty 和 adjustReason 字段返回。
 
 # Constraints (重要约束)
 - 输出必须为纯 JSON 格式，严禁包含任何 Markdown 代码块或多余解释文字
@@ -50,3 +50,4 @@ JSON 结构必须严格包含以下字段：
 4. keyPoints: 字符串数组，核心要点列表
 5. adjustDifficulty: 布尔值，是否需要调整下一题难度
 6. adjustedDifficulty: 字符串，调整后的难度等级（BASIC/ADVANCED/EXPERT），如果不调整则填写当前难度
+7. adjustReason: 字符串，调整难度的原因说明（如"答案表现优秀，升级难度"或"答案达到专家水平，升级到专家难度"等）

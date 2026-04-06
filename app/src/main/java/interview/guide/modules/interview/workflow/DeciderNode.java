@@ -239,6 +239,14 @@ public class DeciderNode {
         StringBuilder availablePerspectivesBuilder = new StringBuilder();
         if (session.getSelectedPerspectives() != null && !session.getSelectedPerspectives().isBlank()) {
             try {
+                // 解析会话级权重配置
+                final Map<Long, Double> sessionWeights;
+                if (session.getPerspectiveWeights() != null && !session.getPerspectiveWeights().isBlank()) {
+                    sessionWeights = objectMapper.readValue(
+                            session.getPerspectiveWeights(), new TypeReference<Map<Long, Double>>() {});
+                } else {
+                    sessionWeights = null;
+                }
                 List<Long> selectedPerspectives = objectMapper.readValue(
                         session.getSelectedPerspectives(), new TypeReference<>() {
                         });
@@ -250,14 +258,19 @@ public class DeciderNode {
                         if (answers != null) {
                             answeredCount = answers.size();
                         }
+                        // 优先使用会话级权重，否则使用角色表中的默认权重
+                        double weight = sessionWeights != null && sessionWeights.containsKey(perspectiveId)
+                                ? sessionWeights.get(perspectiveId)
+                                : (role.getWeight() != null ? role.getWeight() : 1.0);
                         availablePerspectivesBuilder.append(String.format("- %s (ID:%d, 权重:%.0f%%, 已出题:%d): %s\n",
                                 role.getRoleName(),
                                 role.getId(),
-                                (role.getWeight() != null ? role.getWeight() : 1.0) * 100,
+                                weight * 100,
                                 answeredCount,
                                 role.getDescription()));
                     });
                 }
+                log.info("availablePerspectives: {}", availablePerspectivesBuilder);
             } catch (Exception e) {
                 log.warn("解析 selectedPerspectives 失败: {}", e.getMessage());
             }

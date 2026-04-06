@@ -211,6 +211,9 @@ public class QuestionGeneratorNode {
             updatedState.put(InterviewWorkflowState.CREATED_BY_PERSPECTIVE_ID, selectedPerspectiveId != null ? selectedPerspectiveId : 0L);
             updatedState.put(InterviewWorkflowState.CREATED_BY_PERSPECTIVE_NAME, selectedPerspectiveName != null ? selectedPerspectiveName : "");
             updatedState.put(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID, selectedPerspectiveId != null ? selectedPerspectiveId : 0L);
+            // 清空搜索结果，避免下一轮继续使用
+            updatedState.put(InterviewWorkflowState.SEARCH_RESULT, "");
+            updatedState.put(InterviewWorkflowState.SEARCH_ENABLED, false);
             // 追问相关字段也需要放入状态，以便 checkpoint 恢复后 SSE 推送
             updatedState.put(InterviewWorkflowState.IS_FOLLOW_UP, questionDTO.isFollowUp() != null ? questionDTO.isFollowUp() : false);
             updatedState.put(InterviewWorkflowState.RELATED_INDEX, questionDTO.relatedIndex());

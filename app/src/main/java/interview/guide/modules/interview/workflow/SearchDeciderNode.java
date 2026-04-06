@@ -40,7 +40,8 @@ public class SearchDeciderNode {
             boolean needSearch,
             String keywords,
             String reason
-    ) {}
+    ) {
+    }
 
     private final BeanOutputConverter<SearchDecisionOutput> outputConverter =
             new BeanOutputConverter<>(SearchDecisionOutput.class);
@@ -61,7 +62,7 @@ public class SearchDeciderNode {
         String feedback = (String) state.value(InterviewWorkflowState.FEEDBACK).orElse("");
         String category = (String) state.value(InterviewWorkflowState.CURRENT_CATEGORY).orElse("");
 
-        log.info("Search decider node: sessionId={}, category={}, mcpEnabled={}", sessionId, category, mcpSearchEnabled);
+        log.info("Search decider node: sessionId={},feedback={}, category={}, mcpEnabled={}", sessionId, feedback, category, mcpSearchEnabled);
 
         if (!mcpSearchEnabled) {
             log.info("MCP search is disabled, skip search decision");
@@ -72,6 +73,8 @@ public class SearchDeciderNode {
             ));
             return state;
         }
+
+        log.info("userAnswer is :{},currentQuestion is {}", userAnswer, currentQuestion);
 
         try {
             String systemPrompt = systemPromptResource.getContentAsString(StandardCharsets.UTF_8);

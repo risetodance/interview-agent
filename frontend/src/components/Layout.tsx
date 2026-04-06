@@ -254,15 +254,7 @@ export default function Layout() {
 
       {/* 主内容区 */}
       <main className="flex-1 ml-64 p-10 min-h-screen overflow-y-auto">
-        <motion.div
-          key={currentPath}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.3 }}
-        >
-          <Outlet />
-        </motion.div>
+        <Outlet />
       </main>
     </div>
   );

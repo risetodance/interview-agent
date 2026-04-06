@@ -1,9 +1,11 @@
 package interview.guide.common.exception;
 
 import interview.guide.common.result.Result;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -22,9 +24,17 @@ import java.util.stream.Collectors;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    
+
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-    
+
+    /**
+     * 判断是否为 SSE 请求
+     */
+    private boolean isSseRequest(HttpServletRequest request) {
+        String accept = request.getHeader("Accept");
+        return accept != null && accept.contains(MediaType.TEXT_EVENT_STREAM_VALUE);
+    }
+
     /**
      * 处理业务异常
      */
@@ -129,12 +139,15 @@ public class GlobalExceptionHandler {
     
     /**
      * 处理其他未知异常
-     * 统一返回 HTTP 200，通过业务错误码区分异常类型
+     * SSE 请求直接抛出异常，其他请求返回 Result
      */
     @ExceptionHandler(Exception.class)
-    @ResponseStatus(HttpStatus.OK)
-    public Result<Void> handleException(Exception e) {
+    public void handleException(Exception e, HttpServletRequest request) {
+        if (isSseRequest(request)) {
+            // SSE 请求：直接抛出异常让容器处理
+            log.error("SSE 异常: {}", e.getMessage(), e);
+            throw new RuntimeException(e);
+        }
         log.error("系统异常: {}", e.getMessage(), e);
-        return Result.error(ErrorCode.INTERNAL_ERROR, "系统繁忙，请稍后重试");
     }
 }

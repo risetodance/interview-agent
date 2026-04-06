@@ -44,7 +44,8 @@ public class SingleAnswerEvaluationService {
         String referenceAnswer,
         List<String> keyPoints,
         boolean adjustDifficulty,
-        DifficultyAdjustmentService.Difficulty adjustedDifficulty
+        DifficultyAdjustmentService.Difficulty adjustedDifficulty,
+        String adjustReason
     ) {}
 
     public SingleAnswerEvaluationService(
@@ -116,6 +117,7 @@ public class SingleAnswerEvaluationService {
 
             if (referenceContext != null && !referenceContext.isBlank()) {
                 variables.put("referenceContext", referenceContext);
+                log.info("<UNK>: referenceContext={}", referenceContext);
             } else {
                 variables.put("referenceContext", "无");
             }
@@ -152,7 +154,8 @@ public class SingleAnswerEvaluationService {
                     dto.referenceAnswer(),
                     dto.keyPoints(),
                     dto.adjustDifficulty(),
-                    dto.adjustedDifficulty()
+                    dto.adjustedDifficulty(),
+                    dto.adjustReason()
             );
 
         } catch (Exception e) {
@@ -189,6 +192,7 @@ public class SingleAnswerEvaluationService {
                 "暂无参考答案",
                 List.of(),
                 false,
+                null,
                 null
         );
     }
@@ -202,7 +206,8 @@ public class SingleAnswerEvaluationService {
             String referenceAnswer,
             List<String> keyPoints,
             boolean adjustDifficulty,
-            DifficultyAdjustmentService.Difficulty adjustedDifficulty
+            DifficultyAdjustmentService.Difficulty adjustedDifficulty,
+            String adjustReason
     ) {
         public String getKeyPointsJson() {
             try {

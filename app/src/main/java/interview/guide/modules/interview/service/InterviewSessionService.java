@@ -754,10 +754,18 @@ public class InterviewSessionService {
             if (session.getSelectedPerspectives() != null && !session.getSelectedPerspectives().isBlank()) {
                 try {
                     List<Long> selectedPerspectives = objectMapper.readValue(
-                            session.getSelectedPerspectives(), new TypeReference<List<Long>>() {});
+                            session.getSelectedPerspectives(), new TypeReference<>() {
+                            });
+                    // 解析会话级权重配置
+                    Map<Long, Double> sessionWeights = null;
+                    if (session.getPerspectiveWeights() != null && !session.getPerspectiveWeights().isBlank()) {
+                        sessionWeights = objectMapper.readValue(
+                                session.getPerspectiveWeights(), new TypeReference<>() {
+                                });
+                    }
                     if (selectedPerspectives != null && !selectedPerspectives.isEmpty()) {
                         nextPerspectiveId = perspectiveEvaluationService.selectNextQuestionPerspective(
-                                selectedPerspectives, session.getLastQuestionPerspectiveId());
+                                selectedPerspectives, session.getLastQuestionPerspectiveId(), sessionWeights);
                         InterviewerRoleEntity role = interviewerRoleRepository.findById(nextPerspectiveId).orElse(null);
                         if (role != null) {
                             nextPerspectiveName = role.getRoleName();
