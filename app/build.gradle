@@ -75,12 +75,6 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation libs.junit.jupiter
 
-    // Spring AI Alibaba Graph - 工作流编排
-    implementation libs.springAiAlibabaGraphCore
-    // Spring AI 2.0 - PostgreSQL Vector Store (pgvector)
-    implementation "org.springframework.ai:spring-ai-starter-vector-store-pgvector:${libs.versions.springAi.get()}"
-    // Spring AI 2.0 - MCP Client
-    implementation "org.springframework.ai:spring-ai-starter-mcp-client-webflux:${libs.versions.springAi.get()}"
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

@@ -4,6 +4,7 @@ import com.alibaba.cloud.ai.graph.*;
 import com.alibaba.cloud.ai.graph.action.AsyncCommandAction;
 import com.alibaba.cloud.ai.graph.action.AsyncEdgeAction;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeAction;
+import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 import com.alibaba.cloud.ai.graph.checkpoint.config.SaverConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.RedisSaver;
@@ -103,21 +104,21 @@ public class WorkflowExecutor {
                 // 所有 key 都使用 REPLACE 策略
                 strategies.put("*", KeyStrategy.REPLACE);
                 // 显式注册关键 key，确保框架能识别
-                strategies.put("sessionId", KeyStrategy.REPLACE);
-                strategies.put("currentQuestionIndex", KeyStrategy.REPLACE);
-                strategies.put("score", KeyStrategy.REPLACE);
-                strategies.put("feedback", KeyStrategy.REPLACE);
-                strategies.put("adjustedDifficulty", KeyStrategy.REPLACE);
-                strategies.put("currentPerspectiveId", KeyStrategy.REPLACE);
-                strategies.put("createdByPerspectiveId", KeyStrategy.REPLACE);
-                strategies.put("createdByPerspectiveName", KeyStrategy.REPLACE);
-                strategies.put("nextPerspectiveId", KeyStrategy.REPLACE);
-                strategies.put("decisionAction", KeyStrategy.REPLACE);
-                strategies.put("decisionReason", KeyStrategy.REPLACE);
-                strategies.put("currentQuestion", KeyStrategy.REPLACE);
-                strategies.put("currentCategory", KeyStrategy.REPLACE);
-                strategies.put("currentDifficulty", KeyStrategy.REPLACE);
-                strategies.put("isComplete", KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.SESSION_ID, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.CURRENT_QUESTION_INDEX, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.SCORE, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.FEEDBACK, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.ADJUSTED_DIFFICULTY, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.CREATED_BY_PERSPECTIVE_ID, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.CREATED_BY_PERSPECTIVE_NAME, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.NEXT_PERSPECTIVE_ID, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.DECISION_ACTION, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.DECISION_REASON, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.CURRENT_QUESTION, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.CURRENT_CATEGORY, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.CURRENT_DIFFICULTY, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.IS_COMPLETE, KeyStrategy.REPLACE);
                 return strategies;
             };
 
@@ -159,7 +160,7 @@ public class WorkflowExecutor {
 
             stateGraph.addConditionalEdges(NODE_SEARCH_DECIDER,
                     AsyncCommandAction.of(state -> {
-                        Boolean searchEnabled = (Boolean) state.value("searchEnabled").orElse(false);
+                        Boolean searchEnabled = (Boolean) state.value(InterviewWorkflowState.SEARCH_ENABLED).orElse(false);
                         return CompletableFuture.completedFuture(searchEnabled.toString());
                     }),
                     searchEdgeMapping);
@@ -193,7 +194,7 @@ public class WorkflowExecutor {
      * 将 Function<OverAllState, OverAllState> 适配为 NodeAction
      * NodeAction.apply 返回 Map<String, Object>，而原始节点返回 OverAllState
      */
-    private com.alibaba.cloud.ai.graph.action.NodeAction adaptNodeAction(
+    private NodeAction adaptNodeAction(
             java.util.function.Function<OverAllState, OverAllState> nodeFunction) {
         return state -> {
             OverAllState result = nodeFunction.apply(state);
@@ -206,7 +207,7 @@ public class WorkflowExecutor {
      */
     private AsyncEdgeAction createDeciderAsyncEdgeAction() {
         return state -> {
-            DecisionAction action = (DecisionAction) state.value("decisionAction").orElse(DecisionAction.ASK);
+            DecisionAction action = (DecisionAction) state.value(InterviewWorkflowState.DECISION_ACTION).orElse(DecisionAction.ASK);
             return CompletableFuture.completedFuture(action.name());
         };
     }
@@ -224,8 +225,8 @@ public class WorkflowExecutor {
         try {
             // 创建初始状态
             Map<String, Object> initialStateData = new HashMap<>();
-            initialStateData.put("sessionId", sessionId);
-            initialStateData.put("currentQuestionIndex", 0);
+            initialStateData.put(InterviewWorkflowState.SESSION_ID, sessionId);
+            initialStateData.put(InterviewWorkflowState.CURRENT_QUESTION_INDEX, 0);
 
             // 创建 RunnableConfig，只设置 threadId（不设置 checkPointId，让框架创建新 checkpoint）
             // checkpoint 会在 question_generator 节点中断后自动保存
@@ -239,7 +240,7 @@ public class WorkflowExecutor {
             if (resultOpt.isPresent()) {
                 OverAllState state = resultOpt.get();
                 log.info("Workflow interrupted at init question: sessionId={}, questionIndex={}",
-                        sessionId, state.value("currentQuestionIndex").orElse(0));
+                        sessionId, state.value(InterviewWorkflowState.CURRENT_QUESTION_INDEX).orElse(0));
 
                 return state;
             } else {
@@ -269,8 +270,8 @@ public class WorkflowExecutor {
         try {
             // 创建 HumanFeedback，包含用户答案
             Map<String, Object> feedbackData = new HashMap<>();
-            feedbackData.put("userAnswer", userAnswer);
-            feedbackData.put("currentQuestionIndex", questionIndex);
+            feedbackData.put(InterviewWorkflowState.CURRENT_ANSWER, userAnswer);
+            feedbackData.put(InterviewWorkflowState.CURRENT_QUESTION_INDEX, questionIndex);
 
             OverAllState.HumanFeedback humanFeedback = new OverAllState.HumanFeedback(feedbackData, NODE_SCORER);
 

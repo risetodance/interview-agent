@@ -4,6 +4,8 @@ import com.alibaba.cloud.ai.graph.KeyStrategy;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
@@ -26,6 +28,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Web搜索节点集成测试")
 class WebSearchNodeTest {
 
+    private static final Logger log = LoggerFactory.getLogger(WebSearchNodeTest.class);
+
     @Autowired(required = false)
     private WebSearchNode webSearchNode;
 
@@ -37,16 +41,16 @@ class WebSearchNodeTest {
      */
     private OverAllState createState(Map<String, Object> initialData) {
         OverAllState state = new OverAllState();
-        state.registerKeyAndStrategy("sessionId", KeyStrategy.REPLACE);
-        state.registerKeyAndStrategy("currentQuestion", KeyStrategy.REPLACE);
-        state.registerKeyAndStrategy("userAnswer", KeyStrategy.REPLACE);
-        state.registerKeyAndStrategy("feedback", KeyStrategy.REPLACE);
-        state.registerKeyAndStrategy("currentCategory", KeyStrategy.REPLACE);
-        state.registerKeyAndStrategy("searchEnabled", KeyStrategy.REPLACE);
-        state.registerKeyAndStrategy("searchKeywords", KeyStrategy.REPLACE);
-        state.registerKeyAndStrategy("searchResult", KeyStrategy.REPLACE);
-        state.registerKeyAndStrategy("searchDecisionReason", KeyStrategy.REPLACE);
-        state.registerKeyAndStrategy("currentQuestionIndex", KeyStrategy.REPLACE);
+        state.registerKeyAndStrategy(InterviewWorkflowState.SESSION_ID, KeyStrategy.REPLACE);
+        state.registerKeyAndStrategy(InterviewWorkflowState.CURRENT_QUESTION, KeyStrategy.REPLACE);
+        state.registerKeyAndStrategy(InterviewWorkflowState.CURRENT_ANSWER, KeyStrategy.REPLACE);
+        state.registerKeyAndStrategy(InterviewWorkflowState.FEEDBACK, KeyStrategy.REPLACE);
+        state.registerKeyAndStrategy(InterviewWorkflowState.CURRENT_CATEGORY, KeyStrategy.REPLACE);
+        state.registerKeyAndStrategy(InterviewWorkflowState.SEARCH_ENABLED, KeyStrategy.REPLACE);
+        state.registerKeyAndStrategy(InterviewWorkflowState.SEARCH_KEYWORDS, KeyStrategy.REPLACE);
+        state.registerKeyAndStrategy(InterviewWorkflowState.SEARCH_RESULT, KeyStrategy.REPLACE);
+        state.registerKeyAndStrategy(InterviewWorkflowState.SEARCH_DECISION_REASON, KeyStrategy.REPLACE);
+        state.registerKeyAndStrategy(InterviewWorkflowState.CURRENT_QUESTION_INDEX, KeyStrategy.REPLACE);
         state.updateState(initialData);
         return state;
     }
@@ -70,24 +74,24 @@ class WebSearchNodeTest {
         assertNotNull(searchDeciderNode, "SearchDeciderNode 应该被加载");
 
         OverAllState state = createState(Map.of(
-            "sessionId", "test-session-123",
-            "currentQuestion", "什么是Java的多态？",
-            "userAnswer", "用户回答内容",
-            "feedback", "",
-            "currentCategory", "Java"
+            InterviewWorkflowState.SESSION_ID, "test-session-123",
+            InterviewWorkflowState.CURRENT_QUESTION, "什么是Java的多态？",
+            InterviewWorkflowState.CURRENT_ANSWER, "用户回答内容",
+            InterviewWorkflowState.FEEDBACK, "",
+            InterviewWorkflowState.CURRENT_CATEGORY, "Java"
         ));
 
         // When
         OverAllState result = searchDeciderNode.execute(state);
 
         // Then - 验证状态被正确设置
-        assertTrue(result.value("searchEnabled").isPresent(), "searchEnabled 应该被设置");
-        assertTrue(result.value("searchKeywords").isPresent(), "searchKeywords 应该被设置");
-        assertTrue(result.value("searchDecisionReason").isPresent(), "searchDecisionReason 应该被设置");
+        assertTrue(result.value(InterviewWorkflowState.SEARCH_ENABLED).isPresent(), "searchEnabled 应该被设置");
+        assertTrue(result.value(InterviewWorkflowState.SEARCH_KEYWORDS).isPresent(), "searchKeywords 应该被设置");
+        assertTrue(result.value(InterviewWorkflowState.SEARCH_DECISION_REASON).isPresent(), "searchDecisionReason 应该被设置");
 
-        Boolean searchEnabled = (Boolean) result.value("searchEnabled").orElse(null);
-        System.out.println("基础概念问题 - searchEnabled: " + searchEnabled);
-        System.out.println("基础概念问题 - searchDecisionReason: " + result.value("searchDecisionReason").orElse(""));
+        Boolean searchEnabled = (Boolean) result.value(InterviewWorkflowState.SEARCH_ENABLED).orElse(null);
+        log.info("基础概念问题 - searchEnabled: {}", searchEnabled);
+        log.info("基础概念问题 - searchDecisionReason: {}", result.value(InterviewWorkflowState.SEARCH_DECISION_REASON).orElse(""));
 
         assertNotNull(searchEnabled, "searchEnabled 不应该为null");
     }
@@ -99,36 +103,37 @@ class WebSearchNodeTest {
         assertNotNull(searchDeciderNode, "SearchDeciderNode 应该被加载");
 
         OverAllState state = createState(Map.of(
-            "sessionId", "test-session-123",
-            "currentQuestion", "2024年最流行的Java框架是什么？",
-            "userAnswer", "用户回答内容",
-            "feedback", "",
-            "currentCategory", "Java"
+            InterviewWorkflowState.SESSION_ID, "test-session-123",
+            InterviewWorkflowState.CURRENT_QUESTION, "2024年最流行的Java框架是什么？",
+            InterviewWorkflowState.CURRENT_ANSWER, "用户回答内容",
+            InterviewWorkflowState.FEEDBACK, "",
+            InterviewWorkflowState.CURRENT_CATEGORY, "Java"
         ));
 
         // When
         OverAllState result = searchDeciderNode.execute(state);
 
         // Then - 验证状态被正确设置
-        assertTrue(result.value("searchEnabled").isPresent(), "searchEnabled 应该被设置");
-        assertTrue(result.value("searchKeywords").isPresent(), "searchKeywords 应该被设置");
-        assertTrue(result.value("searchDecisionReason").isPresent(), "searchDecisionReason 应该被设置");
+        assertTrue(result.value(InterviewWorkflowState.SEARCH_ENABLED).isPresent(), "searchEnabled 应该被设置");
+        assertTrue(result.value(InterviewWorkflowState.SEARCH_KEYWORDS).isPresent(), "searchKeywords 应该被设置");
+        assertTrue(result.value(InterviewWorkflowState.SEARCH_DECISION_REASON).isPresent(), "searchDecisionReason 应该被设置");
 
-        Boolean searchEnabled = (Boolean) result.value("searchEnabled").orElse(null);
-        String keywords = (String) result.value("searchKeywords").orElse("");
-        String reason = (String) result.value("searchDecisionReason").orElse("");
+        Boolean searchEnabled = (Boolean) result.value(InterviewWorkflowState.SEARCH_ENABLED).orElse(null);
+        String keywords = (String) result.value(InterviewWorkflowState.SEARCH_KEYWORDS).orElse("");
+        String reason = (String) result.value(InterviewWorkflowState.SEARCH_DECISION_REASON).orElse("");
 
-        System.out.println("最新技术问题 - searchEnabled: " + searchEnabled);
-        System.out.println("最新技术问题 - searchKeywords: " + keywords);
-        System.out.println("最新技术问题 - searchDecisionReason: " + reason);
+        log.info("最新技术问题 - searchEnabled: {}", searchEnabled);
+        log.info("最新技术问题 - searchKeywords: {}", keywords);
+        log.info("最新技术问题 - searchDecisionReason: {}", reason);
 
         assertNotNull(searchEnabled, "searchEnabled 不应该为null");
 
         // 如果需要搜索，则调用WebSearchNode执行搜索
         if (searchEnabled) {
             OverAllState searchResult = webSearchNode.execute(result);
-            System.out.println("搜索结果长度: " + ((String)searchResult.value("searchResult").orElse("")).length());
-            System.out.println("搜索结果: " + ((String)searchResult.value("searchResult").orElse("")).substring(0, Math.min(200, ((String)searchResult.value("searchResult").orElse("")).length())));
+            String searchResultStr = (String) searchResult.value(InterviewWorkflowState.SEARCH_RESULT).orElse("");
+            log.info("搜索结果长度: {}", searchResultStr.length());
+            log.info("搜索结果: {}", searchResultStr.substring(0, Math.min(200, searchResultStr.length())));
         }
     }
 
@@ -139,17 +144,17 @@ class WebSearchNodeTest {
         assertNotNull(webSearchNode, "WebSearchNode 应该被加载");
 
         OverAllState state = createState(Map.of(
-            "sessionId", "test-session-123",
-            "searchEnabled", false,
-            "searchKeywords", "Java 面试题"
+            InterviewWorkflowState.SESSION_ID, "test-session-123",
+            InterviewWorkflowState.SEARCH_ENABLED, false,
+            InterviewWorkflowState.SEARCH_KEYWORDS, "Java 面试题"
         ));
 
         // When
         OverAllState result = webSearchNode.execute(state);
 
         // Then
-        assertEquals("", result.value("searchResult").orElse(""));
-        assertEquals(false, result.value("searchEnabled").orElse(true));
+        assertEquals("", result.value(InterviewWorkflowState.SEARCH_RESULT).orElse(""));
+        assertEquals(false, result.value(InterviewWorkflowState.SEARCH_ENABLED).orElse(true));
     }
 
     @Test
@@ -159,17 +164,17 @@ class WebSearchNodeTest {
         assertNotNull(webSearchNode, "WebSearchNode 应该被加载");
 
         OverAllState state = createState(Map.of(
-            "sessionId", "test-session-123",
-            "searchEnabled", true,
-            "searchKeywords", ""
+            InterviewWorkflowState.SESSION_ID, "test-session-123",
+            InterviewWorkflowState.SEARCH_ENABLED, true,
+            InterviewWorkflowState.SEARCH_KEYWORDS, ""
         ));
 
         // When
         OverAllState result = webSearchNode.execute(state);
 
         // Then
-        assertEquals("", result.value("searchResult").orElse(""));
-        assertEquals(false, result.value("searchEnabled").orElse(true));
+        assertEquals("", result.value(InterviewWorkflowState.SEARCH_RESULT).orElse(""));
+        assertEquals(false, result.value(InterviewWorkflowState.SEARCH_ENABLED).orElse(true));
     }
 
     @Test
@@ -179,19 +184,19 @@ class WebSearchNodeTest {
         assertNotNull(webSearchNode, "WebSearchNode 应该被加载");
 
         OverAllState state = createState(Map.of(
-            "sessionId", "test-session-123",
-            "searchEnabled", true,
-            "searchKeywords", "Java 面试题 2024"
+            InterviewWorkflowState.SESSION_ID, "test-session-123",
+            InterviewWorkflowState.SEARCH_ENABLED, true,
+            InterviewWorkflowState.SEARCH_KEYWORDS, "Java 面试题 2024"
         ));
 
         // When
         OverAllState result = webSearchNode.execute(state);
 
         // Then - 状态应该被设置
-        assertTrue(result.value("searchResult").isPresent(), "searchResult 应该被设置");
-        assertTrue(result.value("searchEnabled").isPresent(), "searchEnabled 应该被设置");
+        assertTrue(result.value(InterviewWorkflowState.SEARCH_RESULT).isPresent(), "searchResult 应该被设置");
+        assertTrue(result.value(InterviewWorkflowState.SEARCH_ENABLED).isPresent(), "searchEnabled 应该被设置");
 
-        String searchResult = (String) result.value("searchResult").orElse("");
-        System.out.println("searchResult length: " + searchResult.length());
+        String searchResult = (String) result.value(InterviewWorkflowState.SEARCH_RESULT).orElse("");
+        log.info("searchResult length: {}", searchResult.length());
     }
 }

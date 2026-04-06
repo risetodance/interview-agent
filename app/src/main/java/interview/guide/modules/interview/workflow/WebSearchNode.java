@@ -72,21 +72,21 @@ public class WebSearchNode {
     private Resource userPromptResource;
 
     public OverAllState execute(OverAllState state) {
-        String sessionId = (String) state.value("sessionId").orElse(null);
-        String keywords = (String) state.value("searchKeywords").orElse("");
-        Boolean searchEnabled = (Boolean) state.value("searchEnabled").orElse(false);
+        String sessionId = (String) state.value(InterviewWorkflowState.SESSION_ID).orElse(null);
+        String keywords = (String) state.value(InterviewWorkflowState.SEARCH_KEYWORDS).orElse("");
+        Boolean searchEnabled = (Boolean) state.value(InterviewWorkflowState.SEARCH_ENABLED).orElse(false);
 
         log.info("Web search node: sessionId={}, enabled={}, keywords={}", sessionId, searchEnabled, keywords);
 
         if (!searchEnabled || keywords.isBlank()) {
             log.info("Web search skipped: enabled={}, keywords={}", searchEnabled, keywords);
-            state.updateState(Map.of("searchResult", "", "searchEnabled", false));
+            state.updateState(Map.of(InterviewWorkflowState.SEARCH_RESULT, "", InterviewWorkflowState.SEARCH_ENABLED, false));
             return state;
         }
 
         if (toolCallbackProvider == null || chatClientBuilder == null) {
             log.warn("ToolCallbackProvider or ChatClient is null, skip search");
-            state.updateState(Map.of("searchResult", "", "searchEnabled", false));
+            state.updateState(Map.of(InterviewWorkflowState.SEARCH_RESULT, "", InterviewWorkflowState.SEARCH_ENABLED, false));
             return state;
         }
 
@@ -102,7 +102,7 @@ public class WebSearchNode {
 
             if (webSearchCallback == null) {
                 log.warn("web_search tool not found in ToolCallbackProvider");
-                state.updateState(Map.of("searchResult", "", "searchEnabled", false));
+                state.updateState(Map.of(InterviewWorkflowState.SEARCH_RESULT, "", InterviewWorkflowState.SEARCH_ENABLED, false));
                 return state;
             }
 
@@ -128,13 +128,13 @@ public class WebSearchNode {
             log.info("Web search completed: sessionId={}, resultLength={}", sessionId, searchResult.length());
 
             state.updateState(Map.of(
-                    "searchResult", searchResult,
-                    "searchEnabled", !searchResult.isBlank()
+                    InterviewWorkflowState.SEARCH_RESULT, searchResult,
+                    InterviewWorkflowState.SEARCH_ENABLED, !searchResult.isBlank()
             ));
 
         } catch (Exception e) {
             log.error("Web search error: {}", e.getMessage(), e);
-            state.updateState(Map.of("searchResult", "", "searchEnabled", false));
+            state.updateState(Map.of(InterviewWorkflowState.SEARCH_RESULT, "", InterviewWorkflowState.SEARCH_ENABLED, false));
         }
 
         return state;

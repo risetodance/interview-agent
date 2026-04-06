@@ -14,12 +14,12 @@ import org.springframework.stereotype.Component;
 public class EntryNode {
 
     public OverAllState execute(OverAllState state) {
-        String sessionId = (String) state.value("sessionId").orElse(null);
+        String sessionId = (String) state.value(InterviewWorkflowState.SESSION_ID).orElse(null);
         log.info("Entry node: sessionId={}", sessionId);
 
         // 初始化问题索引为 0
-        if (state.value("currentQuestionIndex").isEmpty()) {
-            state.updateState(java.util.Map.of("currentQuestionIndex", 0));
+        if (state.value(InterviewWorkflowState.CURRENT_QUESTION_INDEX).isEmpty()) {
+            state.updateState(java.util.Map.of(InterviewWorkflowState.CURRENT_QUESTION_INDEX, 0));
         }
 
         return state;

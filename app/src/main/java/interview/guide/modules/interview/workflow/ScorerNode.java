@@ -31,8 +31,8 @@ public class ScorerNode {
     private final InterviewerRoleRepository interviewerRoleRepository;
 
     public OverAllState execute(OverAllState state) {
-        String sessionId = (String) state.value("sessionId").orElse(null);
-        Integer questionIndex = (Integer) state.value("currentQuestionIndex").orElse(null);
+        String sessionId = (String) state.value(InterviewWorkflowState.SESSION_ID).orElse(null);
+        Integer questionIndex = (Integer) state.value(InterviewWorkflowState.CURRENT_QUESTION_INDEX).orElse(null);
 
         // 从 HumanFeedback 获取用户答案
         String userAnswer = null;
@@ -136,9 +136,9 @@ public class ScorerNode {
 
             // 更新状态
             Map<String, Object> updatedState = Map.of(
-                    "score", evaluationResult.score(),
-                    "feedback", evaluationResult.feedback(),
-                    "adjustedDifficulty", adjustedDifficulty
+                    InterviewWorkflowState.SCORE, evaluationResult.score(),
+                    InterviewWorkflowState.FEEDBACK, evaluationResult.feedback(),
+                    InterviewWorkflowState.ADJUSTED_DIFFICULTY, adjustedDifficulty
             );
             state.updateState(updatedState);
 

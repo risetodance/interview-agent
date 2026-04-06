@@ -55,20 +55,20 @@ public class SearchDeciderNode {
     private boolean mcpSearchEnabled;
 
     public OverAllState execute(OverAllState state) {
-        String sessionId = (String) state.value("sessionId").orElse(null);
-        String currentQuestion = (String) state.value("currentQuestion").orElse("");
-        String userAnswer = (String) state.value("userAnswer").orElse("");
-        String feedback = (String) state.value("feedback").orElse("");
-        String category = (String) state.value("currentCategory").orElse("");
+        String sessionId = (String) state.value(InterviewWorkflowState.SESSION_ID).orElse(null);
+        String currentQuestion = (String) state.value(InterviewWorkflowState.CURRENT_QUESTION).orElse("");
+        String userAnswer = (String) state.value(InterviewWorkflowState.CURRENT_ANSWER).orElse("");
+        String feedback = (String) state.value(InterviewWorkflowState.FEEDBACK).orElse("");
+        String category = (String) state.value(InterviewWorkflowState.CURRENT_CATEGORY).orElse("");
 
         log.info("Search decider node: sessionId={}, category={}, mcpEnabled={}", sessionId, category, mcpSearchEnabled);
 
         if (!mcpSearchEnabled) {
             log.info("MCP search is disabled, skip search decision");
             state.updateState(Map.of(
-                    "searchEnabled", false,
-                    "searchKeywords", "",
-                    "searchDecisionReason", "MCP搜索未启用"
+                    InterviewWorkflowState.SEARCH_ENABLED, false,
+                    InterviewWorkflowState.SEARCH_KEYWORDS, "",
+                    InterviewWorkflowState.SEARCH_DECISION_REASON, "MCP搜索未启用"
             ));
             return state;
         }
@@ -97,17 +97,17 @@ public class SearchDeciderNode {
             log.info("Search decider: needSearch={}, keywords={}, reason={}", decision.needSearch(), decision.keywords(), decision.reason());
 
             state.updateState(Map.of(
-                    "searchEnabled", decision.needSearch(),
-                    "searchKeywords", decision.keywords() != null ? decision.keywords() : "",
-                    "searchDecisionReason", decision.reason()
+                    InterviewWorkflowState.SEARCH_ENABLED, decision.needSearch(),
+                    InterviewWorkflowState.SEARCH_KEYWORDS, decision.keywords() != null ? decision.keywords() : "",
+                    InterviewWorkflowState.SEARCH_DECISION_REASON, decision.reason()
             ));
 
         } catch (Exception e) {
             log.error("Search decider error: {}", e.getMessage(), e);
             state.updateState(Map.of(
-                    "searchEnabled", false,
-                    "searchKeywords", "",
-                    "searchDecisionReason", "决策失败: " + e.getMessage()
+                    InterviewWorkflowState.SEARCH_ENABLED, false,
+                    InterviewWorkflowState.SEARCH_KEYWORDS, "",
+                    InterviewWorkflowState.SEARCH_DECISION_REASON, "决策失败: " + e.getMessage()
             ));
         }
 

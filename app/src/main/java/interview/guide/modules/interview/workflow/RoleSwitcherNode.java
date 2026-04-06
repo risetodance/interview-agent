@@ -32,9 +32,9 @@ public class RoleSwitcherNode {
     private final ObjectMapper objectMapper;
 
     public OverAllState execute(OverAllState state) {
-        String sessionId = (String) state.value("sessionId").orElse(null);
-        Long currentPerspectiveId = ((Number) state.value("currentPerspectiveId").orElse(0L)).longValue();
-        Long nextPerspectiveId = ((Number) state.value("nextPerspectiveId").orElse(0L)).longValue();
+        String sessionId = (String) state.value(InterviewWorkflowState.SESSION_ID).orElse(null);
+        Long currentPerspectiveId = ((Number) state.value(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID).orElse(0L)).longValue();
+        Long nextPerspectiveId = ((Number) state.value(InterviewWorkflowState.NEXT_PERSPECTIVE_ID).orElse(0L)).longValue();
 
         log.info("Role switcher node: sessionId={}, currentPerspectiveId={}, nextPerspectiveId={}",
                 sessionId, currentPerspectiveId, nextPerspectiveId);
@@ -105,25 +105,25 @@ public class RoleSwitcherNode {
         // 获取该视角的最新答题数据
         Optional<InterviewAnswerEntity> perspectiveAnswers = persistenceService.findLastAnswerBySessionAndPerspective(sessionId, nextPerspectiveId);
         Map<String, Object> switchState = new HashMap<>();
-        switchState.put("currentPerspectiveId", nextPerspectiveId);
-        switchState.put("nextPerspectiveId", 0L);
+        switchState.put(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID, nextPerspectiveId);
+        switchState.put(InterviewWorkflowState.NEXT_PERSPECTIVE_ID, 0L);
 
         InterviewAnswerEntity latestAnswer = null;
         if (perspectiveAnswers.isPresent()) {
             latestAnswer = perspectiveAnswers.get();
         }
 
-        switchState.put("currentQuestion", latestAnswer != null && latestAnswer.getQuestion() != null ? latestAnswer.getQuestion() : "");
-        switchState.put("userAnswer", latestAnswer != null && latestAnswer.getUserAnswer() != null ? latestAnswer.getUserAnswer() : "");
-        switchState.put("feedback", latestAnswer != null && latestAnswer.getFeedback() != null ? latestAnswer.getFeedback() : "");
-        switchState.put("currentCategory", latestAnswer != null && latestAnswer.getCategory() != null ? latestAnswer.getCategory() : "");
+        switchState.put(InterviewWorkflowState.CURRENT_QUESTION, latestAnswer != null && latestAnswer.getQuestion() != null ? latestAnswer.getQuestion() : "");
+        switchState.put(InterviewWorkflowState.CURRENT_ANSWER, latestAnswer != null && latestAnswer.getUserAnswer() != null ? latestAnswer.getUserAnswer() : "");
+        switchState.put(InterviewWorkflowState.FEEDBACK, latestAnswer != null && latestAnswer.getFeedback() != null ? latestAnswer.getFeedback() : "");
+        switchState.put(InterviewWorkflowState.CURRENT_CATEGORY, latestAnswer != null && latestAnswer.getCategory() != null ? latestAnswer.getCategory() : "");
 
 
         // 获取新视角信息
         Optional<InterviewerRoleEntity> roleOpt = interviewerRoleRepository.findById(nextPerspectiveId);
         if (roleOpt.isPresent()) {
             InterviewerRoleEntity role = roleOpt.get();
-            switchState.put("currentPerspectiveName", role.getRoleName());
+            switchState.put(InterviewWorkflowState.CURRENT_PERSPECTIVE_NAME, role.getRoleName());
             log.info("Role switcher: switched to perspective {} ({})", role.getRoleName(), nextPerspectiveId);
         }
         return switchState;

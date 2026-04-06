@@ -1,16 +1,14 @@
 package interview.guide.modules.interview.service;
 
+import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.interview.model.ScoreTrendDTO;
 import interview.guide.modules.interview.model.ScoreTrendDTO.DailyScore;
 import interview.guide.modules.interview.model.ScoreTrendDTO.ScoreStatistics;
-import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.resume.model.ResumeEntity;
 import interview.guide.modules.resume.repository.ResumeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import tools.jackson.core.JacksonException;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
@@ -97,21 +95,5 @@ public class ScoreTrendService {
         );
 
         return new ScoreTrendDTO(dailyScores, statistics);
-    }
-
-    /**
-     * 解析评分历史JSON
-     * 格式: [{"score": 85, "createdAt": "2024-01-01T10:00:00"}]
-     */
-    private List<Map<String, Object>> parseScoreHistory(String scoreHistoryJson) {
-        if (scoreHistoryJson == null || scoreHistoryJson.isEmpty()) {
-            return Collections.emptyList();
-        }
-        try {
-            return objectMapper.readValue(scoreHistoryJson, new TypeReference<>() {});
-        } catch (JacksonException e) {
-            log.error("解析评分历史JSON失败: {}", e.getMessage());
-            return Collections.emptyList();
-        }
     }
 }

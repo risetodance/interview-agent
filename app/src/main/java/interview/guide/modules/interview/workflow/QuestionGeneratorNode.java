@@ -36,11 +36,11 @@ public class QuestionGeneratorNode {
     private final ObjectMapper objectMapper;
 
     public OverAllState execute(OverAllState state) {
-        String sessionId = (String) state.value("sessionId").orElse(null);
-        Integer questionIndex = (Integer) state.value("currentQuestionIndex").orElse(0);
+        String sessionId = (String) state.value(InterviewWorkflowState.SESSION_ID).orElse(null);
+        Integer questionIndex = (Integer) state.value(InterviewWorkflowState.CURRENT_QUESTION_INDEX).orElse(0);
 
         // 从状态中获取当前视角
-        Long currentPerspectiveId = ((Number) state.value("currentPerspectiveId").orElse(0L)).longValue();
+        Long currentPerspectiveId = ((Number) state.value(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID).orElse(0L)).longValue();
 
         log.info("Question generator node: sessionId={}, index={}, perspectiveId={}",
                 sessionId, questionIndex, currentPerspectiveId);
@@ -60,8 +60,8 @@ public class QuestionGeneratorNode {
             var session = sessionOpt.get();
 
             // 获取 MCP 搜索结果作为补充上下文
-            String mcpSearchResult = (String) state.value("searchResult").orElse(null);
-            Boolean searchEnabled = (Boolean) state.value("searchEnabled").orElse(false);
+            String mcpSearchResult = (String) state.value(InterviewWorkflowState.SEARCH_RESULT).orElse(null);
+            Boolean searchEnabled = (Boolean) state.value(InterviewWorkflowState.SEARCH_ENABLED).orElse(false);
 
             if (searchEnabled && mcpSearchResult != null && !mcpSearchResult.isBlank()) {
                 log.info("Using MCP search result: sessionId={}, resultLength={}",
@@ -202,19 +202,19 @@ public class QuestionGeneratorNode {
 
             // 更新状态，以便 SSE 推送和 checkpoint 恢复
             Map<String, Object> updatedState = new HashMap<>();
-            updatedState.put("currentQuestionIndex", questionIndex);
-            updatedState.put("currentQuestion", questionDTO.question());
-            updatedState.put("currentCategory", questionDTO.category());
-            updatedState.put("currentDifficulty", questionDTO.difficulty() != null ? questionDTO.difficulty() : "BASIC");
-            updatedState.put("knowledgeBaseId", questionDTO.knowledgeBaseId() != null ? questionDTO.knowledgeBaseId() : 0L);
-            updatedState.put("knowledgeBaseName", questionDTO.knowledgeBaseName() != null ? questionDTO.knowledgeBaseName() : "");
-            updatedState.put("createdByPerspectiveId", selectedPerspectiveId != null ? selectedPerspectiveId : 0L);
-            updatedState.put("createdByPerspectiveName", selectedPerspectiveName != null ? selectedPerspectiveName : "");
-            updatedState.put("currentPerspectiveId", selectedPerspectiveId != null ? selectedPerspectiveId : 0L);
+            updatedState.put(InterviewWorkflowState.CURRENT_QUESTION_INDEX, questionIndex);
+            updatedState.put(InterviewWorkflowState.CURRENT_QUESTION, questionDTO.question());
+            updatedState.put(InterviewWorkflowState.CURRENT_CATEGORY, questionDTO.category());
+            updatedState.put(InterviewWorkflowState.CURRENT_DIFFICULTY, questionDTO.difficulty() != null ? questionDTO.difficulty() : "BASIC");
+            updatedState.put(InterviewWorkflowState.KNOWLEDGE_BASE_ID, questionDTO.knowledgeBaseId() != null ? questionDTO.knowledgeBaseId() : 0L);
+            updatedState.put(InterviewWorkflowState.KNOWLEDGE_BASE_NAME, questionDTO.knowledgeBaseName() != null ? questionDTO.knowledgeBaseName() : "");
+            updatedState.put(InterviewWorkflowState.CREATED_BY_PERSPECTIVE_ID, selectedPerspectiveId != null ? selectedPerspectiveId : 0L);
+            updatedState.put(InterviewWorkflowState.CREATED_BY_PERSPECTIVE_NAME, selectedPerspectiveName != null ? selectedPerspectiveName : "");
+            updatedState.put(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID, selectedPerspectiveId != null ? selectedPerspectiveId : 0L);
             // 追问相关字段也需要放入状态，以便 checkpoint 恢复后 SSE 推送
-            updatedState.put("isFollowUp", questionDTO.isFollowUp() != null ? questionDTO.isFollowUp() : false);
-            updatedState.put("relatedIndex", questionDTO.relatedIndex());
-            updatedState.put("relatedQuestion", questionDTO.relatedQuestion());
+            updatedState.put(InterviewWorkflowState.IS_FOLLOW_UP, questionDTO.isFollowUp() != null ? questionDTO.isFollowUp() : false);
+            updatedState.put(InterviewWorkflowState.RELATED_INDEX, questionDTO.relatedIndex());
+            updatedState.put(InterviewWorkflowState.RELATED_QUESTION, questionDTO.relatedQuestion());
             state.updateState(updatedState);
 
             log.info("问题生成完成: sessionId={}, index={}, category={}, difficulty={}, perspective={}, isFollowUp={}, relatedIndex={}",

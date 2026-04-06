@@ -70,19 +70,19 @@ public class DeciderNode {
     private Resource userPromptResource;
 
     public OverAllState execute(OverAllState state) {
-        String sessionId = (String) state.value("sessionId").orElse(null);
-        int currentIndex = (Integer) state.value("currentQuestionIndex").orElse(0);
-        Integer score = (Integer) state.value("score").orElse(0);
-        String feedback = (String) state.value("feedback").orElse("");
-        String adjustedDifficulty = (String) state.value("adjustedDifficulty").orElse("BASIC");
-        Long currentPerspectiveId = ((Number) state.value("currentPerspectiveId").orElse(0L)).longValue();
+        String sessionId = (String) state.value(InterviewWorkflowState.SESSION_ID).orElse(null);
+        int currentIndex = (Integer) state.value(InterviewWorkflowState.CURRENT_QUESTION_INDEX).orElse(0);
+        Integer score = (Integer) state.value(InterviewWorkflowState.SCORE).orElse(0);
+        String feedback = (String) state.value(InterviewWorkflowState.FEEDBACK).orElse("");
+        String adjustedDifficulty = (String) state.value(InterviewWorkflowState.ADJUSTED_DIFFICULTY).orElse("BASIC");
+        Long currentPerspectiveId = ((Number) state.value(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID).orElse(0L)).longValue();
 
         log.info("Decider node: sessionId={}, index={}, score={}, feedback={}, difficulty={}, perspectiveId={}",
                 sessionId, currentIndex, score, feedback, adjustedDifficulty, currentPerspectiveId);
 
         if (sessionId == null) {
             log.error("Decider node: sessionId is null");
-            state.updateState(Map.of("decisionAction", DecisionAction.FINISH));
+            state.updateState(Map.of(InterviewWorkflowState.DECISION_ACTION, DecisionAction.FINISH));
             return state;
         }
 
@@ -91,7 +91,7 @@ public class DeciderNode {
             Optional<InterviewSessionEntity> sessionOpt = persistenceService.findBySessionId(sessionId);
             if (sessionOpt.isEmpty()) {
                 log.error("Decider node: session not found, sessionId={}", sessionId);
-                state.updateState(Map.of("decisionAction", DecisionAction.FINISH));
+                state.updateState(Map.of(InterviewWorkflowState.DECISION_ACTION, DecisionAction.FINISH));
                 return state;
             }
             InterviewSessionEntity session = sessionOpt.get();
@@ -101,8 +101,8 @@ public class DeciderNode {
             if (totalQuestions != null && currentIndex >= totalQuestions - 1) {
                 log.info("Decider node: last question reached, finishing interview");
                 state.updateState(Map.of(
-                        "decisionAction", DecisionAction.FINISH,
-                        "isComplete", true
+                        InterviewWorkflowState.DECISION_ACTION, DecisionAction.FINISH,
+                        InterviewWorkflowState.IS_COMPLETE, true
                 ));
                 return state;
             }
@@ -112,8 +112,8 @@ public class DeciderNode {
                     session.getStatus() == InterviewSessionEntity.SessionStatus.EVALUATED) {
                 log.info("Decider node: interview already completed");
                 state.updateState(Map.of(
-                        "decisionAction", DecisionAction.FINISH,
-                        "isComplete", true
+                        InterviewWorkflowState.DECISION_ACTION, DecisionAction.FINISH,
+                        InterviewWorkflowState.IS_COMPLETE, true
                 ));
                 return state;
             }
@@ -140,15 +140,15 @@ public class DeciderNode {
             // 更新状态
             int nextIndex = currentIndex + 1;
             Map<String, Object> updatedState = new HashMap<>();
-            updatedState.put("decisionAction", decision.decision());
-            updatedState.put("currentQuestionIndex", nextIndex);
-            updatedState.put("nextQuestionIndex", nextIndex);
-            updatedState.put("decisionReason", decision.reason());
+            updatedState.put(InterviewWorkflowState.DECISION_ACTION, decision.decision());
+            updatedState.put(InterviewWorkflowState.CURRENT_QUESTION_INDEX, nextIndex);
+            updatedState.put(InterviewWorkflowState.NEXT_QUESTION_INDEX, nextIndex);
+            updatedState.put(InterviewWorkflowState.DECISION_REASON, decision.reason());
 
             // 如果是 SWITCH，设置下一个视角
             if (decision.decision() == DecisionAction.SWITCH && decision.nextPerspectiveId() != null) {
-                updatedState.put("nextPerspectiveId", decision.nextPerspectiveId());
-                updatedState.put("currentPerspectiveId", decision.nextPerspectiveId());
+                updatedState.put(InterviewWorkflowState.NEXT_PERSPECTIVE_ID, decision.nextPerspectiveId());
+                updatedState.put(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID, decision.nextPerspectiveId());
             }
 
             state.updateState(updatedState);
@@ -158,7 +158,7 @@ public class DeciderNode {
 
         } catch (Exception e) {
             log.error("Decider node error: sessionId={}, error={}", sessionId, e.getMessage(), e);
-            state.updateState(Map.of("decisionAction", DecisionAction.FINISH));
+            state.updateState(Map.of(InterviewWorkflowState.DECISION_ACTION, DecisionAction.FINISH));
         }
 
         return state;

@@ -27,7 +27,7 @@ public class FinalReporterNode {
     private final InterviewStreamService interviewStreamService;
 
     public OverAllState execute(OverAllState state) {
-        String sessionId = (String) state.value("sessionId").orElse(null);
+        String sessionId = (String) state.value(InterviewWorkflowState.SESSION_ID).orElse(null);
 
         log.info("Final reporter node: sessionId={}", sessionId);
 
@@ -58,8 +58,8 @@ public class FinalReporterNode {
 
             // 设置完成标志
             state.updateState(Map.of(
-                    "isComplete", true,
-                    "decisionAction", DecisionAction.FINISH
+                    InterviewWorkflowState.IS_COMPLETE, true,
+                    InterviewWorkflowState.DECISION_ACTION, DecisionAction.FINISH
             ));
 
             // 直接推送面试完成事件到 SSE
