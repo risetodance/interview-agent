@@ -1,12 +1,14 @@
 package interview.guide.modules.interview.workflow;
 
 import com.alibaba.cloud.ai.graph.OverAllState;
+import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.interview.model.InterviewerRoleEntity;
 import interview.guide.modules.interview.repository.InterviewerRoleRepository;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -46,10 +48,8 @@ public class RoleSwitcherNode {
             // 如果已有明确的 nextPerspectiveId（由 DeciderNode 设置），直接使用
             if (nextPerspectiveId > 0) {
                 log.info("Role switcher: using nextPerspectiveId from decider={}", nextPerspectiveId);
-                state.updateState(Map.of(
-                        "currentPerspectiveId", nextPerspectiveId,
-                        "nextPerspectiveId", 0L  // 清除临时变量
-                ));
+                Map<String, Object> switchState = getSwitchState(sessionId, nextPerspectiveId);
+                state.updateState(switchState);
                 return state;
             }
 
@@ -70,7 +70,8 @@ public class RoleSwitcherNode {
             List<Long> selectedPerspectives;
             try {
                 selectedPerspectives = objectMapper.readValue(
-                        session.getSelectedPerspectives(), new TypeReference<List<Long>>() {});
+                        session.getSelectedPerspectives(), new TypeReference<>() {
+                        });
             } catch (Exception e) {
                 log.warn("解析 selectedPerspectives 失败: {}", e.getMessage());
                 return state;
@@ -89,24 +90,42 @@ public class RoleSwitcherNode {
                     currentPerspectiveId, newPerspectiveId, nextIndex);
 
             // 更新状态
-            Map<String, Object> updatedState = new HashMap<>();
-            updatedState.put("currentPerspectiveId", newPerspectiveId);
-            updatedState.put("nextPerspectiveId", 0L);  // 清除临时变量
-
-            // 获取新视角信息
-            Optional<InterviewerRoleEntity> roleOpt = interviewerRoleRepository.findById(newPerspectiveId);
-            if (roleOpt.isPresent()) {
-                InterviewerRoleEntity role = roleOpt.get();
-                updatedState.put("currentPerspectiveName", role.getRoleName());
-                log.info("Role switcher: switched to perspective {} ({})", role.getRoleName(), newPerspectiveId);
-            }
-
-            state.updateState(updatedState);
+            Map<String, Object> switchState = getSwitchState(sessionId, newPerspectiveId);
+            state.updateState(switchState);
 
         } catch (Exception e) {
             log.error("Role switcher node error: sessionId={}, error={}", sessionId, e.getMessage(), e);
         }
 
         return state;
+    }
+
+    @NotNull
+    private Map<String, Object> getSwitchState(String sessionId, Long nextPerspectiveId) {
+        // 获取该视角的最新答题数据
+        Optional<InterviewAnswerEntity> perspectiveAnswers = persistenceService.findLastAnswerBySessionAndPerspective(sessionId, nextPerspectiveId);
+        Map<String, Object> switchState = new HashMap<>();
+        switchState.put("currentPerspectiveId", nextPerspectiveId);
+        switchState.put("nextPerspectiveId", 0L);
+
+        InterviewAnswerEntity latestAnswer = null;
+        if (perspectiveAnswers.isPresent()) {
+            latestAnswer = perspectiveAnswers.get();
+        }
+
+        switchState.put("currentQuestion", latestAnswer != null && latestAnswer.getQuestion() != null ? latestAnswer.getQuestion() : "");
+        switchState.put("userAnswer", latestAnswer != null && latestAnswer.getUserAnswer() != null ? latestAnswer.getUserAnswer() : "");
+        switchState.put("feedback", latestAnswer != null && latestAnswer.getFeedback() != null ? latestAnswer.getFeedback() : "");
+        switchState.put("currentCategory", latestAnswer != null && latestAnswer.getCategory() != null ? latestAnswer.getCategory() : "");
+
+
+        // 获取新视角信息
+        Optional<InterviewerRoleEntity> roleOpt = interviewerRoleRepository.findById(nextPerspectiveId);
+        if (roleOpt.isPresent()) {
+            InterviewerRoleEntity role = roleOpt.get();
+            switchState.put("currentPerspectiveName", role.getRoleName());
+            log.info("Role switcher: switched to perspective {} ({})", role.getRoleName(), nextPerspectiveId);
+        }
+        return switchState;
     }
 }

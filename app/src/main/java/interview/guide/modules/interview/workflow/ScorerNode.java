@@ -1,8 +1,11 @@
 package interview.guide.modules.interview.workflow;
 
 import com.alibaba.cloud.ai.graph.OverAllState;
+import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
+import interview.guide.modules.interview.model.InterviewerRoleEntity;
+import interview.guide.modules.interview.repository.InterviewerRoleRepository;
 import interview.guide.modules.interview.service.DifficultyAdjustmentService;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
 import interview.guide.modules.interview.service.SingleAnswerEvaluationService;
@@ -25,6 +28,7 @@ public class ScorerNode {
     private final SingleAnswerEvaluationService singleAnswerEvaluationService;
     private final DifficultyAdjustmentService difficultyAdjustmentService;
     private final InterviewPersistenceService persistenceService;
+    private final InterviewerRoleRepository interviewerRoleRepository;
 
     public OverAllState execute(OverAllState state) {
         String sessionId = (String) state.value("sessionId").orElse(null);
@@ -82,19 +86,32 @@ public class ScorerNode {
                 resumeText = "通用面试，无特定简历内容";
             }
 
-            // 评估答案
+            // 获取面试官角色的评分prompt
+            String perspectivePrompt = null;
+            if (currentAnswer.getCreatedByPerspectiveId() != null) {
+                Optional<InterviewerRoleEntity> roleOpt = interviewerRoleRepository.findById(currentAnswer.getCreatedByPerspectiveId());
+                if (roleOpt.isPresent()) {
+                    perspectivePrompt = roleOpt.get().getScoringPrompt();
+                }
+            }
+
+            // 评估答案（传入视角信息）
             SingleAnswerEvaluationService.EvaluationResult evaluationResult = singleAnswerEvaluationService.evaluateAnswer(
                     currentAnswer.getQuestion(),
                     currentAnswer.getCategory(),
                     currentAnswer.getDifficulty(),
                     userAnswer,
                     resumeText,
-                    currentAnswer.getReferenceContext()
+                    currentAnswer.getReferenceContext(),
+                    currentAnswer.getCreatedByPerspectiveName(),
+                    perspectivePrompt
             );
 
             // 调整难度
-            String adjustedDifficulty = difficultyAdjustmentService.adjustDifficulty(
-                    currentAnswer.getDifficulty(), evaluationResult.score());
+            String adjustedDifficulty = currentAnswer.getDifficulty();
+            if (evaluationResult.adjustDifficulty() && evaluationResult.adjustedDifficulty() != null) {
+                adjustedDifficulty = evaluationResult.adjustedDifficulty().getCode();
+            }
 
             // 保存评估结果
             persistenceService.saveAnswerWithDifficulty(

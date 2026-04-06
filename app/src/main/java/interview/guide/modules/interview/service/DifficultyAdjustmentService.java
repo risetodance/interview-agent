@@ -1,5 +1,6 @@
 package interview.guide.modules.interview.service;
 
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +15,7 @@ public class DifficultyAdjustmentService {
     /**
      * 难度等级
      */
+    @Getter
     public enum Difficulty {
         BASIC("BASIC", "基础"),
         ADVANCED("ADVANCED", "进阶"),
@@ -25,14 +27,6 @@ public class DifficultyAdjustmentService {
         Difficulty(String code, String desc) {
             this.code = code;
             this.desc = desc;
-        }
-
-        public String getCode() {
-            return code;
-        }
-
-        public String getDesc() {
-            return desc;
         }
 
         public static Difficulty fromCode(String code) {

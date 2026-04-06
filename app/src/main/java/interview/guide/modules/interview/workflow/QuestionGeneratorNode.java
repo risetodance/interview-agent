@@ -88,7 +88,8 @@ public class QuestionGeneratorNode {
             if (session.getSelectedPerspectives() != null && !session.getSelectedPerspectives().isBlank()) {
                 try {
                     List<Long> selectedPerspectives = objectMapper.readValue(
-                            session.getSelectedPerspectives(), new TypeReference<List<Long>>() {});
+                            session.getSelectedPerspectives(), new TypeReference<>() {
+                            });
 
                     log.info("解析selectedPerspectives成功: {}", selectedPerspectives);
 

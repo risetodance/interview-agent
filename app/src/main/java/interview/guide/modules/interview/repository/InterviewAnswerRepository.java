@@ -57,4 +57,11 @@ public interface InterviewAnswerRepository extends JpaRepository<InterviewAnswer
      */
     @Query("SELECT a FROM InterviewAnswerEntity a WHERE a.session.id = :sessionDbId AND a.createdByPerspectiveId = :perspectiveId ORDER BY a.questionIndex DESC LIMIT 1")
     Optional<InterviewAnswerEntity> findLastAnswerBySessionAndPerspective(@Param("sessionDbId") Long sessionDbId, @Param("perspectiveId") Long perspectiveId);
+
+    /**
+     * 获取指定会话和视角下的最新答案（按问题索引倒序，取第一条）
+     */
+    @Query("SELECT a FROM InterviewAnswerEntity a WHERE a.session.sessionId = :sessionId AND a.createdByPerspectiveId = :perspectiveId ORDER BY a.questionIndex DESC LIMIT 1")
+    Optional<InterviewAnswerEntity> findLastAnswerBySessionAndPerspective(@Param("sessionId") String sessionId, @Param("perspectiveId") Long perspectiveId);
+
 }

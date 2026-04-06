@@ -645,6 +645,13 @@ public class InterviewPersistenceService {
     }
 
     /**
+     * 获取指定视角下的最新答案（用于获取该视角当前的难度）
+     */
+    public Optional<InterviewAnswerEntity> findLastAnswerBySessionAndPerspective(String sessionId, Long perspectiveId) {
+        return answerRepository.findLastAnswerBySessionAndPerspective(sessionId, perspectiveId);
+    }
+
+    /**
      * 获取指定会话在指定视角下的所有已回答问题（按问题索引排序）
      * 用于工作流节点只获取当前角色的历史答题记录
      */

@@ -11,6 +11,7 @@ import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
@@ -195,19 +196,7 @@ public class QuestionGenerationService {
                                          String perspectiveName) {
         try {
             // 确定系统提示词：优先使用视角prompt，否则使用通用难度prompt
-            String basePrompt;
-            if (perspectivePrompt != null && !perspectivePrompt.isBlank()) {
-                basePrompt = perspectivePrompt;
-            } else {
-                basePrompt = "你是一个专业的技术面试官。请根据候选人的简历内容，自动选择一个最合适的技术方向来考察该候选人。";
-            }
-            // 系统提示词 = 角色定义 + 难度要求 + JSON格式说明
-            String difficultyHint = getDifficultyHint(difficulty);
-            String systemPromptText = basePrompt + difficultyHint + """
-
-                请以JSON格式返回，格式如下：
-                {"question": "面试问题内容 - 生成的问题文本", "category": "问题分类 - 如Java基础/并发/数据库等", "isFollowUp": "是否追问 - true表示追问，false表示新问题", "relatedIndex": "全局问题索引 - 追问时填写关联问题的全局索引（即历史记录中【】内的数字，如问题2对应2）", "relatedQuestion": "关联问题摘要 - 追问时填写关联的问题摘要"}
-                """;
+            String systemPromptText = getSystemPromptText(difficulty, perspectivePrompt);
             log.debug("使用视角prompt出题: perspectiveId={}, perspectiveName={}", perspectiveId, perspectiveName);
 
             // 传入历史记录，让AI根据简历内容自行决定问题类型
@@ -237,6 +226,22 @@ public class QuestionGenerationService {
             log.warn("AI问题生成失败，使用默认问题: {}", e.getMessage());
             return generateDefaultQuestion();
         }
+    }
+
+    @NotNull
+    private String getSystemPromptText(String difficulty, String perspectivePrompt) {
+        String basePrompt;
+        if (perspectivePrompt != null && !perspectivePrompt.isBlank()) {
+            basePrompt = perspectivePrompt;
+        } else {
+            basePrompt = "你是一个专业的技术面试官。请根据候选人的简历内容，自动选择一个最合适的技术方向来考察该候选人。";
+        }
+        // 系统提示词 = 角色定义 + 难度要求 + JSON格式说明
+        String difficultyHint = getDifficultyHint(difficulty);
+        return basePrompt + difficultyHint + """
+            请以JSON格式返回，格式如下：
+            {"question": "面试问题内容 - 生成的问题文本", "category": "问题分类 - 如Java基础/并发/数据库等", "isFollowUp": "是否追问 - true表示追问，false表示新问题", "relatedIndex": "全局问题索引 - 追问时填写关联问题的全局索引（即历史记录中【】内的数字，如问题2对应2）", "relatedQuestion": "关联问题摘要 - 追问时填写关联的问题摘要"}
+            """;
     }
 
     /**
