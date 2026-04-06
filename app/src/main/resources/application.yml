@@ -35,8 +35,8 @@ spring:
       idle-timeout: 600000          # 空闲连接超时：10分钟
       max-lifetime: 1800000          # 连接最大生命周期：30分钟
       connection-test-query: SELECT 1
-      maximum-pool-size: 10
-      minimum-idle: 5
+      maximum-pool-size: 30          # 连接池最大连接数增加到30
+      minimum-idle: 10               # 最小空闲连接增加到10
 
   jpa:
     hibernate:
@@ -159,6 +159,8 @@ app:
     follow-up-count: ${APP_INTERVIEW_FOLLOW_UP_COUNT:1}
     evaluation:
       batch-size: ${APP_INTERVIEW_EVALUATION_BATCH_SIZE:8}
+    sse:
+      heartbeat-interval: ${APP_INTERVIEW_SSE_HEARTBEAT_INTERVAL:30000}  # 心跳间隔（毫秒），默认30秒
   resume:
     upload-dir: ${java.io.tmpdir}/ai-interview/resumes
     allowed-types:

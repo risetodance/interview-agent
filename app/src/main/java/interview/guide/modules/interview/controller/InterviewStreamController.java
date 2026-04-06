@@ -10,6 +10,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+
+import java.io.IOException;
 import reactor.core.publisher.Flux;
 
 /**
@@ -60,16 +62,11 @@ public class InterviewStreamController {
 
         log.info("SSE connection established: sessionId={}", sessionId);
 
-        // 发送初始连接成功事件
-        streamService.sendConnectedEvent(sessionId);
-
         Flux<ServerSentEvent<String>> flux = streamService.getStream(sessionId)
-                .doOnCancel(() -> {
-                    log.info("SSE connection cancelled: sessionId={}", sessionId);
-                    streamService.removeSink(sessionId);
-                })
-                .doOnError(e -> {
-                    log.error("SSE error: sessionId={}", sessionId, e);
+                // 确保订阅建立后再发送 connected 事件
+                .doOnSubscribe(s -> streamService.sendConnectedEvent(sessionId))
+                .doOnComplete(() -> {
+                    log.info("SSE connection completed: sessionId={}", sessionId);
                     streamService.removeSink(sessionId);
                 });
 

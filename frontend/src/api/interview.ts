@@ -171,10 +171,13 @@ export const interviewApi = {
     eventSource.addEventListener(this.SSE_EVENT_TYPES.ERROR, (event: MessageEvent) => {
       const data = JSON.parse(event.data);
       callbacks.onError?.(data.message || '未知错误');
+      // 关闭连接，防止自动重连
       eventSource.close();
     });
 
     eventSource.onerror = () => {
+      console.log('SSE onerror triggered, closing connection');
+      // 关闭连接
       eventSource.close();
     };
 
