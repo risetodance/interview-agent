@@ -306,6 +306,12 @@ function InterviewHistoryWrapper() {
         return;
       }
 
+      // 检查评估是否完成，只有评估完成后才能查看综合报告
+      if (detail.evaluateStatus !== 'COMPLETED') {
+        alert('面试评估尚未完成，请稍后再试');
+        return;
+      }
+
       // 已完成的面试，跳转到多视角报告页面
       navigate(`/interviews/${sessionId}/report`);
     } catch {
@@ -321,10 +327,39 @@ function InterviewReportPageWrapper() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const [loading, setLoading] = useState(true);
+  const [canView, setCanView] = useState(false);
 
-  if (!sessionId) {
-    navigate('/interviews');
-    return null;
+  useEffect(() => {
+    if (!sessionId) {
+      navigate('/interviews');
+      return;
+    }
+
+    // 检查评估状态
+    historyApi.getInterviewDetail(sessionId).then(detail => {
+      // 评估未完成，不允许查看报告
+      if (detail.evaluateStatus !== 'COMPLETED') {
+        alert('面试评估尚未完成，请稍后再试');
+        navigate('/interviews');
+        return;
+      }
+      setCanView(true);
+      setLoading(false);
+    }).catch(() => {
+      navigate('/interviews');
+    });
+  }, [sessionId, navigate]);
+
+  if (loading || !canView) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-500">正在验证访问权限...</p>
+        </div>
+      </div>
+    );
   }
 
   const handleBack = () => {
@@ -336,7 +371,7 @@ function InterviewReportPageWrapper() {
     }
   };
 
-  return <InterviewReportPage sessionId={sessionId} onBack={handleBack} />;
+  return <InterviewReportPage sessionId={sessionId!} onBack={handleBack} />;
 }
 
 // 知识库管理页面包装器

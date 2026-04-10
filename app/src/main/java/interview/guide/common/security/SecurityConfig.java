@@ -1,5 +1,6 @@
 package interview.guide.common.security;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -11,6 +12,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import java.util.List;
+
 /**
  * Spring Security 安全配置
  * 采用 Spring Security 6.x 的 SecurityFilterChain 方式配置
@@ -20,6 +23,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    /**
+     * 管理后台接口白名单，不需要 ADMIN 权限即可访问
+     */
+    @Value("${security.admin-whitelist:/api/admin/interviewer-roles}")
+    private List<String> adminWhitelist;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
@@ -71,6 +80,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/resumes/health").permitAll()
                         .requestMatchers("/api/health").permitAll()
                         .requestMatchers("/api/actuator/**").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/api/config/session").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()
@@ -79,10 +89,12 @@ public class SecurityConfig {
                         .requestMatchers("/doc.html").permitAll()
                         .requestMatchers("/favicon.ico").permitAll()
                         .requestMatchers("/error").permitAll()
-                        // 管理后台接口需要管理员角色
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // SSE stream 接口（通过 URL 参数传递 token 验证）
                         .requestMatchers("/api/interview/sessions/*/stream").permitAll()
+                        // 管理后台接口白名单（不需要 ADMIN 权限）
+                        .requestMatchers(adminWhitelist.toArray(new String[0])).permitAll()
+                        // 管理后台接口需要管理员角色
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
                         // 其他请求需要认证
                         .anyRequest().authenticated()

@@ -2,7 +2,7 @@
 # 智能AI面试官平台配置
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
   # Tomcat 连接超时配置
   tomcat:
     connection-timeout: 60000  # 60秒
@@ -13,9 +13,18 @@ server:
     session:
       timeout: 30m  # 30分钟
 
+# 安全配置
+security:
+  # 管理后台接口白名单，不需要 ADMIN 权限即可访问
+  admin-whitelist:
+    - /api/admin/interviewer-roles
+    - /api/admin/interviewer-roles/**
+
 spring:
   application:
     name: ai-interview-platform
+  profiles:
+    active: dev
 
   # 启用虚拟线程 (Java 21+)
   # 显著提升 I/O 密集型场景的并发能力，特别适合 AI 调用和 SSE 长连接
@@ -52,7 +61,7 @@ spring:
       enabled: true
       max-file-size: 50MB  # 支持知识库上传（简历限制在业务层检查）
       max-request-size: 50MB
-  
+
 
   # Redisson配置 (使用 spring.redis.redisson，参考官方文档)
   redis:
@@ -67,7 +76,7 @@ spring:
           subscriptionConnectionMinimumIdleSize: 1
           subscriptionConnectionPoolSize: 50
           timeout: 10000          # Redis 操作超时：10秒
-  
+
   # Spring AI
   ai:
     openai:
@@ -78,12 +87,13 @@ spring:
       read-timeout: 120000       # 2分钟
       chat:
         options:
-          model: ${AI_MODEL:MiniMax-M2.5}
+          model: ${AI_MODEL:MiniMax-M2.7}
           temperature: 0.2
       # Embedding模型配置 - 使用text-embedding-v3
       embedding:
+        api-key: ${EMBEDDING_API_KEY:${MINIMAX_API_KEY}}
         options:
-          model: text-embedding-v3
+          model: ${EMBEDDING_MODEL:text-embedding-v3}
     # 禁用自动重试机制，让异常立即返回
     retry:
       max-attempts: 1  # 不重试，失败立即返回
@@ -96,26 +106,30 @@ spring:
         dimensions: 1024  # text-embedding-v3实际生成的向量维度
         initialize-schema: true # 开发环境设置为 true，方便快速启动。生产环境设置为 false，手动管理数据库 schema，避免意外变更。
         remove-existing-vector-store-table: false  # 保留现有表和数据
-    # MCP Client配置 - 使用 stdio 传输
-    mcp:
-      client:
-        enabled: true
-        toolcallback:
-          enabled: true
-        stdio:
-          connections:
-            minimax:
-              command: uvx
-              args:
-                - minimax-coding-plan-mcp
-                - -y
-              env:
-                MINIMAX_API_KEY: ${MINIMAX_API_KEY}
-                MINIMAX_API_HOST: ${MINIMAX_API_HOST:https://api.minimaxi.com}
   web:
     error:
       include-message: always
       include-binding-errors: always
+
+# Actuator + Micrometer Prometheus 配置
+management:
+  server:
+    port: ${ACTUATOR_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  prometheus:
+    metrics:
+      export:
+        enabled: true
 
 # Application custom configuration
 app:

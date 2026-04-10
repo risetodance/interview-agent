@@ -1,0 +1,19 @@
+# Production Profile - MCP Configuration
+# 生产环境 MCP 配置
+
+spring:
+  ai:
+    # 生产环境 MCP Client 配置
+    mcp:
+      client:
+        enabled: true
+        toolcallback:
+          enabled: true
+        stdio:
+          connections:
+            minimax:
+              command: minimax-coding-plan-mcp
+              args: []
+              env:
+                MINIMAX_API_KEY: ${MINIMAX_API_KEY}
+                MINIMAX_API_HOST: ${MINIMAX_API_HOST:https://api.minimaxi.com}

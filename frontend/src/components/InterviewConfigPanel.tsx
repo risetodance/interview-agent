@@ -226,7 +226,7 @@ export default function InterviewConfigPanel({
           </AnimatePresence>
           
           <div className="flex justify-center gap-4">
-            <motion.button 
+            <motion.button
               onClick={onBack}
               className="px-6 py-3 border border-slate-200 rounded-xl text-slate-600 font-medium hover:bg-slate-50 transition-all"
               whileHover={{ scale: 1.02 }}
@@ -236,19 +236,23 @@ export default function InterviewConfigPanel({
             </motion.button>
             <motion.button
               onClick={onStart}
-              disabled={isCreating || checkingUnfinished || !!weightError}
+              disabled={isCreating || checkingUnfinished || !!weightError || selectedPerspectives.length === 0}
               className="px-8 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-semibold shadow-lg shadow-primary-500/30 hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-              whileHover={{ scale: isCreating || checkingUnfinished || !!weightError ? 1 : 1.02, y: isCreating || checkingUnfinished || !!weightError ? 0 : -1 }}
-              whileTap={{ scale: isCreating || checkingUnfinished || !!weightError ? 1 : 0.98 }}
+              whileHover={{ scale: isCreating || checkingUnfinished || !!weightError || selectedPerspectives.length === 0 ? 1 : 1.02, y: isCreating || checkingUnfinished || !!weightError || selectedPerspectives.length === 0 ? 0 : -1 }}
+              whileTap={{ scale: isCreating || checkingUnfinished || !!weightError || selectedPerspectives.length === 0 ? 1 : 0.98 }}
             >
               {isCreating ? (
                 <>
-                  <motion.span 
+                  <motion.span
                     className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
                     animate={{ rotate: 360 }}
                     transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                   />
                   正在生成题目...
+                </>
+              ) : selectedPerspectives.length === 0 ? (
+                <>
+                  请选择面试官
                 </>
               ) : (
                 <>

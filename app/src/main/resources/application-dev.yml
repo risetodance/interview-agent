@@ -1,0 +1,21 @@
+# Development Profile - MCP Configuration
+# 开发环境 MCP 配置
+
+spring:
+  ai:
+    # 开发环境 MCP Client 配置
+    mcp:
+      client:
+        enabled: true
+        toolcallback:
+          enabled: true
+        stdio:
+          connections:
+            minimax:
+              command: uvx
+              args:
+                - minimax-coding-plan-mcp
+                - -y
+              env:
+                MINIMAX_API_KEY: ${MINIMAX_API_KEY}
+                MINIMAX_API_HOST: ${MINIMAX_API_HOST:https://api.minimaxi.com}

@@ -67,6 +67,7 @@ public class InterviewStreamController {
                 .doOnSubscribe(s -> streamService.sendConnectedEvent(sessionId))
                 .doOnComplete(() -> {
                     log.info("SSE connection completed: sessionId={}", sessionId);
+                    // 面试完了就应该直接remove
                     streamService.removeSink(sessionId);
                 });
 

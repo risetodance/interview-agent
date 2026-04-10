@@ -172,6 +172,13 @@ export default function ResumeDetailPage({ resumeId, onBack, onStartInterview }:
         return;
       }
 
+      // 检查评估是否完成，只有评估完成后才能查看综合报告
+      if (detail.evaluateStatus !== 'COMPLETED') {
+        alert('面试评估尚未完成，请稍后再试');
+        setLoadingInterview(false);
+        return;
+      }
+
       // 已完成的面试，跳转到报告页面（与 /interviews/:id/report 一样的综合报告页面）
       navigate(`/interviews/${sessionId}/report`, {
         state: { sessionId, resumeId, from: 'resumeDetail' }

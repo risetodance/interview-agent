@@ -10,8 +10,7 @@ build
 .env
 # IDEA code analysis
 qodana.yaml
-
-app/src/main/resources/application-dev.yml
+package-lock.json
 /docs
 /feature/*
 /temp/*

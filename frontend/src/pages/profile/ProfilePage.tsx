@@ -246,7 +246,7 @@ export default function ProfilePage() {
               </div>
               <div>
                 <p className="text-xs text-slate-400">会员等级</p>
-                <p className="font-medium text-slate-800">{membershipInfo.label}</p>
+                <p className="font-medium text-slate-800">{membershipLoading ? '加载中...' : membershipInfo.label}</p>
               </div>
             </div>
           </div>

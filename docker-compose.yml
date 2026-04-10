@@ -1,196 +1,168 @@
 services:
   # =========================================
-  # 1. PostgreSQL 数据库服务
-  # -----------------------------------------
-  # 作用：
-  #   - 存储业务数据（用户、简历信息等）
-  #   - 存储向量数据（基于 pgvector 插件），用于 RAG（检索增强生成）知识库检索
-  #
-  # 教程知识点：
-  #   - 选用 pgvector/pgvector 镜像而不是标准的 postgres 镜像，是为了获得向量搜索能力。
-  #   - 向量数据库是 LLM 应用开发中的核心基础设施。
+  # Redis 缓存服务
+  # =========================================
+  redis:
+    image: redis:7
+    container_name: interview-redis
+    restart: unless-stopped
+    mem_limit: 512m
+    memswap_limit: 512m
+    ports:
+      - "6379:6379"
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - ${REDIS_DATA_DIR}:/data
+      - ${REDIS_LOGS_DIR}:/var/log/redis
+    command: >
+      redis-server
+      --maxmemory 450mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD}
+      --logfile /var/log/redis/redis.log
+      --save 900 1
+      --save 300 10
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # =========================================
+  # PostgreSQL 数据库服务（带 pgvector 扩展）
   # =========================================
   postgres:
-    # 使用带有 pgvector 插件的 PostgreSQL 16 镜像
     image: pgvector/pgvector:pg16
     container_name: interview-postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: interview_guide
-    volumes:
-      # 数据持久化：确保容器重启或删除后，数据库数据不丢失
-      - postgres_data:/var/lib/postgresql/data
-      # 初始化脚本：容器首次启动时会自动执行 /docker-entrypoint-initdb.d/ 下的 .sql 文件
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    mem_limit: 512m
+    memswap_limit: 512m
     ports:
       - "5432:5432"
-    # 健康检查：
-    # 后端服务(app)需要等待数据库完全启动并准备好连接后才能启动。
-    # 这里通过 pg_isready 命令检测数据库状态。
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ${POSTGRES_DATA_DIR}:/var/lib/postgresql/data
+      - ${POSTGRES_LOGS_DIR}:/var/log/postgresql
+    command: >
+      -c shared_buffers=128MB
+      -c max_connections=50
+      -c work_mem=8MB
+      -c maintenance_work_mem=32MB
+      -c effective_cache_size=384MB
+      -c logging_collector=on
+      -c log_directory=/var/log/postgresql
+      -c log_filename=postgresql.log
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   # =========================================
-  # 2. Redis 缓存与消息队列服务
-  # -----------------------------------------
-  # 作用：
-  #   - 缓存：存储 Session、临时数据，提升系统性能
-  #   - 消息队列：利用 Redis Stream 实现异步任务处理（如简历分析、文档向量化）
-  #
-  # 教程知识点：
-  #   - 在轻量级架构中，Redis Stream 是 Kafka/RabbitMQ 的优秀替代方案，运维成本更低。
+  # RustFS 对象存储服务
   # =========================================
-  redis:
-    image: redis:7
-    container_name: interview-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  # =========================================
-  # 3. MinIO 对象存储服务
-  # -----------------------------------------
-  # 作用：
-  #   - 存储非结构化数据：用户上传的简历(PDF/Word)、头像、知识库文档等
-  #
-  # 教程知识点：
-  #   - MinIO 兼容 AWS S3 协议，这意味着代码中使用 S3 SDK 即可无缝切换到云厂商的对象存储。
-  #   - 端口说明：
-  #     - 9000: API 端口，代码通过此端口上传/下载文件
-  #     - 9001: 控制台端口，浏览器访问此端口管理文件
-  # =========================================
-  minio:
-    image: minio/minio
-    container_name: interview-minio
-    # 启动命令：指定数据目录和控制台地址
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: interview-rustfs
+    restart: unless-stopped
+    mem_limit: 256m
+    memswap_limit: 256m
     ports:
       - "9000:9000"
       - "9001:9001"
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      RUSTFS_ACCESS_KEY: ${APP_STORAGE_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${APP_STORAGE_SECRET_KEY}
+      RUSTFS_LOG_LEVEL: warn
     volumes:
-      - minio_data:/data
+      - ${RUSTFS_DATA_DIR}:/data
+      - ${RUSTFS_LOGS_DIR}:/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # =========================================
-  # 4. MinIO 初始化任务 (Init Container Pattern)
-  # -----------------------------------------
-  # 作用：
-  #   - 自动创建项目所需的存储桶 (Bucket)
-  #   - 设置存储桶的访问权限
-  #
-  # 教程知识点：
-  #   - "初始化容器"模式：这是一个短生命周期的容器，任务完成后自动退出。
-  #   - 解决了"谁来创建 Bucket"的问题，实现了基础设施的自动化配置，无需手动操作。
-  # =========================================
-  createbuckets:
-    image: minio/mc
-    depends_on:
-      minio:
-        condition: service_healthy # 必须等待 MinIO 服务健康（不仅仅是启动）
-    entrypoint: >
-      /bin/sh -c "
-      # 1. 配置 MinIO 客户端别名 (myminio) 连接到 minio 服务
-      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
-      # 2. 创建名为 interview-guide 的存储桶
-      /usr/bin/mc mb myminio/interview-guide;
-      # 3. 设置该存储桶为公共读权限（方便前端直接访问图片等资源）
-      /usr/bin/mc anonymous set public myminio/interview-guide;
-      exit 0;
-      "
-
-  # =========================================
-  # 5. 后端应用服务 (Spring Boot)
-  # -----------------------------------------
-  # 作用：
-  #   - 提供 RESTful API
-  #   - 处理核心业务逻辑（简历分析、模拟面试、RAG）
+  # 后端 Spring Boot 应用
   # =========================================
   app:
     build:
       context: .
-      dockerfile: app/Dockerfile
-    container_name: interview-app
-    # 依赖管理：确保基础设施准备好后再启动后端
+      dockerfile: Dockerfile
+      args:
+        MINIMAX_API_KEY: ${MINIMAX_API_KEY}
+        MINIMAX_API_HOST: ${MINIMAX_API_HOST}
+    container_name: interview-guide-app
+    restart: unless-stopped
+    mem_limit: 1536m
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - ${BACKEND_LOG_DIR}:/app/logs
+    env_file:
+      - .env
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      minio:
+      rustfs:
         condition: service_healthy
-      createbuckets:
-        condition: service_completed_successfully # 等待初始化任务完成
+
+  # =========================================
+  # Prometheus 监控
+  # =========================================
+  prometheus:
+    image: prom/prometheus
+    container_name: interview-prometheus
+    restart: unless-stopped
+    mem_limit: 384m
+    memswap_limit: 384m
+    ports:
+      - "9090:9090"
+    env_file:
+      - .env
     environment:
-      # === 数据库连接 ===
-      # 使用服务名 'postgres' 作为主机名，Docker 内部 DNS 会自动解析
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: interview_guide
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      
-      # === Redis 连接 ===
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      
-      # === 对象存储配置 ===
-      # 注意：后端在容器内访问 MinIO，使用 http://minio:9000
-      APP_STORAGE_ENDPOINT: http://minio:9000
-      APP_STORAGE_ACCESS_KEY: minioadmin
-      APP_STORAGE_SECRET_KEY: minioadmin
-      APP_STORAGE_BUCKET: interview-guide
-      APP_STORAGE_REGION: us-east-1
-      
-      # === AI 模型配置 (必须配置) ===
-      # 这里的变量值来自宿主机的环境变量或 .env 文件
-      AI_BAILIAN_API_KEY: ${AI_BAILIAN_API_KEY}
-      AI_MODEL: ${AI_MODEL:-qwen-plus}
+      TZ: Asia/Shanghai
+    volumes:
+      - /opt/interview-guide/prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ${PROMETHEUS_DATA_DIR}:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
 
-      # === 面试参数配置 ===
-      APP_INTERVIEW_FOLLOW_UP_COUNT: ${APP_INTERVIEW_FOLLOW_UP_COUNT:-1}
-      APP_INTERVIEW_EVALUATION_BATCH_SIZE: ${APP_INTERVIEW_EVALUATION_BATCH_SIZE:-8}
+  # =========================================
+  # Grafana 可视化监控
+  # =========================================
+  grafana:
+    image: grafana/grafana
+    container_name: interview-grafana
+    restart: unless-stopped
+    mem_limit: 256m
+    memswap_limit: 256m
     ports:
-      - "8080:8080"
-
-  # =========================================
-  # 6. 前端应用服务 (Vue/React + Nginx)
-  # -----------------------------------------
-  # 作用：
-  #   - 提供用户界面
-  #   - 反向代理 API 请求（通常在 Nginx 配置中处理）
-  # =========================================
-  frontend:
-    build: ./frontend
-    container_name: interview-frontend
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - ${GRAFANA_DATA_DIR}:/var/lib/grafana
     depends_on:
-      - app
-    ports:
-      - "80:80"
-
-# =========================================
-# 定义 Docker 卷 (Volumes)
-# -----------------------------------------
-# 作用：声明命名卷，用于数据持久化。
-# 即使删除了容器 (docker-compose down)，这些卷中的数据依然存在。
-# =========================================
-volumes:
-  postgres_data:
-  redis_data:
-  minio_data:
+      - prometheus

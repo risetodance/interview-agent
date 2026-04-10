@@ -283,6 +283,12 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
   };
 
   const startInterview = async () => {
+    // 验证是否选择了面试官
+    if (selectedPerspectives.length === 0) {
+      setError('请至少选择一位面试官');
+      return;
+    }
+
     setIsCreating(true);
     setError('');
 
