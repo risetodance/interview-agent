@@ -91,9 +91,10 @@ spring:
           temperature: 0.2
       # Embedding模型配置 - 使用text-embedding-v3
       embedding:
+        base-url: ${EMBEDDING_API_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
         api-key: ${EMBEDDING_API_KEY:${MINIMAX_API_KEY}}
         options:
-          model: ${EMBEDDING_MODEL:text-embedding-v3}
+          model: ${EMBEDDING_MODEL:text-embedding-v4}
     # 禁用自动重试机制，让异常立即返回
     retry:
       max-attempts: 1  # 不重试，失败立即返回
