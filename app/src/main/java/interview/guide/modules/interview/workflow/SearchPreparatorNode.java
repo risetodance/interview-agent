@@ -15,28 +15,29 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 搜索决策节点 - 决定是否需要搜索最新题目
+ * 搜索准备器节点 - 准备搜索上下文（关键字、方向匹配审核）
  * 位于 question_generator 之前
  * Decider 和 RoleSwitcher 都指向此节点
  */
 @Slf4j
 @Component
-public class SearchDeciderNode {
+public class SearchPreparatorNode {
 
     private final ChatClient chatClient;
     private final StructuredOutputInvoker structuredOutputInvoker;
 
-    public SearchDeciderNode(ChatClient.Builder chatClientBuilder,
-                             StructuredOutputInvoker structuredOutputInvoker,
-                             @Value("${app.mcp.websearch.enabled:true}") boolean mcpSearchEnabled) {
+    public SearchPreparatorNode(ChatClient.Builder chatClientBuilder,
+                                StructuredOutputInvoker structuredOutputInvoker) {
         this.chatClient = chatClientBuilder.build();
         this.structuredOutputInvoker = structuredOutputInvoker;
     }
 
     /**
-     * 搜索决策输出 - 包含是否需要搜索、关键词、原因
+     * 搜索决策输出 - 包含方向匹配、是否需要搜索、共用关键词、原因
      */
     private record SearchDecisionOutput(
+            boolean directionMatch,
+            String matchReason,
             boolean needSearch,
             String keywords,
             String reason
@@ -46,10 +47,10 @@ public class SearchDeciderNode {
     private final BeanOutputConverter<SearchDecisionOutput> outputConverter =
             new BeanOutputConverter<>(SearchDecisionOutput.class);
 
-    @Value("classpath:prompts/search-decider-system.st")
+    @Value("classpath:prompts/search-preparator-system.st")
     private Resource systemPromptResource;
 
-    @Value("classpath:prompts/search-decider-user.st")
+    @Value("classpath:prompts/search-preparator-user.st")
     private Resource userPromptResource;
 
     @Value("${app.mcp.websearch.enabled:true}")
@@ -61,8 +62,12 @@ public class SearchDeciderNode {
         String userAnswer = (String) state.value(InterviewWorkflowState.CURRENT_ANSWER).orElse("");
         String feedback = (String) state.value(InterviewWorkflowState.FEEDBACK).orElse("");
         String category = (String) state.value(InterviewWorkflowState.CURRENT_CATEGORY).orElse("");
+        String currentPerspective = (String) state.value(InterviewWorkflowState.CURRENT_PERSPECTIVE_NAME).orElse("");
+        // 获取 DeciderNode 输出的出题方向
+        String questionDirection = (String) state.value(InterviewWorkflowState.QUESTION_DIRECTION).orElse("");
 
-        log.info("Search decider node: sessionId={},feedback={}, category={}, mcpEnabled={}", sessionId, feedback, category, mcpSearchEnabled);
+        log.info("Search preparator node: sessionId={}, feedback={}, category={}, mcpEnabled={}, questionDirection={}",
+                sessionId, feedback, category, mcpSearchEnabled, questionDirection);
 
         if (!mcpSearchEnabled) {
             log.info("MCP search is disabled, skip search decision");
@@ -74,17 +79,19 @@ public class SearchDeciderNode {
             return state;
         }
 
-        log.info("userAnswer is :{},currentQuestion is {}", userAnswer, currentQuestion);
+        log.info("userAnswer is :{}, currentQuestion is {}", userAnswer, currentQuestion);
 
         try {
             String systemPrompt = systemPromptResource.getContentAsString(StandardCharsets.UTF_8);
             String userPromptTemplate = userPromptResource.getContentAsString(StandardCharsets.UTF_8);
 
             Map<String, Object> variables = new HashMap<>();
+            variables.put("currentPerspective", currentPerspective);
             variables.put("currentQuestion", currentQuestion);
             variables.put("userAnswer", userAnswer);
             variables.put("feedback", feedback);
             variables.put("category", category);
+            variables.put("questionDirection", questionDirection);
 
             String userPrompt = userPromptTemplate;
             for (Map.Entry<String, Object> entry : variables.entrySet()) {
@@ -94,12 +101,14 @@ public class SearchDeciderNode {
 
             SearchDecisionOutput decision = structuredOutputInvoker.invoke(
                     chatClient, systemPrompt, userPrompt, outputConverter,
-                    ErrorCode.AI_SERVICE_ERROR, "搜索决策解析失败", "SearchDeciderNode", log
+                    ErrorCode.AI_SERVICE_ERROR, "搜索准备解析失败", "SearchPreparatorNode", log
             );
 
-            log.info("Search decider: needSearch={}, keywords={}, reason={}", decision.needSearch(), decision.keywords(), decision.reason());
+            log.info("Search decider: directionMatch={}, matchReason={}, needSearch={}, keywords={}, reason={}",
+                    decision.directionMatch(), decision.matchReason(), decision.needSearch(), decision.keywords(), decision.reason());
 
             state.updateState(Map.of(
+                    InterviewWorkflowState.DIRECTION_MATCH, decision.directionMatch(),
                     InterviewWorkflowState.SEARCH_ENABLED, decision.needSearch(),
                     InterviewWorkflowState.SEARCH_KEYWORDS, decision.keywords() != null ? decision.keywords() : "",
                     InterviewWorkflowState.SEARCH_DECISION_REASON, decision.reason()

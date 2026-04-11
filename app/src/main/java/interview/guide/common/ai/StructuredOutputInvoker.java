@@ -23,16 +23,49 @@ public class StructuredOutputInvoker {
             4) 绝对不要在文本中插入反斜杠转义非ASCII字符。
             """;
 
-    private final int maxAttempts;
-    private final boolean includeLastErrorInRetryPrompt;
+    /**
+     * 校验结果
+     */
+    public record ValidationResult(boolean valid, String message) {
+        public static ValidationResult pass() {
+            return new ValidationResult(true, null);
+        }
+
+        public static ValidationResult fail(String message) {
+            return new ValidationResult(false, message);
+        }
+    }
+
+    /**
+     * 输出校验器接口
+     */
+    @FunctionalInterface
+    public interface OutputValidator<T> {
+        /**
+         * 校验输出是否有效
+         * @param result AI 返回的结果
+         * @return 校验结果，包含是否通过及具体信息
+         */
+        ValidationResult validate(T result);
+
+        /**
+         * 空实现校验器（始终返回 true）
+         */
+        static <T> OutputValidator<T> noOp() {
+            return result -> ValidationResult.pass();
+        }
+    }
 
     public StructuredOutputInvoker(
-            @Value("${app.ai.structured-max-attempts:2}") int maxAttempts,
+            @Value("${app.ai.structured-max-attempts:3}") int maxAttempts,
             @Value("${app.ai.structured-include-last-error:true}") boolean includeLastErrorInRetryPrompt
     ) {
         this.maxAttempts = Math.max(1, maxAttempts);
         this.includeLastErrorInRetryPrompt = includeLastErrorInRetryPrompt;
     }
+
+    private final int maxAttempts;
+    private final boolean includeLastErrorInRetryPrompt;
 
     public <T> T invoke(
             ChatClient chatClient,
@@ -45,18 +78,45 @@ public class StructuredOutputInvoker {
             Logger log,
             ToolCallback... toolCallbacks
     ) {
+        return invoke(chatClient, systemPromptWithFormat, userPrompt, outputConverter,
+                errorCode, errorPrefix, logContext, log, OutputValidator.noOp(), toolCallbacks);
+    }
+
+    public <T> T invoke(
+            ChatClient chatClient,
+            String systemPromptWithFormat,
+            String userPrompt,
+            BeanOutputConverter<T> outputConverter,
+            ErrorCode errorCode,
+            String errorPrefix,
+            String logContext,
+            Logger log,
+            OutputValidator<T> validator,
+            ToolCallback... toolCallbacks
+    ) {
         Exception lastError = null;
+        String lastValidationMessage = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             String attemptSystemPrompt = attempt == 1
                     ? systemPromptWithFormat
-                    : buildRetrySystemPrompt(systemPromptWithFormat, lastError);
+                    : buildRetrySystemPrompt(systemPromptWithFormat, lastError, lastValidationMessage);
             try {
-                return chatClient.prompt()
+                T result = chatClient.prompt()
                         .system(attemptSystemPrompt)
                         .user(userPrompt)
                         .toolCallbacks(toolCallbacks)
                         .call()
                         .entity(outputConverter);
+
+                // 校验结果
+                ValidationResult validation = validator.validate(result);
+                if (validation.valid()) {
+                    return result;
+                } else {
+                    lastValidationMessage = validation.message();
+                    log.warn("{}结构化输出校验失败: attempt={}, reason={}", logContext, attempt, lastValidationMessage);
+                    lastError = new BusinessException(errorCode, "结构化输出校验失败: " + lastValidationMessage);
+                }
             } catch (Exception e) {
                 lastError = e;
                 log.warn("{}结构化解析失败，准备重试: attempt={}, error={}", logContext, attempt, e.getMessage());
@@ -69,11 +129,17 @@ public class StructuredOutputInvoker {
         );
     }
 
-    private String buildRetrySystemPrompt(String systemPromptWithFormat, Exception lastError) {
+    private String buildRetrySystemPrompt(String systemPromptWithFormat, Exception lastError, String validationMessage) {
         StringBuilder prompt = new StringBuilder(systemPromptWithFormat)
                 .append("\n\n")
-                .append(STRICT_JSON_INSTRUCTION)
-                .append("\n上次输出解析失败，请仅返回合法 JSON。");
+                .append(STRICT_JSON_INSTRUCTION);
+
+        if (validationMessage != null && !validationMessage.isBlank()) {
+            prompt.append("\n上次输出校验失败原因：").append(validationMessage);
+            prompt.append("\n请根据校验失败原因重新输出符合要求的 JSON。");
+        } else {
+            prompt.append("\n上次输出解析失败，请仅返回合法 JSON。");
+        }
 
         if (includeLastErrorInRetryPrompt && lastError != null && lastError.getMessage() != null) {
             prompt.append("\n上次失败原因：")

@@ -35,6 +35,7 @@ public class InterviewWorkflowState {
     public static final String NEXT_PERSPECTIVE_ID = "nextPerspectiveId";
     public static final String NEXT_PERSPECTIVE_NAME = "nextPerspectiveName";
     public static final String DECISION_REASON = "decisionReason";
+    public static final String QUESTION_DIRECTION = "questionDirection";
     public static final String IS_COMPLETE = "isComplete";
 
     // 搜索结果（来自 MCP web_search）
@@ -42,6 +43,7 @@ public class InterviewWorkflowState {
     public static final String SEARCH_ENABLED = "searchEnabled";
     public static final String SEARCH_KEYWORDS = "searchKeywords";
     public static final String SEARCH_DECISION_REASON = "searchDecisionReason";
+    public static final String DIRECTION_MATCH = "directionMatch";
 
     // 评估结果
     public static final String SCORE = "score";

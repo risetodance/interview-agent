@@ -6,6 +6,7 @@ import interview.guide.modules.interview.model.CurrentQuestionDTO;
 import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewerRoleEntity;
 import interview.guide.modules.interview.repository.InterviewerRoleRepository;
+import interview.guide.modules.interview.service.HybridSearchService;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
 import interview.guide.modules.interview.service.InterviewStreamService;
 import interview.guide.modules.interview.service.QuestionGenerationService;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +32,7 @@ import java.util.Optional;
 public class QuestionGeneratorNode {
 
     private final QuestionGenerationService questionGenerationService;
+    private final HybridSearchService hybridSearchService;
     private final InterviewPersistenceService persistenceService;
     private final InterviewerRoleRepository interviewerRoleRepository;
     private final InterviewStreamService interviewStreamService;
@@ -59,14 +62,12 @@ public class QuestionGeneratorNode {
             }
             var session = sessionOpt.get();
 
-            // 获取 MCP 搜索结果作为补充上下文
-            String mcpSearchResult = (String) state.value(InterviewWorkflowState.SEARCH_RESULT).orElse(null);
+            // 获取 SearchPreparator 的决策结果
+            String keywords = (String) state.value(InterviewWorkflowState.SEARCH_KEYWORDS).orElse(null);
             Boolean searchEnabled = (Boolean) state.value(InterviewWorkflowState.SEARCH_ENABLED).orElse(false);
-
-            if (searchEnabled && mcpSearchResult != null && !mcpSearchResult.isBlank()) {
-                log.info("Using MCP search result: sessionId={}, resultLength={}",
-                        sessionId, mcpSearchResult.length());
-            }
+            Boolean directionMatch = (Boolean) state.value(InterviewWorkflowState.DIRECTION_MATCH).orElse(false);
+            // 获取 Decider 输出的出题方向
+            String questionDirection = (String) state.value(InterviewWorkflowState.QUESTION_DIRECTION).orElse(null);
 
             // 获取简历文本
             String resumeText = null;
@@ -75,6 +76,36 @@ public class QuestionGeneratorNode {
             }
             if (resumeText == null || resumeText.isBlank()) {
                 resumeText = "通用面试，无特定简历内容";
+            }
+
+            // 执行混合检索
+            String mergedSearchContext = "";
+            if (keywords != null && !keywords.isBlank()) {
+                try {
+                    // 获取题库ID列表
+                    List<Long> bankIds = parseKnowledgeBaseIds(session.getKnowledgeBaseIds());
+                    // 获取会话关联的知识库ID
+
+                    // 调用混合检索服务
+                    HybridSearchService.HybridSearchResult hybridResult = hybridSearchService.search(
+                            bankIds,
+                            bankIds,
+                            keywords,
+                            resumeText,
+                            searchEnabled  // 是否启用 Web 搜索
+                    );
+
+                    mergedSearchContext = hybridResult.getMergedContext();
+                    log.info("混合检索完成: sessionId={}, mergedLength={}, questionBank={}, kb={}, web={}",
+                            sessionId, mergedSearchContext.length(),
+                            hybridResult.getQuestionBankContext().length(),
+                            hybridResult.getKnowledgeBaseContext().length(),
+                            hybridResult.getWebSearchContext().length());
+                } catch (Exception e) {
+                    log.error("<UNK>", e);
+                    log.warn("混合检索失败: sessionId={}, error={}", sessionId, e.getMessage());
+                    mergedSearchContext = "";
+                }
             }
 
             // 确定出题视角
@@ -96,7 +127,7 @@ public class QuestionGeneratorNode {
                     if (selectedPerspectives != null && !selectedPerspectives.isEmpty()) {
                         // 如果没有指定视角，选择第一个
                         if (selectedPerspectiveId == 0) {
-                            selectedPerspectiveId = selectedPerspectives.get(0);
+                            selectedPerspectiveId = selectedPerspectives.getFirst();
                         }
 
                         log.info("即将查询视角: selectedPerspectiveId={}", selectedPerspectiveId);
@@ -156,11 +187,11 @@ public class QuestionGeneratorNode {
                             a.getRelatedQuestion()))
                     .toList();
 
-            // 生成问题
+            // 生成问题（如果方向匹配则传入出题方向）
             CurrentQuestionDTO questionDTO = questionGenerationService.generateSingleQuestion(
                     session, questionIndex, resumeText, history,
                     selectedPerspectiveId, selectedPerspectivePrompt, selectedPerspectiveName,
-                    mcpSearchResult);
+                    mergedSearchContext, directionMatch ? questionDirection : null);
 
             // 保存生成的问题到数据库
             Integer globalRelatedIndex = null;
@@ -245,5 +276,20 @@ public class QuestionGeneratorNode {
         }
 
         return state;
+    }
+
+    /**
+     * 解析知识库ID列表
+     */
+    private List<Long> parseKnowledgeBaseIds(String knowledgeBaseIdsJson) {
+        if (knowledgeBaseIdsJson == null || knowledgeBaseIdsJson.isBlank()) {
+            return Collections.emptyList();
+        }
+        try {
+            return objectMapper.readValue(knowledgeBaseIdsJson, new TypeReference<List<Long>>() {});
+        } catch (Exception e) {
+            log.warn("解析知识库ID失败: {}", e.getMessage());
+            return Collections.emptyList();
+        }
     }
 }

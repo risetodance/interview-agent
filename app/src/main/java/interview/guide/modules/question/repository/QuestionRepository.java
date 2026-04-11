@@ -54,4 +54,18 @@ public interface QuestionRepository extends JpaRepository<QuestionEntity, Long> 
      */
     @Query(value = "SELECT * FROM questions WHERE question_bank_id IN (:bankIds) ORDER BY RANDOM() LIMIT :limit", nativeQuery = true)
     List<QuestionEntity> findRandomQuestionsByBankIds(@Param("bankIds") List<Long> bankIds, @Param("limit") int limit);
+
+    /**
+     * 全文搜索题目（使用 PostgreSQL 全文检索）
+     * 按相关性排序返回结果
+     */
+    @Query(value = """
+        SELECT *, ts_rank(content_tsv, plainto_tsquery('simple', :keywords)) AS rank
+        FROM questions
+        WHERE question_bank_id IN (:bankIds)
+          AND content_tsv @@ plainto_tsquery('simple', :keywords)
+        ORDER BY rank DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<QuestionEntity> fullTextSearch(@Param("bankIds") List<Long> bankIds, @Param("keywords") String keywords, @Param("limit") int limit);
 }

@@ -43,8 +43,7 @@ public class WorkflowExecutor {
     private final DeciderNode deciderNode;
     private final RoleSwitcherNode roleSwitcherNode;
     private final FinalReporterNode finalReporterNode;
-    private final SearchDeciderNode searchDeciderNode;
-    private final WebSearchNode webSearchNode;
+    private final SearchPreparatorNode searchPreparatorNode;
     private final InterviewStreamService interviewStreamService;
     private final RedisService redisService;
 
@@ -60,8 +59,7 @@ public class WorkflowExecutor {
     private static final String NODE_DECIDER = "decider";
     private static final String NODE_ROLE_SWITCHER = "role_switcher";
     private static final String NODE_FINAL_REPORTER = "final_reporter";
-    private static final String NODE_SEARCH_DECIDER = "search_decider";
-    private static final String NODE_WEB_SEARCHER = "web_searcher";
+    private static final String NODE_SEARCH_PREPARATOR = "search_preparator";
 
     /**
      * Redis 中存储工作流检查点的 key 前缀
@@ -74,8 +72,7 @@ public class WorkflowExecutor {
                            DeciderNode deciderNode,
                            RoleSwitcherNode roleSwitcherNode,
                            FinalReporterNode finalReporterNode,
-                           SearchDeciderNode searchDeciderNode,
-                           WebSearchNode webSearchNode,
+                           SearchPreparatorNode searchPreparatorNode,
                            InterviewStreamService interviewStreamService,
                            RedisService redisService) {
         this.entryNode = entryNode;
@@ -84,8 +81,7 @@ public class WorkflowExecutor {
         this.deciderNode = deciderNode;
         this.roleSwitcherNode = roleSwitcherNode;
         this.finalReporterNode = finalReporterNode;
-        this.searchDeciderNode = searchDeciderNode;
-        this.webSearchNode = webSearchNode;
+        this.searchPreparatorNode = searchPreparatorNode;
         this.interviewStreamService = interviewStreamService;
         this.redisService = redisService;
     }
@@ -135,39 +131,28 @@ public class WorkflowExecutor {
             stateGraph.addNode(NODE_DECIDER, AsyncNodeAction.node_async(adaptNodeAction(deciderNode::execute)));
             stateGraph.addNode(NODE_ROLE_SWITCHER, AsyncNodeAction.node_async(adaptNodeAction(roleSwitcherNode::execute)));
             stateGraph.addNode(NODE_FINAL_REPORTER, AsyncNodeAction.node_async(adaptNodeAction(finalReporterNode::execute)));
-            stateGraph.addNode(NODE_SEARCH_DECIDER, AsyncNodeAction.node_async(adaptNodeAction(searchDeciderNode::execute)));
-            stateGraph.addNode(NODE_WEB_SEARCHER, AsyncNodeAction.node_async(adaptNodeAction(webSearchNode::execute)));
+            stateGraph.addNode(NODE_SEARCH_PREPARATOR, AsyncNodeAction.node_async(adaptNodeAction(searchPreparatorNode::execute)));
 
             // 添加普通边 - START -> entry 是隐式入口
             stateGraph.addEdge(StateGraph.START, NODE_ENTRY);
             stateGraph.addEdge(NODE_ENTRY, NODE_QUESTION_GENERATOR);
             stateGraph.addEdge(NODE_QUESTION_GENERATOR, NODE_SCORER);
             stateGraph.addEdge(NODE_SCORER, NODE_DECIDER);
-            stateGraph.addEdge(NODE_ROLE_SWITCHER, NODE_SEARCH_DECIDER);
-            stateGraph.addEdge(NODE_WEB_SEARCHER, NODE_QUESTION_GENERATOR);
+            stateGraph.addEdge(NODE_ROLE_SWITCHER, NODE_SEARCH_PREPARATOR);
             stateGraph.addEdge(NODE_FINAL_REPORTER, StateGraph.END);
 
             // 添加条件边 - decider 根据决策结果决定下一步
             Map<String, String> edgeMapping = new HashMap<>();
-            edgeMapping.put(DecisionAction.ASK.name(), NODE_SEARCH_DECIDER);
+            edgeMapping.put(DecisionAction.ASK.name(), NODE_SEARCH_PREPARATOR);
             edgeMapping.put(DecisionAction.SWITCH.name(), NODE_ROLE_SWITCHER);
             edgeMapping.put(DecisionAction.FINISH.name(), NODE_FINAL_REPORTER);
 
             // 使用 AsyncCommandAction.of 将 AsyncEdgeAction 转换为 AsyncCommandAction
             stateGraph.addConditionalEdges(NODE_DECIDER, AsyncCommandAction.of(createDeciderAsyncEdgeAction()), edgeMapping);
 
-            // search_decider 根据 searchEnabled 决定下一步
-            Map<String, String> searchEdgeMapping = new HashMap<>();
-            searchEdgeMapping.put("true", NODE_WEB_SEARCHER);      // 需要搜索
-            searchEdgeMapping.put("false", NODE_QUESTION_GENERATOR);  // 不需要搜索
-
-            stateGraph.addConditionalEdges(NODE_SEARCH_DECIDER,
-                    AsyncCommandAction.of(state -> {
-                        Boolean searchEnabled = (Boolean) state.value(InterviewWorkflowState.SEARCH_ENABLED).orElse(false);
-                        log.info("Search decider condition: searchEnabled={}", searchEnabled);
-                        return CompletableFuture.completedFuture(searchEnabled.toString());
-                    }),
-                    searchEdgeMapping);
+            // search_decider 决定下一步（Web搜索已集成到 QuestionGeneratorNode 中的 HybridSearchService）
+            // searchEnabled 只用于控制是否执行 Web 搜索，不再作为独立节点
+            stateGraph.addEdge(NODE_SEARCH_PREPARATOR, NODE_QUESTION_GENERATOR);
 
             // 创建 Redis Saver
             this.redisSaver = new RedisSaver(redisService.getClient());

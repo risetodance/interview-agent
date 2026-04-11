@@ -811,7 +811,7 @@ public class InterviewSessionService {
             nextQuestion = questionGenerationService.generateSingleQuestion(
                     session, newIndex, resumeText, history,
                     nextPerspectiveId, nextPerspectivePrompt, nextPerspectiveName,
-                    null);
+                    null, null);
 
             // 保存下一题到数据库（含视角信息）
             // AI返回的relatedIndex已经是全局questionIndex，无需转换

@@ -157,9 +157,14 @@ app:
 
   ai:
     # 结构化输出重试次数（用于 BeanOutputConverter 解析失败时的业务层重试）
-    structured-max-attempts: ${APP_AI_STRUCTURED_MAX_ATTEMPTS:2}
+    structured-max-attempts: ${APP_AI_STRUCTURED_MAX_ATTEMPTS:3}
     # 重试时是否将上次错误原因注入提示词，帮助模型定向修复输出
     structured-include-last-error: ${APP_AI_STRUCTURED_INCLUDE_LAST_ERROR:true}
+    # 小模型配置（用于轻量级任务如相关性打分）
+    small-model:
+      enabled: ${APP_AI_SMALL_MODEL_ENABLED:true}
+      model: ${APP_AI_SMALL_MODEL:MiniMax-M2.5}
+      temperature: 0.1
     rag:
       rewrite:
         enabled: ${APP_AI_RAG_REWRITE_ENABLED:true}
@@ -176,6 +181,8 @@ app:
       batch-size: ${APP_INTERVIEW_EVALUATION_BATCH_SIZE:8}
     sse:
       heartbeat-interval: ${APP_INTERVIEW_SSE_HEARTBEAT_INTERVAL:30000}  # 心跳间隔（毫秒），默认30秒
+    hybrid-search:
+      topk: ${APP_INTERVIEW_HYBRID_SEARCH_TOPK:3}  # 混合检索返回的结果数量
   resume:
     upload-dir: ${java.io.tmpdir}/ai-interview/resumes
     allowed-types:

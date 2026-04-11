@@ -168,13 +168,6 @@ public class InterviewQuestionService {
     }
 
     /**
-     * 生成面试问题（不带历史问题）
-     */
-    public List<InterviewQuestionDTO> generateQuestions(String resumeText, int questionCount) {
-        return generateQuestions(resumeText, questionCount, null);
-    }
-
-    /**
      * 计算各类型问题分布
      */
     private QuestionDistribution calculateDistribution(int total) {

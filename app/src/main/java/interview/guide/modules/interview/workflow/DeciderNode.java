@@ -56,7 +56,8 @@ public class DeciderNode {
     private record DecisionOutput(
             DecisionAction decision,  // ASK, SWITCH, FINISH
             Long nextPerspectiveId,   // 如果是 SWITCH，指定下一个视角ID
-            String reason            // 决策原因
+            String reason,            // 决策原因
+            String questionDirection  // 出题方向描述
     ) {
     }
 
@@ -144,6 +145,7 @@ public class DeciderNode {
             updatedState.put(InterviewWorkflowState.CURRENT_QUESTION_INDEX, nextIndex);
             updatedState.put(InterviewWorkflowState.NEXT_QUESTION_INDEX, nextIndex);
             updatedState.put(InterviewWorkflowState.DECISION_REASON, decision.reason());
+            updatedState.put(InterviewWorkflowState.QUESTION_DIRECTION, decision.questionDirection() != null ? decision.questionDirection() : "");
 
             // 如果是 SWITCH，设置下一个视角
             if (decision.decision() == DecisionAction.SWITCH && decision.nextPerspectiveId() != null) {
@@ -195,6 +197,23 @@ public class DeciderNode {
     }
 
     /**
+     * 解析会话中选中的视角ID列表
+     */
+    private List<Long> parseSelectedPerspectives(InterviewSessionEntity session) {
+        if (session.getSelectedPerspectives() == null || session.getSelectedPerspectives().isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(
+                    session.getSelectedPerspectives(), new TypeReference<List<Long>>() {
+                    });
+        } catch (Exception e) {
+            log.warn("解析 selectedPerspectives 失败: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
      * 调用 LLM 做决策
      */
     private DecisionOutput makeDecision(
@@ -206,6 +225,20 @@ public class DeciderNode {
             String feedback,
             String difficulty,
             Map<Long, List<InterviewAnswerEntity>> answersByPerspective) throws IOException {
+
+        // 解析选中的视角列表
+        final List<Long> selectedPerspectivesList = parseSelectedPerspectives(session);
+
+        // 创建校验器：SWITCH 时校验 nextPerspectiveId 是否在选中列表中
+        StructuredOutputInvoker.OutputValidator<DecisionOutput> validator = output -> {
+            if (output.decision() == DecisionAction.SWITCH && output.nextPerspectiveId() != null) {
+                if (!selectedPerspectivesList.contains(output.nextPerspectiveId())) {
+                    return StructuredOutputInvoker.ValidationResult.fail(
+                            "SWITCH 决策的视角 ID " + output.nextPerspectiveId() + " 不在本次面试选中的视角列表中，请重新选择一个有效的视角");
+                }
+            }
+            return StructuredOutputInvoker.ValidationResult.pass();
+        };
 
         // 构建提示词
         String systemPrompt = systemPromptResource.getContentAsString(StandardCharsets.UTF_8);
@@ -247,10 +280,7 @@ public class DeciderNode {
                 } else {
                     sessionWeights = null;
                 }
-                List<Long> selectedPerspectives = objectMapper.readValue(
-                        session.getSelectedPerspectives(), new TypeReference<>() {
-                        });
-                for (Long perspectiveId : selectedPerspectives) {
+                for (Long perspectiveId : selectedPerspectivesList) {
                     Optional<InterviewerRoleEntity> roleOpt = interviewerRoleRepository.findById(perspectiveId);
                     roleOpt.ifPresent(role -> {
                         int answeredCount = 0;
@@ -294,7 +324,7 @@ public class DeciderNode {
                     entry.getValue() != null ? entry.getValue().toString() : "");
         }
 
-        // 使用 StructuredOutputInvoker 调用 LLM 结构化输出
+        // 使用 StructuredOutputInvoker 调用 LLM 结构化输出（带校验器）
         DecisionOutput output = structuredOutputInvoker.invoke(
                 chatClient,
                 systemPrompt,
@@ -303,7 +333,8 @@ public class DeciderNode {
                 ErrorCode.AI_SERVICE_ERROR,
                 "LLM决策解析失败",
                 "DeciderNode",
-                log
+                log,
+                validator
         );
 
         log.info("Decider LLM parsed: decision={}, nextPerspective={}, reason={}",
@@ -312,7 +343,7 @@ public class DeciderNode {
         // 验证并返回
         if (output.decision() == null) {
             log.warn("LLM 返回的决策为空，使用默认 ASK");
-            return new DecisionOutput(DecisionAction.ASK, null, "默认继续");
+            return new DecisionOutput(DecisionAction.ASK, null, "默认继续", null);
         }
 
         return output;

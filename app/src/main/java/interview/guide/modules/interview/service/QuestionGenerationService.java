@@ -1,30 +1,20 @@
 package interview.guide.modules.interview.service;
 
 import interview.guide.common.ai.StructuredOutputInvoker;
-import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.interview.model.AnswerHistoryDTO;
 import interview.guide.modules.interview.model.CurrentQuestionDTO;
-import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
-import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.ai.document.Document;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.util.*;
 
 /**
@@ -37,61 +27,43 @@ public class QuestionGenerationService {
 
     private final ChatClient chatClient;
     private final StructuredOutputInvoker structuredOutputInvoker;
-    private final KnowledgeBaseVectorService knowledgeBaseVectorService;
     private final KnowledgeBaseRepository knowledgeBaseRepository;
     private final ObjectMapper objectMapper;
-    private final PromptTemplate systemPromptTemplate;
-    private final PromptTemplate userPromptTemplate;
     private final BeanOutputConverter<SimpleQuestionDTO> outputConverter;
 
     public QuestionGenerationService(
             ChatClient.Builder chatClientBuilder,
             StructuredOutputInvoker structuredOutputInvoker,
-            KnowledgeBaseVectorService knowledgeBaseVectorService,
             KnowledgeBaseRepository knowledgeBaseRepository,
-            ObjectMapper objectMapper,
-            @Value("classpath:prompts/interview-question-system.st") Resource systemPromptResource,
-            @Value("classpath:prompts/interview-question-user.st") Resource userPromptResource) throws IOException {
+            ObjectMapper objectMapper) {
         this.chatClient = chatClientBuilder.build();
         this.structuredOutputInvoker = structuredOutputInvoker;
-        this.knowledgeBaseVectorService = knowledgeBaseVectorService;
         this.knowledgeBaseRepository = knowledgeBaseRepository;
         this.objectMapper = objectMapper;
-        this.systemPromptTemplate = new PromptTemplate(systemPromptResource.getContentAsString(StandardCharsets.UTF_8));
-        this.userPromptTemplate = new PromptTemplate(userPromptResource.getContentAsString(StandardCharsets.UTF_8));
         this.outputConverter = new BeanOutputConverter<>(SimpleQuestionDTO.class);
-    }
-
-    private final Map<String, PromptTemplate> promptTemplatesByDifficulty = new HashMap<>();
-
-    /**
-     * 生成单个面试问题（无视角模式）
-     */
-    public CurrentQuestionDTO generateSingleQuestion(InterviewSessionEntity session, int questionIndex,
-                                                     String resumeText, List<AnswerHistoryDTO> history) {
-        return generateSingleQuestion(session, questionIndex, resumeText, history,
-                null, null, null, null);
     }
 
     /**
      * 生成单个面试问题
      * AI根据简历和历史记录自行决定问题内容和分类
      *
-     * @param session            会话实体
-     * @param questionIndex     问题索引
-     * @param resumeText         简历文本
-     * @param history           历史答题记录
-     * @param perspectiveId     视角ID（用于过滤历史和选择prompt）
-     * @param perspectivePrompt 视角的评分prompt（作为系统提示词）
-     * @param perspectiveName   视角名称
-     * @param mcpSearchContext  MCP搜索结果上下文
+     * @param session             会话实体
+     * @param questionIndex       问题索引
+     * @param resumeText          简历文本
+     * @param history             历史答题记录
+     * @param perspectiveId       视角ID（用于过滤历史和选择prompt）
+     * @param perspectivePrompt   视角的评分prompt（作为系统提示词）
+     * @param perspectiveName     视角名称
+     * @param mergedSearchContext 混合检索结果上下文（已归一化重排序）
+     * @param questionDirection   Decider输出的出题方向（如果方向匹配则参考）
      * @return 包含问题内容和参考上下文的 DTO
      */
     public CurrentQuestionDTO generateSingleQuestion(InterviewSessionEntity session, int questionIndex,
                                                      String resumeText, List<AnswerHistoryDTO> history,
                                                      Long perspectiveId, String perspectivePrompt,
                                                      String perspectiveName,
-                                                     String mcpSearchContext) {
+                                                     String mergedSearchContext,
+                                                     String questionDirection) {
         String difficulty = session.getCurrentDifficulty() != null ? session.getCurrentDifficulty() : "BASIC";
 
         log.info("生成问题: sessionId={}, index={}, difficulty={}, perspective={}",
@@ -100,45 +72,32 @@ public class QuestionGenerationService {
         // 获取会话关联的知识库ID
         List<Long> knowledgeBaseIds = parseKnowledgeBaseIds(session.getKnowledgeBaseIds());
 
-        // 尝试从知识库检索相关内容（通用搜索，不限定分类）
-        String referenceContext = null;
+        // 从混合检索结果中提取知识库信息（如果有的话）
         Long usedKnowledgeBaseId = null;
         String knowledgeBaseName = null;
+        String referenceContext = null;
 
-        if (knowledgeBaseIds != null && !knowledgeBaseIds.isEmpty()) {
-            var docs = knowledgeBaseVectorService.similaritySearch("面试题 技术知识", knowledgeBaseIds, 3, 0.5);
+        if (mergedSearchContext != null && !mergedSearchContext.isBlank()) {
+            // 混合检索上下文已包含题库、知识库、网络搜索的内容
+            // 格式为【题库题目-1】...【知识库内容-1】...【网络搜索-1】...
+            referenceContext = mergedSearchContext;
 
-            if (docs != null && !docs.isEmpty()) {
-                referenceContext = docs.stream()
-                        .map(Document::getText)
-                        .reduce((a, b) -> a + "\n\n" + b)
-                        .orElse(null);
-
-                // 获取使用的知识库ID（取第一个）
-                Object kbId = docs.get(0).getMetadata().get("kb_id");
-                if (kbId != null) {
-                    try {
-                        usedKnowledgeBaseId = Long.parseLong(kbId.toString());
-                        // 获取知识库名称
-                        Optional<KnowledgeBaseEntity> kbOpt = knowledgeBaseRepository.findById(usedKnowledgeBaseId);
-                        if (kbOpt.isPresent()) {
-                            knowledgeBaseName = kbOpt.get().getName();
-                        }
-                    } catch (NumberFormatException e) {
-                        log.warn("知识库ID解析失败: {}", kbId);
+            // 尝试从知识库检索结果中提取知识库ID和名称
+            if (knowledgeBaseIds != null && !knowledgeBaseIds.isEmpty()) {
+                try {
+                    // 获取第一个知识库作为主要使用的知识库
+                    Optional<KnowledgeBaseEntity> kbOpt = knowledgeBaseRepository.findById(knowledgeBaseIds.getFirst());
+                    if (kbOpt.isPresent()) {
+                        usedKnowledgeBaseId = kbOpt.get().getId();
+                        knowledgeBaseName = kbOpt.get().getName();
                     }
+                } catch (Exception e) {
+                    log.warn("获取知识库信息失败: {}", e.getMessage());
                 }
             }
-        }
 
-        // 合并 MCP 搜索结果到参考上下文
-        String combinedReferenceContext = referenceContext;
-        if (mcpSearchContext != null && !mcpSearchContext.isBlank()) {
-            combinedReferenceContext = (referenceContext != null && !referenceContext.isBlank())
-                ? referenceContext + "\n\n【最新搜索结果】\n" + mcpSearchContext
-                : "【最新搜索结果】\n" + mcpSearchContext;
-            log.info("Merged MCP search context: sessionId={}, mcpLength={}",
-                    session.getSessionId(), mcpSearchContext.length());
+            log.info("使用混合检索上下文: sessionId={}, contextLength={}",
+                    session.getSessionId(), mergedSearchContext.length());
         }
 
         // 过滤历史记录：只保留当前视角的 Q&A（隐私隔离）
@@ -153,8 +112,8 @@ public class QuestionGenerationService {
 
         // 使用AI生成，传入视角的prompt和过滤后的历史记录
         SimpleQuestionDTO aiResult = generateQuestionByAI(
-                resumeText, difficulty, combinedReferenceContext, questionIndex,
-                filteredHistory, perspectiveId, perspectivePrompt, perspectiveName);
+                resumeText, difficulty, referenceContext, questionIndex,
+                filteredHistory, perspectiveId, perspectivePrompt, perspectiveName, questionDirection);
 
         // 更新会话的 questionsGenerated 计数
         int currentGenerated = session.getQuestionsGenerated() != null ? session.getQuestionsGenerated() : 0;
@@ -170,7 +129,7 @@ public class QuestionGenerationService {
                 difficulty,
                 usedKnowledgeBaseId,
                 knowledgeBaseName,
-                combinedReferenceContext,
+                referenceContext,
                 aiResult.isFollowUp(),
                 aiResult.relatedIndex(),
                 aiResult.relatedQuestion(),
@@ -187,28 +146,29 @@ public class QuestionGenerationService {
 
     /**
      * 使用 AI 生成问题
+     *
      * @return SimpleQuestionDTO 包含问题内容和分类
      */
     private SimpleQuestionDTO generateQuestionByAI(String resumeText, String difficulty,
-                                         String referenceContext, int questionIndex,
-                                         List<AnswerHistoryDTO> history,
-                                         Long perspectiveId, String perspectivePrompt,
-                                         String perspectiveName) {
+                                                   String referenceContext, int questionIndex,
+                                                   List<AnswerHistoryDTO> history,
+                                                   Long perspectiveId, String perspectivePrompt,
+                                                   String perspectiveName, String questionDirection) {
         try {
             // 确定系统提示词：优先使用视角prompt，否则使用通用难度prompt
             String systemPromptText = getSystemPromptText(difficulty, perspectivePrompt);
-            log.debug("使用视角prompt出题: perspectiveId={}, perspectiveName={}", perspectiveId, perspectiveName);
+            log.debug("使用视角prompt出题: perspectiveId={}, perspectiveName={}, questionDirection={}", perspectiveId, perspectiveName, questionDirection);
 
             // 传入历史记录，让AI根据简历内容自行决定问题类型
             String userPromptText = buildUserPrompt(resumeText, difficulty, referenceContext, questionIndex,
-                    history, perspectiveId, perspectiveName);
+                    history, perspectiveName, perspectivePrompt, questionDirection);
 
             // 调用 AI 生成
             SimpleQuestionDTO result = structuredOutputInvoker.invoke(
                     chatClient,
                     systemPromptText,
                     userPromptText,
-                    new BeanOutputConverter<>(SimpleQuestionDTO.class),
+                    outputConverter,
                     ErrorCode.INTERVIEW_QUESTION_GENERATION_FAILED,
                     "面试问题生成失败：",
                     "单个问题生成",
@@ -239,9 +199,9 @@ public class QuestionGenerationService {
         // 系统提示词 = 角色定义 + 难度要求 + JSON格式说明
         String difficultyHint = getDifficultyHint(difficulty);
         return basePrompt + difficultyHint + """
-            请以JSON格式返回，格式如下：
-            {"question": "面试问题内容 - 生成的问题文本", "category": "问题分类 - 如Java基础/并发/数据库等", "isFollowUp": "是否追问 - true表示追问，false表示新问题", "relatedIndex": "全局问题索引 - 追问时填写关联问题的全局索引（即历史记录中【】内的数字，如问题2对应2）", "relatedQuestion": "关联问题摘要 - 追问时填写关联的问题摘要"}
-            """;
+                请以JSON格式返回，格式如下：
+                {"question": "面试问题内容 - 生成的问题文本", "category": "问题分类 - 如Java基础/并发/数据库等", "isFollowUp": "是否追问 - true表示追问，false表示新问题", "relatedIndex": "全局问题索引 - 追问时填写关联问题的全局索引（即历史记录中【】内的数字，如问题2对应2）", "relatedQuestion": "关联问题摘要 - 追问时填写关联的问题摘要"}
+                """;
     }
 
     /**
@@ -263,15 +223,29 @@ public class QuestionGenerationService {
     private String buildUserPrompt(String resumeText, String difficulty,
                                    String referenceContext, int questionIndex,
                                    List<AnswerHistoryDTO> history,
-                                   Long perspectiveId, String perspectiveName) {
+                                   String perspectiveName,
+                                   String perspectivePrompt,
+                                   String questionDirection) {
         StringBuilder prompt = new StringBuilder();
 
         // 根据是否有视角信息决定面试官身份
         if (perspectiveName != null && !perspectiveName.isBlank()) {
-            prompt.append("你是一位").append(perspectiveName).append("。请根据候选人的简历内容，从本角色的视角出发，考察候选人的相关能力。\n\n");
+            prompt.append("你是一位").append(perspectiveName).append("。");
+            // 拼接面试官专门的出题prompt
+            if (perspectivePrompt != null && !perspectivePrompt.isBlank()) {
+                prompt.append(perspectivePrompt).append("\n\n");
+            } else {
+                prompt.append("请根据候选人的简历内容，从本角色的视角出发，考察候选人的相关能力。\n\n");
+            }
         } else {
             prompt.append("你是一个专业的技术面试官。请根据候选人的简历内容，自动选择一个最合适的技术方向来考察该候选人。\n\n");
         }
+
+        // 如果有出题方向，添加到提示词中
+        if (questionDirection != null && !questionDirection.isBlank()) {
+            prompt.append("【出题方向】").append(questionDirection).append("\n\n");
+        }
+
         prompt.append("【问题索引】").append(questionIndex).append("\n");
         prompt.append("【难度等级】").append(difficulty).append("\n");
         prompt.append("【候选人简历】\n").append(resumeText).append("\n\n");
@@ -361,29 +335,12 @@ public class QuestionGenerationService {
             return Collections.emptyList();
         }
         try {
-            return objectMapper.readValue(knowledgeBaseIdsJson, new TypeReference<List<Long>>() {});
+            return objectMapper.readValue(knowledgeBaseIdsJson, new TypeReference<>() {
+            });
         } catch (Exception e) {
             log.warn("解析知识库ID失败: {}", e.getMessage());
             return Collections.emptyList();
         }
-    }
-
-    /**
-     * 创建答案实体（包含难度和知识库信息）
-     */
-    public InterviewAnswerEntity createAnswerEntity(InterviewSessionEntity session, int questionIndex,
-                                                    String question, String category, String difficulty,
-                                                    Long knowledgeBaseId, String referenceContext) {
-        InterviewAnswerEntity answer = new InterviewAnswerEntity();
-        answer.setSession(session);
-        answer.setQuestionIndex(questionIndex);
-        answer.setQuestion(question);
-        answer.setCategory(category);
-        answer.setDifficulty(difficulty != null ? difficulty : "BASIC");
-        answer.setKnowledgeBaseId(knowledgeBaseId);
-        answer.setReferenceContext(referenceContext);
-        answer.setGeneratedAt(LocalDateTime.now());
-        return answer;
     }
 
     /**
@@ -395,5 +352,6 @@ public class QuestionGenerationService {
             Boolean isFollowUp,    // 是否是追问
             Integer relatedIndex,  // 关联的问题索引（追问时填写）
             String relatedQuestion // 关联的问题摘要（追问时填写）
-    ) {}
+    ) {
+    }
 }
