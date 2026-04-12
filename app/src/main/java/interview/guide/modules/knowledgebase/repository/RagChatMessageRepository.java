@@ -46,4 +46,10 @@ public interface RagChatMessageRepository extends JpaRepository<RagChatMessageEn
      * 统计所有用户消息数（即总提问次数）
      */
     long countByType(MessageType type);
+
+    /**
+     * 按用户ID统计用户消息数（即总提问次数）
+     */
+    @Query("SELECT COUNT(m) FROM RagChatMessageEntity m WHERE m.type = :type AND m.session.userId = :userId")
+    long countByTypeAndUserId(@Param("type") MessageType type, @Param("userId") Long userId);
 }

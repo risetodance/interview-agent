@@ -11,7 +11,6 @@ import interview.guide.modules.knowledgebase.model.VectorStatus;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseDeleteService;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseListService;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseQueryService;
-import interview.guide.modules.knowledgebase.service.KnowledgeBaseShareService;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseUploadService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +39,6 @@ public class KnowledgeBaseController {
     private final KnowledgeBaseQueryService queryService;
     private final KnowledgeBaseListService listService;
     private final KnowledgeBaseDeleteService deleteService;
-    private final KnowledgeBaseShareService shareService;
 
     /**
      * 获取当前用户的知识库列表
@@ -214,11 +212,11 @@ public class KnowledgeBaseController {
     // ========== 统计 API ==========
 
     /**
-     * 获取知识库统计信息（全局统计，保持向后兼容）
+     * 获取知识库统计信息（按用户过滤）
      */
     @GetMapping("/api/knowledgebase/stats")
-    public Result<KnowledgeBaseStatsDTO> getStatistics() {
-        return Result.success(listService.getStatistics());
+    public Result<KnowledgeBaseStatsDTO> getStatistics(@CurrentUser Long userId) {
+        return Result.success(listService.getStatistics(userId));
     }
 
     // ========== 向量化管理 API ==========
@@ -239,60 +237,6 @@ public class KnowledgeBaseController {
         }
         uploadService.revectorize(id);
         return Result.success(null);
-    }
-
-    // ========== 知识库共享 API ==========
-
-    /**
-     * 设置知识库公开/私有
-     */
-    @PutMapping("/api/knowledgebase/{id}/visibility")
-    public Result<KnowledgeBaseListItemDTO> setVisibility(
-            @CurrentUser Long userId,
-            @PathVariable Long id,
-            @RequestBody Map<String, Boolean> body) {
-        Boolean isPublic = body.get("isPublic");
-        if (isPublic == null) {
-            return Result.error("缺少 isPublic 参数");
-        }
-        return Result.success(shareService.setVisibility(userId, id, isPublic));
-    }
-
-    /**
-     * 获取所有公开知识库列表
-     */
-    @GetMapping("/api/knowledgebase/public")
-    public Result<List<KnowledgeBaseListItemDTO>> getPublicKnowledgeBases(
-            @RequestParam(value = "sortBy", required = false) String sortBy) {
-        return Result.success(shareService.listPublicKnowledgeBases(sortBy));
-    }
-
-    /**
-     * 搜索公开知识库
-     */
-    @GetMapping("/api/knowledgebase/public/search")
-    public Result<List<KnowledgeBaseListItemDTO>> searchPublicKnowledgeBases(
-            @RequestParam("keyword") String keyword) {
-        return Result.success(shareService.searchPublicKnowledgeBases(keyword));
-    }
-
-    /**
-     * 根据分类获取公开知识库
-     */
-    @GetMapping("/api/knowledgebase/public/category/{category}")
-    public Result<List<KnowledgeBaseListItemDTO>> getPublicKnowledgeBasesByCategory(
-            @PathVariable String category) {
-        return Result.success(shareService.listPublicKnowledgeBasesByCategory(category));
-    }
-
-    /**
-     * 引用公开知识库
-     */
-    @PostMapping("/api/knowledgebase/{id}/reference")
-    public Result<KnowledgeBaseListItemDTO> referenceKnowledgeBase(
-            @CurrentUser Long userId,
-            @PathVariable Long id) {
-        return Result.success(shareService.referenceKnowledgeBase(userId, id));
     }
 
 }

@@ -244,16 +244,16 @@ public class KnowledgeBaseListService {
     // ========== 统计功能 ==========
 
     /**
-     * 获取知识库统计信息
+     * 获取知识库统计信息（按用户过滤）
      * 总提问次数从用户消息数统计，确保多知识库提问只算一次
      */
-    public KnowledgeBaseStatsDTO getStatistics() {
+    public KnowledgeBaseStatsDTO getStatistics(Long userId) {
         return new KnowledgeBaseStatsDTO(
-            knowledgeBaseRepository.count(),
-            ragChatMessageRepository.countByType(MessageType.USER),  // 真正的提问次数
-            knowledgeBaseRepository.sumAccessCount(),
-            knowledgeBaseRepository.countByVectorStatus(VectorStatus.COMPLETED),
-            knowledgeBaseRepository.countByVectorStatus(VectorStatus.PROCESSING)
+            knowledgeBaseRepository.countByUserId(userId),
+            ragChatMessageRepository.countByTypeAndUserId(MessageType.USER, userId),  // 按用户过滤的提问次数
+            knowledgeBaseRepository.sumAccessCountByUserId(userId),
+            knowledgeBaseRepository.countByUserIdAndVectorStatus(userId, VectorStatus.COMPLETED),
+            knowledgeBaseRepository.countByUserIdAndVectorStatus(userId, VectorStatus.PROCESSING)
         );
     }
 

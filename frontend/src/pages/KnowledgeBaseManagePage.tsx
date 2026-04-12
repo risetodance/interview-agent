@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Database,
@@ -20,10 +19,6 @@ import {
   X,
   RefreshCw,
   Download,
-  Globe,
-  Lock,
-  Users,
-  Share2,
 } from 'lucide-react';
 import {
   knowledgeBaseApi,
@@ -124,7 +119,6 @@ function StatCard({
 }
 
 export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeBaseManagePageProps) {
-  const navigate = useNavigate();
   const [stats, setStats] = useState<KnowledgeBaseStats | null>(null);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,9 +137,6 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
 
   // 重新向量化状态
   const [revectorizing, setRevectorizing] = useState<number | null>(null);
-
-  // 公开/私有切换状态
-  const [togglingVisibility, setTogglingVisibility] = useState<number | null>(null);
 
   // 加载数据（不显示loading状态，用于轮询）
   const loadDataSilent = useCallback(async () => {
@@ -219,24 +210,6 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
       console.error('重新向量化失败:', error);
     } finally {
       setRevectorizing(null);
-    }
-  };
-
-  // 切换公开/私有
-  const handleToggleVisibility = async (kb: KnowledgeBaseItem) => {
-    // 检查向量化是否成功
-    if (kb.vectorStatus !== 'COMPLETED') {
-      alert('知识库上传失败，无法分享。请重新上传后重试。');
-      return;
-    }
-    try {
-      setTogglingVisibility(kb.id);
-      await knowledgeBaseApi.setVisibility(kb.id, !kb.isPublic);
-      await loadData();
-    } catch (error) {
-      console.error('切换可见性失败:', error);
-    } finally {
-      setTogglingVisibility(null);
     }
   };
 
@@ -338,15 +311,6 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
           >
             <MessageSquare className="w-4 h-4" />
             问答助手
-          </button>
-          <button
-            onClick={() => {
-              navigate('/knowledgebase/public');
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-          >
-            <Share2 className="w-4 h-4" />
-            公开知识库
           </button>
         </div>
       </div>
@@ -469,12 +433,6 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
                 <th className="text-left px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
                   提问
                 </th>
-                <th className="text-left px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
-                  公开
-                </th>
-                <th className="text-left px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
-                  被引用
-                </th>
                 <th className="text-right px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
                   操作
                 </th>
@@ -587,36 +545,6 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
                   </td>
                   <td className="px-3 py-3 text-sm text-slate-600">
                     {kb.questionCount}
-                  </td>
-                  <td className="px-3 py-3">
-                    <button
-                      onClick={() => handleToggleVisibility(kb)}
-                      disabled={togglingVisibility === kb.id || kb.vectorStatus === 'FAILED'}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 ${
-                        kb.vectorStatus === 'FAILED'
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : kb.isPublic
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      {togglingVisibility === kb.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : kb.vectorStatus === 'FAILED' ? (
-                        <Lock className="w-3.5 h-3.5" />
-                      ) : kb.isPublic ? (
-                        <Globe className="w-3.5 h-3.5" />
-                      ) : (
-                        <Lock className="w-3.5 h-3.5" />
-                      )}
-                      {kb.vectorStatus === 'FAILED' ? '不可分享' : kb.isPublic ? '公开' : '私有'}
-                    </button>
-                  </td>
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-1.5 text-sm text-slate-600">
-                      <Users className="w-4 h-4 text-slate-400" />
-                      {kb.usageCount || 0}
-                    </div>
                   </td>
                   <td className="px-3 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">

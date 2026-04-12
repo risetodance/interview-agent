@@ -1,7 +1,6 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import Layout from './components/Layout';
 import { useEffect, useState, Suspense, lazy } from 'react';
-import PublicKnowledgeBasePage from './pages/PublicKnowledgeBasePage';
 import ProfilePage from './pages/profile/ProfilePage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
@@ -249,9 +248,6 @@ function App() {
             {/* 问答助手（知识库聊天） */}
             <Route path="knowledgebase/chat" element={<KnowledgeBaseQueryPageWrapper />} />
 
-            {/* 公开知识库 */}
-            <Route path="knowledgebase/public" element={<PublicKnowledgeBasePageWrapper />} />
-
             {/* 个人中心 */}
             <Route path="profile" element={<ProfilePage />} />
 
@@ -424,17 +420,6 @@ function KnowledgeBaseUploadPageWrapper() {
   };
 
   return <KnowledgeBaseUploadPage onUploadComplete={handleUploadComplete} onBack={handleBack} />;
-}
-
-// 公开知识库页面包装器
-function PublicKnowledgeBasePageWrapper() {
-  const navigate = useNavigate();
-
-  const handleBack = () => {
-    navigate('/knowledgebase');
-  };
-
-  return <PublicKnowledgeBasePage onBack={handleBack} />;
 }
 
 // 题库列表页面包装器
