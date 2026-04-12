@@ -150,7 +150,7 @@ public class HybridSearchService {
             List<Long> bankIds,
             List<Long> knowledgeBaseIds,
             String keywords,
-            String resumeText,
+            String difficulty,
             boolean enableWebSearch) {
 
         if (keywords == null || keywords.isBlank()) {
@@ -163,11 +163,11 @@ public class HybridSearchService {
         // 并行执行三路搜索
         CompletableFuture<List<QuestionEntity>> questionBankFuture =
                 CompletableFuture.supplyAsync(() ->
-                        questionBankFullTextSearch(bankIds, keywords, effectiveTopK));
+                        questionBankFullTextSearch(bankIds, keywords, difficulty, effectiveTopK));
 
         CompletableFuture<List<Document>> knowledgeBaseFuture =
                 CompletableFuture.supplyAsync(() ->
-                        knowledgeBaseVectorSearch(keywords, resumeText, knowledgeBaseIds, effectiveTopK));
+                        knowledgeBaseVectorSearch(keywords, knowledgeBaseIds, effectiveTopK));
 
         CompletableFuture<List<WebSearchResult>> webSearchFuture =
                 enableWebSearch ? CompletableFuture.supplyAsync(() ->
@@ -198,6 +198,7 @@ public class HybridSearchService {
 
         // 构建合并上下文（按重排序顺序）
         String mergedContext = buildMergedContext(rerankedResults);
+        log.info("mergedContext={}", mergedContext);
 
         return HybridSearchResult.builder()
                 .rerankedResults(rerankedResults)
@@ -229,33 +230,30 @@ public class HybridSearchService {
         List<RerankedItem> pendingItems = new ArrayList<>();
 
         // 题库结果
-        for (int i = 0; i < questionBankResults.size(); i++) {
-            QuestionEntity q = questionBankResults.get(i);
+        for (QuestionEntity q : questionBankResults) {
             candidatesBuilder.append(String.format("[%d] 题库题目：%s\n答案：%s\n\n",
                     pendingItems.size(), q.getContent(), q.getAnswer() != null ? q.getAnswer() : "无"));
             pendingItems.add(new RerankedItem("questionBank", q, 0, 0.0));
         }
 
         // 知识库结果
-        for (int i = 0; i < knowledgeBaseResults.size(); i++) {
-            Document d = knowledgeBaseResults.get(i);
+        for (Document d : knowledgeBaseResults) {
             candidatesBuilder.append(String.format("[%d] 知识库内容：%s\n\n",
                     pendingItems.size(), d.getText()));
             pendingItems.add(new RerankedItem("knowledgeBase", d, 0, 0.0));
         }
 
         // Web 搜索结果
-        for (int i = 0; i < webSearchResults.size(); i++) {
-            WebSearchResult w = webSearchResults.get(i);
+        for (WebSearchResult w : webSearchResults) {
             candidatesBuilder.append(String.format("[%d] 网络搜索：%s\n%s\n来源：%s\n\n",
                     pendingItems.size(), w.getTitle(), w.getSnippet(), w.getUrl()));
             pendingItems.add(new RerankedItem("webSearch", w, 0, 0.0));
         }
 
         // 如果启用了小模型且小模型可用，则使用小模型打分
-        if (smallModelEnabled && smallModelChatClient != null && !pendingItems.isEmpty()) {
+        if (smallModelEnabled && smallModelChatClient != null) {
             try {
-                List<RerankerScoreResult> scores = scoreWithSmallModel(candidatesBuilder.toString(), pendingItems.size());
+                List<RerankerScoreResult> scores = scoreWithSmallModel(candidatesBuilder.toString());
                 // 应用分数到对应项
                 for (RerankerScoreResult scoreResult : scores) {
                     if (scoreResult.index() >= 0 && scoreResult.index() < pendingItems.size()) {
@@ -286,7 +284,7 @@ public class HybridSearchService {
     /**
      * 使用小模型对候选结果进行相关性打分
      */
-    private List<RerankerScoreResult> scoreWithSmallModel(String candidates, int totalCount) throws Exception {
+    private List<RerankerScoreResult> scoreWithSmallModel(String candidates) throws Exception {
         String systemPrompt = rerankerSystemPromptResource.getContentAsString(StandardCharsets.UTF_8);
         String userPromptTemplate = rerankerUserPromptResource.getContentAsString(StandardCharsets.UTF_8);
         String userPrompt = userPromptTemplate.replace("{{candidates}}", candidates);
@@ -374,12 +372,16 @@ public class HybridSearchService {
      * 题库全文搜索
      */
     private List<QuestionEntity> questionBankFullTextSearch(
-            List<Long> bankIds, String keywords, int topK) {
+            List<Long> bankIds, String keywords, String difficulty, int topK) {
         if (keywords == null || keywords.isBlank() || bankIds == null || bankIds.isEmpty()) {
             return List.of();
         }
         try {
-            return questionRepository.fullTextSearch(bankIds, keywords, topK);
+            if (difficulty != null && !difficulty.isBlank()) {
+                return questionRepository.fullTextSearchWithDifficulty(bankIds, keywords, difficulty, topK);
+            } else {
+                return questionRepository.fullTextSearch(bankIds, keywords, topK);
+            }
         } catch (Exception e) {
             log.warn("题库全文搜索失败: {}", e.getMessage());
             return List.of();
@@ -390,14 +392,12 @@ public class HybridSearchService {
      * 知识库向量搜索
      */
     private List<org.springframework.ai.document.Document> knowledgeBaseVectorSearch(
-            String keywords, String resumeText, List<Long> kbIds, int topK) {
+            String keywords, List<Long> kbIds, int topK) {
         if (keywords == null || keywords.isBlank()) {
             return List.of();
         }
         try {
-            String query = String.format("%s %s", keywords,
-                    resumeText != null ? resumeText : "").trim();
-            return knowledgeBaseVectorService.similaritySearch(query, kbIds, topK, 0.5);
+            return knowledgeBaseVectorService.similaritySearch(keywords, kbIds, topK, 0.5);
         } catch (Exception e) {
             log.warn("知识库向量搜索失败: {}", e.getMessage());
             return List.of();

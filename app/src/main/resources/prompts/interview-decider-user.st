@@ -48,6 +48,10 @@
 - 视角A已出4题，视角B已出0题 → **必须切换到视角B**（A已达到4题）
 - 视角A已出4题，视角B已出2题 → FINISH（全部达标）
 
+## 可用视角列表（必须从这里选择 nextPerspectiveId）
+
+{{availablePerspectives}}
+
 ## 输出格式（严格JSON）
 
 ```json

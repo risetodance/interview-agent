@@ -5,8 +5,8 @@ package interview.guide.modules.knowledgebase.model;
  */
 public record KnowledgeBaseStatsDTO(
     long totalCount,           // 知识库总数
-    long totalQuestionCount,   // 总提问次数
     long totalAccessCount,     // 总访问次数
+    long totalStorageSize,     // 总存储大小（字节）
     long completedCount,       // 已完成向量化数量
     long processingCount       // 处理中数量
 ) {

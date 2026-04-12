@@ -184,8 +184,7 @@ export default function KnowledgeBaseSelect({
                           <div>
                             <div className="font-medium text-slate-900">{kb.name}</div>
                             <div className="text-xs text-slate-500">
-                              {kb.questionCount} 个问答
-                              {kb.category ? ` · ${kb.category}` : ''}
+                              {kb.category || '未分类'}
                             </div>
                           </div>
                         </div>

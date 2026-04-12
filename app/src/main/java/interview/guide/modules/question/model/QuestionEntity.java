@@ -1,6 +1,6 @@
 package interview.guide.modules.question.model;
 
-import interview.guide.modules.question.enums.QuestionDifficulty;
+import interview.guide.modules.interview.service.DifficultyAdjustmentService.Difficulty;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -48,11 +48,11 @@ public class QuestionEntity {
     private String answer;
 
     /**
-     * 题目难度：EASY / MEDIUM / HARD
+     * 题目难度：BASIC / ADVANCED / EXPERT
      */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private QuestionDifficulty difficulty;
+    private Difficulty difficulty;
 
     /**
      * 题目标签（JSON 数组）

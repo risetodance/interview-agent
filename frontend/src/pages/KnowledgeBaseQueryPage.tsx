@@ -15,7 +15,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Edit,
-  Pin
+  Pin,
+  Brain,
+  ChevronDown,
 } from 'lucide-react';
 
 interface KnowledgeBaseQueryPageProps {
@@ -28,6 +30,11 @@ interface Message {
   type: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+}
+
+interface ThinkBlock {
+  content: string;       // think 内容
+  isComplete: boolean;   // 是否收到闭标签
 }
 
 interface CategoryGroup {
@@ -50,6 +57,9 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
   // 右侧面板状态
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
 
+  // 左侧面板状态（对话历史）
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+
   // 会话状态
   const [sessions, setSessions] = useState<RagChatSessionListItem[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
@@ -63,6 +73,12 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // 是否正在等待首字符响应
+  const [waitingForFirstChunk, setWaitingForFirstChunk] = useState(false);
+
+  // Think 标签展开状态
+  const [expandedThinks, setExpandedThinks] = useState<Set<string>>(new Set());
 
   // refs
   const virtuosoRef = useRef<VirtuosoHandle>(null);
@@ -276,6 +292,8 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
         sessionId = session.id;
         setCurrentSessionId(sessionId);
         setCurrentSessionTitle(session.title);
+        // 创建会话后立即刷新会话列表
+        await loadSessions();
       } catch (err) {
         console.error('创建会话失败', err);
         setLoading(false);
@@ -297,7 +315,11 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
     };
     setMessages(prev => [...prev, assistantMessage]);
 
+    // 重置等待状态
+    setWaitingForFirstChunk(true);
+
     let fullContent = '';
+    let hasReceivedFirstChunk = false;
     const updateAssistantMessage = (content: string) => {
       setMessages(prev => {
         const newMessages = [...prev];
@@ -317,6 +339,11 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
         sessionId,
         userQuestion,
         (chunk: string) => {
+          // 首字符到达
+          if (!hasReceivedFirstChunk) {
+            hasReceivedFirstChunk = true;
+            setWaitingForFirstChunk(false);
+          }
           fullContent += chunk;
           if (rafRef.current) {
             cancelAnimationFrame(rafRef.current);
@@ -329,18 +356,21 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
         },
         () => {
           setLoading(false);
+          setWaitingForFirstChunk(false);
           loadSessions();
         },
         (error: Error) => {
           console.error('流式查询失败:', error);
           updateAssistantMessage(fullContent || error.message || '回答失败，请重试');
           setLoading(false);
+          setWaitingForFirstChunk(false);
         }
       );
     } catch (err) {
       console.error('发起流式查询失败:', err);
       updateAssistantMessage(err instanceof Error ? err.message : '回答失败，请重试');
       setLoading(false);
+      setWaitingForFirstChunk(false);
     }
   };
 
@@ -363,6 +393,61 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
     if (hours < 24) return `${hours} 小时前`;
     if (days < 7) return `${days} 天前`;
     return formatDateOnly(dateStr);
+  };
+
+  // 解析 think 标签（支持流式传输）
+  // 返回: main=主内容, thinks=完成的 think 块, streamingThink=未完成的 think 内容
+  const parseThinkBlocks = (content: string): { main: string; thinks: ThinkBlock[]; streamingThink: string | null } => {
+    const thinks: ThinkBlock[] = [];
+    let streamingThink: string | null = null;
+
+    // 查找所有完整的 think 块
+    const completeRegex = /<think>([\s\S]*?)<\/think>/g;
+    let match;
+    let mainContent = content;
+
+    while ((match = completeRegex.exec(content)) !== null) {
+      thinks.push({ content: match[1].trim(), isComplete: true });
+    }
+
+    // 检查是否有未闭合的 think 标签
+    const openTag = '<think>';
+    const closeTag = '</think>';
+    const openIndex = content.indexOf(openTag);
+
+    if (openIndex !== -1) {
+      const closeIndex = content.lastIndexOf(closeTag);
+      if (closeIndex === -1 || closeIndex < openIndex) {
+        // 没有闭标签或闭标签在开标签之前，属于流式传输中的 think
+        streamingThink = content.slice(openIndex + openTag.length);
+        mainContent = content.slice(0, openIndex);
+      } else {
+        // 有闭标签，主内容是闭标签之后的部分
+        mainContent = content.slice(closeIndex + closeTag.length);
+      }
+    } else {
+      mainContent = content;
+    }
+
+    return {
+      main: mainContent.trim(),
+      thinks,
+      streamingThink: streamingThink ? streamingThink.trim() : null,
+    };
+  };
+
+  // 切换 think 展开状态
+  const toggleThink = (index: number) => {
+    setExpandedThinks(prev => {
+      const next = new Set(prev);
+      const key = `${messages.length - 1}-${index}`;
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
   };
 
   return (
@@ -395,21 +480,39 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
 
       <div className="flex gap-4 h-[calc(100vh-10rem)]">
         {/* 左侧：对话历史 */}
-        <div className="w-64 flex-shrink-0">
-          <div className="bg-white rounded-2xl p-4 shadow-sm h-full flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-slate-800">对话历史</h2>
-              <motion.button
-                onClick={handleNewSession}
-                disabled={selectedKbIds.size === 0}
-                className="p-1.5 text-primary-500 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                title="新建对话"
-              >
-                <Plus className="w-5 h-5" />
-              </motion.button>
-            </div>
+        <AnimatePresence mode="wait">
+          {leftPanelOpen && (
+            <motion.div
+              initial={{ maxWidth: 0, opacity: 0 }}
+              animate={{ maxWidth: 256, opacity: 1 }}
+              exit={{ maxWidth: 0, opacity: 0 }}
+              transition={{ duration: 0.1, ease: 'easeOut' }}
+              style={{ overflow: 'hidden' }}
+              className="flex-shrink-0"
+            >
+              <div className="w-64 bg-white rounded-2xl p-4 shadow-sm h-full flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-semibold text-slate-800">对话历史</h2>
+                  <div className="flex items-center gap-1">
+                    <motion.button
+                      onClick={handleNewSession}
+                      disabled={selectedKbIds.size === 0}
+                      className="p-1.5 text-primary-500 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      title="新建对话"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </motion.button>
+                    <button
+                      onClick={() => setLeftPanelOpen(false)}
+                      className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
+                      title="收起"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
 
             <div className="flex-1 overflow-y-auto">
               {loadingSessions ? (
@@ -444,7 +547,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
                             <p className="font-medium text-slate-800 text-sm truncate">{session.title}</p>
                           </div>
                           <p className="text-xs text-slate-500 mt-1">
-                            {session.messageCount} 条消息 · {formatTimeAgo(session.updatedAt)}
+                            {formatTimeAgo(session.updatedAt)}
                           </p>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
@@ -486,7 +589,20 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
               )}
             </div>
           </div>
-        </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 左侧面板收起时的展开按钮 */}
+        {!leftPanelOpen && (
+          <button
+            onClick={() => setLeftPanelOpen(true)}
+            className="flex-shrink-0 w-10 bg-white rounded-2xl shadow-sm flex items-center justify-center hover:bg-slate-50 transition-colors"
+            title="展开对话历史"
+          >
+            <ChevronRight className="w-5 h-5 text-slate-400" />
+          </button>
+        )}
 
         {/* 中间：聊天区域 */}
         <div className="flex-1 min-w-0">
@@ -542,47 +658,180 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
                               {msg.type === 'user' ? (
                                 <p className="whitespace-pre-wrap leading-relaxed text-sm">{msg.content}</p>
                               ) : (
-                                <div className="prose prose-slate prose-sm max-w-none
-                                  prose-headings:text-slate-900 prose-headings:font-bold prose-headings:mb-2 prose-headings:mt-4
-                                  prose-p:leading-7 prose-p:text-slate-700 prose-p:mb-3
-                                  prose-strong:text-slate-900 prose-strong:font-bold
-                                  prose-ul:my-3 prose-ol:my-3
-                                  prose-li:my-1 prose-li:leading-7
-                                  prose-code:bg-slate-100 prose-code:text-primary-600 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none prose-code:font-normal
-                                  marker:text-primary-500 marker:font-bold">
-                                  <ReactMarkdown
-                                    remarkPlugins={[remarkGfm]}
-                                    components={{
-                                      // 自定义代码块渲染
-                                      code: ({ className, children }) => {
-                                        const match = /language-(\w+)/.exec(className || '');
-                                        const isInline = !match;
+                                (() => {
+                                  const { main, thinks, streamingThink } = parseThinkBlocks(msg.content);
+                                  const msgIndex = messages.length - 1;
+                                  const isLastMessage = loading && index === messages.length - 1;
+                                  const isWaiting = isLastMessage && waitingForFirstChunk && !msg.content;
 
-                                        if (isInline) {
-                                          return (
-                                            <code className="bg-slate-100 text-primary-600 px-1.5 py-0.5 rounded-md text-sm font-normal">
-                                              {children}
-                                            </code>
-                                          );
-                                        }
+                                  // 如果是新消息且没有内容且正在等待，显示加载指示器
+                                  if (isWaiting) {
+                                    return (
+                                      <div className="flex items-center gap-3 py-2">
+                                        <motion.div
+                                          className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full"
+                                          animate={{ rotate: 360 }}
+                                          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                                        />
+                                        <span className="text-sm text-slate-500">AI 思考中...</span>
+                                      </div>
+                                    );
+                                  }
 
-                                        // 代码块使用 CodeBlock 组件
-                                        return (
-                                          <CodeBlock language={match[1]}>
-                                            {String(children).replace(/\n$/, '')}
-                                          </CodeBlock>
-                                        );
-                                      },
-                                      // 禁用默认 pre 渲染，由 CodeBlock 处理
-                                      pre: ({ children }) => <>{children}</>,
-                                    }}
-                                  >
-                                    {formatMarkdown(msg.content)}
-                                  </ReactMarkdown>
-                                  {loading && index === messages.length - 1 && (
-                                    <span className="inline-block w-0.5 h-5 bg-primary-500 ml-1 animate-pulse" />
-                                  )}
-                                </div>
+                                  return (
+                                    <>
+                                      {/* 思考过程区域 - 默认展开 */}
+                                      {(thinks.length > 0 || streamingThink) && (
+                                        <div className="mb-3 space-y-2">
+                                          {/* 完成的 think 块 */}
+                                          {thinks.map((think, i) => {
+                                            const key = `${msgIndex}-${i}`;
+                                            // 新消息的 think 默认展开
+                                            const isAutoExpanded = isLastMessage;
+                                            const isExpanded = isAutoExpanded || expandedThinks.has(key);
+                                            return (
+                                              <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
+                                                <button
+                                                  onClick={() => toggleThink(i)}
+                                                  className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+                                                >
+                                                  <div className="flex items-center gap-2">
+                                                    <Brain className="w-4 h-4 text-primary-500" />
+                                                    <span className="text-xs font-medium text-slate-600">
+                                                      AI 思考过程
+                                                    </span>
+                                                  </div>
+                                                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                                </button>
+                                                <AnimatePresence initial={false}>
+                                                  {isExpanded && (
+                                                    <motion.div
+                                                      initial={{ height: 0, opacity: 0 }}
+                                                      animate={{ height: 'auto', opacity: 1 }}
+                                                      exit={{ height: 0, opacity: 0 }}
+                                                      transition={{ duration: 0.1, ease: 'easeInOut' }}
+                                                      style={{ overflow: 'hidden' }}
+                                                    >
+                                                      <div className="p-3 bg-slate-50 text-xs text-slate-600">
+                                                        <ReactMarkdown
+                                                          remarkPlugins={[remarkGfm]}
+                                                          components={{
+                                                            code: ({ className, children }) => {
+                                                              const match = /language-(\w+)/.exec(className || '');
+                                                              const isInline = !match;
+                                                              if (isInline) {
+                                                                return (
+                                                                  <code className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-xs font-normal">
+                                                                    {children}
+                                                                  </code>
+                                                                );
+                                                              }
+                                                              return (
+                                                                <CodeBlock language={match[1]}>
+                                                                  {String(children).replace(/\n$/, '')}
+                                                                </CodeBlock>
+                                                              );
+                                                            },
+                                                            pre: ({ children }) => <>{children}</>,
+                                                          }}
+                                                        >
+                                                          {think.content}
+                                                        </ReactMarkdown>
+                                                      </div>
+                                                    </motion.div>
+                                                  )}
+                                                </AnimatePresence>
+                                              </div>
+                                            );
+                                          })}
+                                          {/* 流式传输中的 think（没有闭标签） */}
+                                          {streamingThink && (
+                                            <div className="border border-primary-200 rounded-lg overflow-hidden bg-primary-50/50">
+                                              <div className="flex items-center gap-2 px-3 py-2 bg-primary-50">
+                                                <motion.div
+                                                  animate={{ rotate: 360 }}
+                                                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                                                >
+                                                  <Brain className="w-4 h-4 text-primary-500" />
+                                                </motion.div>
+                                                <span className="text-xs font-medium text-primary-600">
+                                                  AI 思考中...
+                                                </span>
+                                              </div>
+                                              <div className="p-3 text-xs text-slate-600">
+                                                <ReactMarkdown
+                                                  remarkPlugins={[remarkGfm]}
+                                                  components={{
+                                                    code: ({ className, children }) => {
+                                                      const match = /language-(\w+)/.exec(className || '');
+                                                      const isInline = !match;
+                                                      if (isInline) {
+                                                        return (
+                                                          <code className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-xs font-normal">
+                                                            {children}
+                                                          </code>
+                                                        );
+                                                      }
+                                                      return (
+                                                        <CodeBlock language={match[1]}>
+                                                          {String(children).replace(/\n$/, '')}
+                                                        </CodeBlock>
+                                                      );
+                                                    },
+                                                    pre: ({ children }) => <>{children}</>,
+                                                  }}
+                                                >
+                                                  {streamingThink}
+                                                </ReactMarkdown>
+                                                {isLastMessage && (
+                                                  <span className="inline-block w-0.5 h-4 bg-primary-500 ml-1 animate-pulse align-middle" />
+                                                )}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                      <div className="prose prose-slate prose-sm max-w-none
+                                        prose-headings:text-slate-900 prose-headings:font-bold prose-headings:mb-2 prose-headings:mt-4
+                                        prose-p:leading-7 prose-p:text-slate-700 prose-p:mb-3
+                                        prose-strong:text-slate-900 prose-strong:font-bold
+                                        prose-ul:my-3 prose-ol:my-3
+                                        prose-li:my-1 prose-li:leading-7
+                                        prose-code:bg-slate-100 prose-code:text-primary-600 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none prose-code:font-normal
+                                        marker:text-primary-500 marker:font-bold">
+                                        <ReactMarkdown
+                                          remarkPlugins={[remarkGfm]}
+                                          components={{
+                                            // 自定义代码块渲染
+                                            code: ({ className, children }) => {
+                                              const match = /language-(\w+)/.exec(className || '');
+                                              const isInline = !match;
+
+                                              if (isInline) {
+                                                return (
+                                                  <code className="bg-slate-100 text-primary-600 px-1.5 py-0.5 rounded-md text-sm font-normal">
+                                                    {children}
+                                                  </code>
+                                                );
+                                              }
+
+                                              // 代码块使用 CodeBlock 组件
+                                              return (
+                                                <CodeBlock language={match[1]}>
+                                                  {String(children).replace(/\n$/, '')}
+                                                </CodeBlock>
+                                              );
+                                            },
+                                            // 禁用默认 pre 渲染，由 CodeBlock 处理
+                                            pre: ({ children }) => <>{children}</>,
+                                          }}
+                                        >
+                                          {formatMarkdown(main)}
+                                        </ReactMarkdown>
+                                      </div>
+                                    </>
+                                  );
+                                })()
                               )}
                             </div>
                           </motion.div>
@@ -630,14 +879,15 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
         </div>
 
         {/* 右侧：知识库选择（简化版） */}
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
           {rightPanelOpen && (
             <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 280, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="flex-shrink-0 overflow-hidden"
+              initial={{ maxWidth: 0, opacity: 0 }}
+              animate={{ maxWidth: 280, opacity: 1 }}
+              exit={{ maxWidth: 0, opacity: 0 }}
+              transition={{ duration: 0.1, ease: 'easeOut' }}
+              style={{ overflow: 'hidden' }}
+              className="flex-shrink-0"
             >
               <div className="bg-white rounded-2xl p-4 shadow-sm h-full flex flex-col w-[280px]">
                 <div className="flex items-center justify-between mb-4">

@@ -52,4 +52,24 @@ public class KnowledgeBaseCountService {
         int updated = knowledgeBaseRepository.incrementQuestionCountBatch(uniqueIds);
         log.debug("批量更新知识库提问计数: ids={}, updated={}", uniqueIds, updated);
     }
+
+    /**
+     * 批量减少知识库提问计数
+     * 每个知识库的 questionCount -1
+     *
+     * @param knowledgeBaseIds 知识库ID列表
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void decrementQuestionCounts(List<Long> knowledgeBaseIds) {
+        if (knowledgeBaseIds == null || knowledgeBaseIds.isEmpty()) {
+            return;
+        }
+
+        // 去重
+        List<Long> uniqueIds = knowledgeBaseIds.stream().distinct().toList();
+
+        // 批量更新（单条 SQL，questionCount > 0 时才减少）
+        int updated = knowledgeBaseRepository.decrementQuestionCountBatch(uniqueIds);
+        log.debug("批量减少知识库提问计数: ids={}, updated={}", uniqueIds, updated);
+    }
 }

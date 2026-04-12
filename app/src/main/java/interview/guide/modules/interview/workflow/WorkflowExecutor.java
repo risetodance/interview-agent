@@ -110,6 +110,7 @@ public class WorkflowExecutor {
                 strategies.put(InterviewWorkflowState.DECISION_ACTION, KeyStrategy.REPLACE);
                 strategies.put(InterviewWorkflowState.DECISION_REASON, KeyStrategy.REPLACE);
                 strategies.put(InterviewWorkflowState.CURRENT_QUESTION, KeyStrategy.REPLACE);
+                strategies.put(InterviewWorkflowState.QUESTION_DIRECTION, KeyStrategy.REPLACE);
                 strategies.put(InterviewWorkflowState.CURRENT_CATEGORY, KeyStrategy.REPLACE);
                 strategies.put(InterviewWorkflowState.CURRENT_DIFFICULTY, KeyStrategy.REPLACE);
                 strategies.put(InterviewWorkflowState.IS_COMPLETE, KeyStrategy.REPLACE);

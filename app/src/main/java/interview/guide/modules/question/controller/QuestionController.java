@@ -1,7 +1,7 @@
 package interview.guide.modules.question.controller;
 
 import interview.guide.common.result.Result;
-import interview.guide.modules.question.enums.QuestionDifficulty;
+import interview.guide.modules.interview.service.DifficultyAdjustmentService.Difficulty;
 import interview.guide.modules.question.model.QuestionDTO;
 import interview.guide.modules.question.service.QuestionService;
 import lombok.RequiredArgsConstructor;
@@ -29,14 +29,16 @@ public class QuestionController {
     }
 
     /**
-     * 分页获取题库下的题目
+     * 分页获取题库下的题目（支持难度筛选和关键词搜索）
      */
     @GetMapping("/bank/{bankId}/page")
     public Result<Page<QuestionDTO>> getQuestionsByBankId(
             @PathVariable Long bankId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return questionService.getQuestionsByBankId(bankId, page, size);
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Difficulty difficulty,
+            @RequestParam(required = false) String keyword) {
+        return questionService.getQuestionsByBankId(bankId, page, size, difficulty, keyword);
     }
 
     /**
@@ -53,7 +55,7 @@ public class QuestionController {
     @GetMapping("/bank/{bankId}/difficulty/{difficulty}")
     public Result<List<QuestionDTO>> getQuestionsByDifficulty(
             @PathVariable Long bankId,
-            @PathVariable QuestionDifficulty difficulty) {
+            @PathVariable Difficulty difficulty) {
         return questionService.getQuestionsByDifficulty(bankId, difficulty);
     }
 

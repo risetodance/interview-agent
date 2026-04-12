@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -10,14 +10,20 @@ import {
   FileQuestion,
   Tag,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from 'lucide-react';
 import {
   questionApi,
   QuestionDTO,
   QuestionBankDTO,
   QuestionDifficulty,
+  PageResponse,
 } from '../../api/question';
 import ConfirmDialog from '../../components/ConfirmDialog';
+
+const PAGE_SIZE = 20;
 
 export default function QuestionDetailPage() {
   const navigate = useNavigate();
@@ -34,45 +40,85 @@ export default function QuestionDetailPage() {
     question: QuestionDTO | null;
   }>({ show: false, question: null });
   const [deleting, setDeleting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // 分页状态
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
 
   const bankIdNum = bankId ? parseInt(bankId, 10) : 0;
 
-  // 加载题库和题目数据
-  const loadData = async () => {
+  // 加载题库信息
+  const loadBank = async () => {
     try {
-      setLoading(true);
-      setError(null);
-
-      const [bankData, questionsData] = await Promise.all([
-        questionApi.getBankById(bankIdNum),
-        questionApi.getQuestionsByBankId(bankIdNum),
-      ]);
-
+      const bankData = await questionApi.getBankById(bankIdNum);
       setBank(bankData);
-      setQuestions(questionsData);
+    } catch (err) {
+      console.error('加载题库失败', err);
+    }
+  };
+
+  // 加载题目数据（分页）
+  const loadQuestions = useCallback(async (
+    pageNum: number,
+    difficulty?: QuestionDifficulty | null,
+    keyword?: string
+  ) => {
+    // 如果已有数据，显示刷新指示器
+    const hasExistingData = questions.length > 0;
+    if (hasExistingData) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+
+    try {
+      const response: PageResponse<QuestionDTO> = await questionApi.getQuestionsByBankIdPaged(
+        bankIdNum,
+        pageNum,
+        PAGE_SIZE,
+        difficulty ?? selectedDifficulty ?? undefined,
+        keyword ?? searchKeyword ?? undefined
+      );
+
+      setQuestions(response.content || []);
+      setTotalPages(response.totalPages || 0);
+      setTotalElements(response.totalElements || 0);
+      setPage(pageNum);
+
+      // 清空选中状态（如果当前页没有选中的题目）
+      if (selectedQuestion) {
+        const existsInCurrentPage = response.content.some(q => q.id === selectedQuestion.id);
+        if (!existsInCurrentPage) {
+          setSelectedQuestion(null);
+        }
+      }
     } catch (err) {
       setError('加载数据失败');
       console.error(err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
-  };
+  }, [bankIdNum, selectedQuestion]);
 
   useEffect(() => {
-    loadData();
+    loadBank();
+    loadQuestions(0);
   }, [bankId]);
 
-  // 过滤题目
-  const filteredQuestions = questions.filter(q => {
-    const matchKeyword = !searchKeyword ||
-      q.content.toLowerCase().includes(searchKeyword.toLowerCase()) ||
-      (q.answer?.toLowerCase().includes(searchKeyword.toLowerCase())) ||
-      (q.tags?.some(t => t.toLowerCase().includes(searchKeyword.toLowerCase())));
+  // 搜索时重新加载第一页
+  const handleSearch = () => {
+    loadQuestions(0, selectedDifficulty, searchKeyword);
+  };
 
-    const matchDifficulty = !selectedDifficulty || q.difficulty === selectedDifficulty;
-
-    return matchKeyword && matchDifficulty;
-  });
+  // 难度筛选时重新加载
+  const handleDifficultyChange = (difficulty: QuestionDifficulty | null) => {
+    setSelectedDifficulty(difficulty);
+    loadQuestions(0, difficulty, searchKeyword);
+  };
 
   // 处理删除题目
   const handleDeleteQuestion = async () => {
@@ -82,7 +128,8 @@ export default function QuestionDetailPage() {
       setDeleting(true);
       await questionApi.deleteQuestion(deleteDialog.question.id);
       setDeleteDialog({ show: false, question: null });
-      loadData();
+      // 重新加载当前页
+      loadQuestions(page);
     } catch (err) {
       console.error('删除题目失败', err);
     } finally {
@@ -93,11 +140,11 @@ export default function QuestionDetailPage() {
   // 难度标签样式
   const getDifficultyStyle = (difficulty: QuestionDifficulty) => {
     switch (difficulty) {
-      case 'EASY':
+      case 'BASIC':
         return 'bg-green-100 text-green-700';
-      case 'MEDIUM':
+      case 'ADVANCED':
         return 'bg-yellow-100 text-yellow-700';
-      case 'HARD':
+      case 'EXPERT':
         return 'bg-red-100 text-red-700';
     }
   };
@@ -105,16 +152,16 @@ export default function QuestionDetailPage() {
   // 难度文本
   const getDifficultyText = (difficulty: QuestionDifficulty) => {
     switch (difficulty) {
-      case 'EASY':
-        return '简单';
-      case 'MEDIUM':
-        return '中等';
-      case 'HARD':
-        return '困难';
+      case 'BASIC':
+        return '基础';
+      case 'ADVANCED':
+        return '进阶';
+      case 'EXPERT':
+        return '专家';
     }
   };
 
-  if (loading) {
+  if (loading && questions.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
@@ -136,7 +183,7 @@ export default function QuestionDetailPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">{bank?.name}</h1>
             <p className="text-slate-500 mt-1">
-              {bank?.description || '暂无描述'} · {questions.length} 道题目
+              {bank?.description || '暂无描述'} · {totalElements} 道题目
             </p>
           </div>
         </div>
@@ -150,59 +197,83 @@ export default function QuestionDetailPage() {
       </div>
 
       {/* 搜索和筛选 */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-3 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input
             type="text"
-            placeholder="搜索题目..."
+            placeholder="搜索题目内容或答案..."
             value={searchKeyword}
             onChange={(e) => setSearchKeyword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <button
+          onClick={handleSearch}
+          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+        >
+          <Search className="w-4 h-4" />
+          搜索
+        </button>
+      </div>
+
+      {/* 难度筛选 */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-sm text-slate-500 mr-2">难度：</span>
+        <button
+          onClick={() => handleDifficultyChange(null)}
+          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            selectedDifficulty === null
+              ? 'bg-primary-100 text-primary-700'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          全部
+        </button>
+        <button
+          onClick={() => handleDifficultyChange('BASIC')}
+          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            selectedDifficulty === 'BASIC'
+              ? 'bg-green-100 text-green-700'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          基础
+        </button>
+        <button
+          onClick={() => handleDifficultyChange('ADVANCED')}
+          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            selectedDifficulty === 'ADVANCED'
+              ? 'bg-yellow-100 text-yellow-700'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          进阶
+        </button>
+        <button
+          onClick={() => handleDifficultyChange('EXPERT')}
+          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            selectedDifficulty === 'EXPERT'
+              ? 'bg-red-100 text-red-700'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          专家
+        </button>
+        {(searchKeyword || selectedDifficulty) && (
           <button
-            onClick={() => setSelectedDifficulty(null)}
-            className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-              selectedDifficulty === null
-                ? 'bg-primary-100 text-primary-700'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            onClick={() => {
+              setSearchKeyword('');
+              setSelectedDifficulty(null);
+              loadQuestions(0, null, '');
+            }}
+            className="ml-2 px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1"
           >
-            全部
+            <X className="w-4 h-4" />
+            清除筛选
           </button>
-          <button
-            onClick={() => setSelectedDifficulty('EASY')}
-            className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-              selectedDifficulty === 'EASY'
-                ? 'bg-green-100 text-green-700'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            简单
-          </button>
-          <button
-            onClick={() => setSelectedDifficulty('MEDIUM')}
-            className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-              selectedDifficulty === 'MEDIUM'
-                ? 'bg-yellow-100 text-yellow-700'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            中等
-          </button>
-          <button
-            onClick={() => setSelectedDifficulty('HARD')}
-            className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-              selectedDifficulty === 'HARD'
-                ? 'bg-red-100 text-red-700'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            困难
-          </button>
-        </div>
+        )}
       </div>
 
       {error && (
@@ -215,7 +286,12 @@ export default function QuestionDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 题目列表 */}
         <div className="space-y-3">
-          {filteredQuestions.length === 0 ? (
+          {loading && questions.length === 0 ? (
+            <div className="text-center py-12">
+              <Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto mb-4" />
+              <p className="text-slate-500">加载中...</p>
+            </div>
+          ) : questions.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
               <FileQuestion className="w-12 h-12 text-slate-300 mx-auto mb-4" />
               <p className="text-slate-500">暂无题目</p>
@@ -227,39 +303,95 @@ export default function QuestionDetailPage() {
               </button>
             </div>
           ) : (
-            filteredQuestions.map((question, index) => (
-              <motion.div
-                key={question.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className={`bg-white rounded-xl border p-4 cursor-pointer transition-all ${
-                  selectedQuestion?.id === question.id
-                    ? 'border-primary-500 shadow-md'
-                    : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
-                }`}
-                onClick={() => setSelectedQuestion(question)}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`px-2 py-0.5 rounded text-xs ${getDifficultyStyle(question.difficulty)}`}>
-                        {getDifficultyText(question.difficulty)}
-                      </span>
-                      {question.tags && question.tags.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          <Tag className="w-3 h-3 text-slate-400" />
-                          <span className="text-xs text-slate-400">
-                            {question.tags.slice(0, 2).join(', ')}
-                          </span>
-                        </div>
-                      )}
+            <>
+              {isRefreshing && (
+                <div className="h-1 bg-primary-100 rounded-full overflow-hidden mb-3">
+                  <div className="h-full bg-primary-500 animate-pulse" />
+                </div>
+              )}
+              {questions.map((question) => (
+                <div
+                  key={question.id}
+                  className={`bg-white rounded-xl border p-4 cursor-pointer transition-all ${
+                    selectedQuestion?.id === question.id
+                      ? 'border-primary-500 shadow-md'
+                      : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
+                  }`}
+                  onClick={() => setSelectedQuestion(question)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`px-2 py-0.5 rounded text-xs ${getDifficultyStyle(question.difficulty)}`}>
+                          {getDifficultyText(question.difficulty)}
+                        </span>
+                        {question.tags && question.tags.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            <Tag className="w-3 h-3 text-slate-400" />
+                            <span className="text-xs text-slate-400">
+                              {question.tags.slice(0, 2).join(', ')}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-slate-900 line-clamp-2">{question.content}</p>
                     </div>
-                    <p className="text-slate-900 line-clamp-2">{question.content}</p>
                   </div>
                 </div>
-              </motion.div>
-            ))
+              ))}
+
+              {/* 分页控件 */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-200">
+                  <div className="text-sm text-slate-500">
+                    第 {page + 1} / {totalPages} 页，共 {totalElements} 道题目
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => loadQuestions(page - 1)}
+                      disabled={page === 0}
+                      className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="w-5 h-5 text-slate-600" />
+                    </button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i;
+                        } else if (page < 3) {
+                          pageNum = i;
+                        } else if (page > totalPages - 3) {
+                          pageNum = totalPages - 5 + i;
+                        } else {
+                          pageNum = page - 2 + i;
+                        }
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => loadQuestions(pageNum)}
+                            className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                              page === pageNum
+                                ? 'bg-primary-600 text-white'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {pageNum + 1}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <button
+                      onClick={() => loadQuestions(page + 1)}
+                      disabled={page >= totalPages - 1}
+                      className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight className="w-5 h-5 text-slate-600" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 

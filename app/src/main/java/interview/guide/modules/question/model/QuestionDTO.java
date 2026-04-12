@@ -1,6 +1,6 @@
 package interview.guide.modules.question.model;
 
-import interview.guide.modules.question.enums.QuestionDifficulty;
+import interview.guide.modules.interview.service.DifficultyAdjustmentService.Difficulty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -38,7 +38,7 @@ public class QuestionDTO {
     /**
      * 题目难度
      */
-    private QuestionDifficulty difficulty;
+    private Difficulty difficulty;
 
     /**
      * 题目标签列表

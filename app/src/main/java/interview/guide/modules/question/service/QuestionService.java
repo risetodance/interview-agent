@@ -4,7 +4,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import interview.guide.common.result.Result;
-import interview.guide.modules.question.enums.QuestionDifficulty;
+import interview.guide.modules.interview.service.DifficultyAdjustmentService.Difficulty;
 import interview.guide.modules.question.model.QuestionDTO;
 import interview.guide.modules.question.model.QuestionEntity;
 import interview.guide.modules.question.repository.QuestionRepository;
@@ -41,10 +41,19 @@ public class QuestionService {
     }
 
     /**
-     * 分页获取题库下的题目
+     * 分页获取题库下的题目（支持难度筛选和关键词搜索）
      */
-    public Result<Page<QuestionDTO>> getQuestionsByBankId(Long bankId, int page, int size) {
-        Page<QuestionEntity> pageEntity = questionRepository.findByQuestionBankId(bankId, PageRequest.of(page, size));
+    public Result<Page<QuestionDTO>> getQuestionsByBankId(Long bankId, int page, int size,
+            Difficulty difficulty, String keyword) {
+        // 处理关键词空字符串
+        String searchKeyword = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
+
+        Page<QuestionEntity> pageEntity = questionRepository.findByBankIdWithFilters(
+                bankId,
+                difficulty,
+                searchKeyword,
+                PageRequest.of(page, size));
+
         Page<QuestionDTO> dtoPage = pageEntity.map(this::toDTO);
         return Result.success(dtoPage);
     }
@@ -61,7 +70,7 @@ public class QuestionService {
     /**
      * 根据难度筛选题目
      */
-    public Result<List<QuestionDTO>> getQuestionsByDifficulty(Long bankId, QuestionDifficulty difficulty) {
+    public Result<List<QuestionDTO>> getQuestionsByDifficulty(Long bankId, Difficulty difficulty) {
         List<QuestionDTO> questions = questionRepository.findByQuestionBankIdAndDifficulty(bankId, difficulty)
                 .stream()
                 .map(this::toDTO)
@@ -202,7 +211,7 @@ public class QuestionService {
                 .questionBankId(dto.getQuestionBankId())
                 .content(dto.getContent())
                 .answer(dto.getAnswer())
-                .difficulty(dto.getDifficulty() != null ? dto.getDifficulty() : QuestionDifficulty.MEDIUM)
+                .difficulty(dto.getDifficulty() != null ? dto.getDifficulty() : Difficulty.BASIC)
                 .tags(dto.getTags() != null ? toJson(dto.getTags()) : null)
                 .build();
     }

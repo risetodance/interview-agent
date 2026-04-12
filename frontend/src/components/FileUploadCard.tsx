@@ -25,12 +25,18 @@ export interface FileUploadCardProps {
   namePlaceholder?: string;
   /** 名称输入框标签 */
   nameLabel?: string;
+  /** 是否显示分类输入框 */
+  showCategoryInput?: boolean;
+  /** 分类输入框占位符 */
+  categoryPlaceholder?: string;
+  /** 分类输入框标签 */
+  categoryLabel?: string;
   /** 错误信息 */
   error?: string;
   /** 文件选择回调 */
   onFileSelect?: (file: File) => void;
   /** 上传回调 */
-  onUpload: (file: File, name?: string) => void;
+  onUpload: (file: File, name?: string, category?: string) => void;
   /** 返回回调 */
   onBack?: () => void;
 }
@@ -47,6 +53,9 @@ export default function FileUploadCard({
   showNameInput = false,
   namePlaceholder = '留空则使用文件名',
   nameLabel = '名称（可选）',
+  showCategoryInput = false,
+  categoryPlaceholder = '输入分类名称',
+  categoryLabel = '分类（可选）',
   error,
   onFileSelect,
   onUpload,
@@ -55,6 +64,7 @@ export default function FileUploadCard({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
 
   const handleDragOver = useCallback((e: DragEvent) => {
     e.preventDefault();
@@ -86,7 +96,7 @@ export default function FileUploadCard({
 
   const handleUpload = () => {
     if (!selectedFile) return;
-    onUpload(selectedFile, name.trim() || undefined);
+    onUpload(selectedFile, name.trim() || undefined, category.trim() || undefined);
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -235,6 +245,21 @@ export default function FileUploadCard({
             disabled={uploading}
             onClick={(e) => e.stopPropagation()}
           />
+
+          {showCategoryInput && (
+            <>
+              <label className="block text-sm font-semibold text-slate-700 mb-2 mt-4">{categoryLabel}</label>
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder={categoryPlaceholder}
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                disabled={uploading}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </>
+          )}
         </motion.div>
       )}
 

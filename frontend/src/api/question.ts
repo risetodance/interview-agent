@@ -4,7 +4,7 @@ import { request } from './request';
 export type QuestionBankType = 'SYSTEM' | 'USER';
 
 // 题目难度
-export type QuestionDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+export type QuestionDifficulty = 'BASIC' | 'ADVANCED' | 'EXPERT';
 
 // 题库 DTO
 export interface QuestionBankDTO {
@@ -127,16 +127,23 @@ export const questionApi = {
   },
 
   /**
-   * 分页获取题库下的题目
+   * 分页获取题库下的题目（支持难度筛选和关键词搜索）
    */
   async getQuestionsByBankIdPaged(
     bankId: number,
     page: number = 0,
-    size: number = 20
+    size: number = 20,
+    difficulty?: QuestionDifficulty,
+    keyword?: string
   ): Promise<PageResponse<QuestionDTO>> {
-    return request.get<PageResponse<QuestionDTO>>(
-      `/api/questions/bank/${bankId}/page?page=${page}&size=${size}`
-    );
+    let url = `/api/questions/bank/${bankId}/page?page=${page}&size=${size}`;
+    if (difficulty) {
+      url += `&difficulty=${difficulty}`;
+    }
+    if (keyword && keyword.trim()) {
+      url += `&keyword=${encodeURIComponent(keyword.trim())}`;
+    }
+    return request.get<PageResponse<QuestionDTO>>(url);
   },
 
   /**
@@ -233,5 +240,27 @@ export const questionApi = {
    */
   async previewMarkdown(content: string): Promise<QuestionDTO[]> {
     return request.post<QuestionDTO[]>('/api/questions/import/preview/markdown', { content });
+  },
+
+  /**
+   * 下载 Excel 导入模板
+   */
+  async downloadTemplate(): Promise<void> {
+    const instance = request.getInstance();
+    const response = await instance.get('/api/questions/import/template', {
+      responseType: 'blob',
+    });
+    // 创建下载链接
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '题目导入模板.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   },
 };

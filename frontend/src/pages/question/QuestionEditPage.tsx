@@ -19,7 +19,7 @@ export default function QuestionEditPage() {
   }>({
     content: '',
     answer: '',
-    difficulty: 'MEDIUM',
+    difficulty: 'ADVANCED',
     tags: '',
   });
 
@@ -32,7 +32,7 @@ export default function QuestionEditPage() {
           setFormData({
             content: question.content || '',
             answer: question.answer || '',
-            difficulty: question.difficulty || 'MEDIUM',
+            difficulty: question.difficulty || 'ADVANCED',
             tags: question.tags?.join(', ') || '',
           });
         }
@@ -137,9 +137,9 @@ export default function QuestionEditPage() {
             onChange={(e) => setFormData({ ...formData, difficulty: e.target.value as QuestionDifficulty })}
             className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           >
-            <option value="EASY">简单</option>
-            <option value="MEDIUM">中等</option>
-            <option value="HARD">困难</option>
+            <option value="BASIC">基础</option>
+            <option value="ADVANCED">进阶</option>
+            <option value="EXPERT">专家</option>
           </select>
         </div>
 

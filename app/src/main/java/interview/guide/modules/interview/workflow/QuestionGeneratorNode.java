@@ -91,7 +91,7 @@ public class QuestionGeneratorNode {
                             bankIds,
                             bankIds,
                             keywords,
-                            resumeText,
+                            session.getCurrentDifficulty(),  // 当前出题难度
                             searchEnabled  // 是否启用 Web 搜索
                     );
 

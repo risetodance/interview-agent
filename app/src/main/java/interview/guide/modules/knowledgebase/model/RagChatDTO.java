@@ -65,7 +65,6 @@ public class RagChatDTO {
     public record SessionListItemDTO(
         Long id,
         String title,
-        Integer messageCount,
         List<String> knowledgeBaseNames,
         LocalDateTime updatedAt,
         Boolean isPinned

@@ -233,6 +233,7 @@ public class DeciderNode {
         StructuredOutputInvoker.OutputValidator<DecisionOutput> validator = output -> {
             if (output.decision() == DecisionAction.SWITCH && output.nextPerspectiveId() != null) {
                 if (!selectedPerspectivesList.contains(output.nextPerspectiveId())) {
+                    log.info("selectedPerspectivesList is : {}", selectedPerspectivesList);
                     return StructuredOutputInvoker.ValidationResult.fail(
                             "SWITCH 决策的视角 ID " + output.nextPerspectiveId() + " 不在本次面试选中的视角列表中，请重新选择一个有效的视角");
                 }
@@ -276,7 +277,8 @@ public class DeciderNode {
                 final Map<Long, Double> sessionWeights;
                 if (session.getPerspectiveWeights() != null && !session.getPerspectiveWeights().isBlank()) {
                     sessionWeights = objectMapper.readValue(
-                            session.getPerspectiveWeights(), new TypeReference<Map<Long, Double>>() {});
+                            session.getPerspectiveWeights(), new TypeReference<Map<Long, Double>>() {
+                            });
                 } else {
                     sessionWeights = null;
                 }
@@ -337,8 +339,8 @@ public class DeciderNode {
                 validator
         );
 
-        log.info("Decider LLM parsed: decision={}, nextPerspective={}, reason={}",
-                output.decision(), output.nextPerspectiveId(), output.reason());
+        log.info("Decider LLM parsed: decision={}, nextPerspective={}, reason={},questionDirection={}",
+                output.decision(), output.nextPerspectiveId(), output.reason(), output.questionDirection());
 
         // 验证并返回
         if (output.decision() == null) {

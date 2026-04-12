@@ -3,6 +3,9 @@ package interview.guide.modules.interview.workflow;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.ErrorCode;
+import interview.guide.modules.interview.model.InterviewerRoleEntity;
+import interview.guide.modules.interview.repository.InterviewerRoleRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.converter.BeanOutputConverter;
@@ -13,6 +16,7 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 搜索准备器节点 - 准备搜索上下文（关键字、方向匹配审核）
@@ -25,10 +29,13 @@ public class SearchPreparatorNode {
 
     private final ChatClient chatClient;
     private final StructuredOutputInvoker structuredOutputInvoker;
+    private final InterviewerRoleRepository interviewerRoleRepository;
 
     public SearchPreparatorNode(ChatClient.Builder chatClientBuilder,
+                                InterviewerRoleRepository interviewerRoleRepository,
                                 StructuredOutputInvoker structuredOutputInvoker) {
         this.chatClient = chatClientBuilder.build();
+        this.interviewerRoleRepository = interviewerRoleRepository;
         this.structuredOutputInvoker = structuredOutputInvoker;
     }
 
@@ -63,6 +70,7 @@ public class SearchPreparatorNode {
         String feedback = (String) state.value(InterviewWorkflowState.FEEDBACK).orElse("");
         String category = (String) state.value(InterviewWorkflowState.CURRENT_CATEGORY).orElse("");
         String currentPerspective = (String) state.value(InterviewWorkflowState.CURRENT_PERSPECTIVE_NAME).orElse("");
+        Long currentPerspectiveId = ((Number) state.value(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID).orElse(0L)).longValue();
         // 获取 DeciderNode 输出的出题方向
         String questionDirection = (String) state.value(InterviewWorkflowState.QUESTION_DIRECTION).orElse("");
 
@@ -81,12 +89,22 @@ public class SearchPreparatorNode {
 
         log.info("userAnswer is :{}, currentQuestion is {}", userAnswer, currentQuestion);
 
+        // 查询当前视角的 prompt
+        String currentPerspectivePrompt = "";
+        if (currentPerspectiveId > 0) {
+            Optional<InterviewerRoleEntity> roleOpt = interviewerRoleRepository.findById(currentPerspectiveId);
+            if (roleOpt.isPresent()) {
+                currentPerspectivePrompt = roleOpt.get().getDescription();
+            }
+        }
+
         try {
             String systemPrompt = systemPromptResource.getContentAsString(StandardCharsets.UTF_8);
             String userPromptTemplate = userPromptResource.getContentAsString(StandardCharsets.UTF_8);
 
             Map<String, Object> variables = new HashMap<>();
             variables.put("currentPerspective", currentPerspective);
+            variables.put("currentPerspectivePrompt", currentPerspectivePrompt);
             variables.put("currentQuestion", currentQuestion);
             variables.put("userAnswer", userAnswer);
             variables.put("feedback", feedback);

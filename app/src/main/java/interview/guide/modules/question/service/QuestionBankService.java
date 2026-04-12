@@ -5,6 +5,7 @@ import interview.guide.modules.question.enums.QuestionBankType;
 import interview.guide.modules.question.model.QuestionBankDTO;
 import interview.guide.modules.question.model.QuestionBankEntity;
 import interview.guide.modules.question.repository.QuestionBankRepository;
+import interview.guide.modules.question.repository.QuestionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 public class QuestionBankService {
 
     private final QuestionBankRepository questionBankRepository;
+    private final QuestionRepository questionRepository;
 
     /**
      * 获取所有系统预置题库
@@ -129,6 +131,9 @@ public class QuestionBankService {
         if (entity.getType() == QuestionBankType.USER && !entity.getUserId().equals(userId)) {
             return Result.error("无权限删除此题库");
         }
+
+        // 级联删除题库下的所有题目
+        questionRepository.deleteByQuestionBankId(id);
 
         questionBankRepository.delete(entity);
         return Result.success(null);

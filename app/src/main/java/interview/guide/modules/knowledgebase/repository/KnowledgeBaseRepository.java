@@ -80,6 +80,15 @@ public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEnti
     @Query("UPDATE KnowledgeBaseEntity k SET k.questionCount = k.questionCount + 1 WHERE k.id IN :ids")
     int incrementQuestionCountBatch(@Param("ids") List<Long> ids);
 
+    /**
+     * 批量减少知识库提问计数
+     * @param ids 知识库ID列表
+     * @return 更新的行数
+     */
+    @Modifying
+    @Query("UPDATE KnowledgeBaseEntity k SET k.questionCount = k.questionCount - 1 WHERE k.id IN :ids AND k.questionCount > 0")
+    int decrementQuestionCountBatch(@Param("ids") List<Long> ids);
+
     // ==================== 统计查询 ====================
 
     /**
@@ -160,5 +169,11 @@ public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEnti
      */
     @Query("SELECT COALESCE(SUM(k.accessCount), 0) FROM KnowledgeBaseEntity k WHERE k.userId = :userId")
     long sumAccessCountByUserId(@Param("userId") Long userId);
+
+    /**
+     * 按用户ID统计总存储大小
+     */
+    @Query("SELECT COALESCE(SUM(k.fileSize), 0) FROM KnowledgeBaseEntity k WHERE k.userId = :userId")
+    long sumFileSizeByUserId(@Param("userId") Long userId);
 }
 

@@ -1,6 +1,6 @@
 package interview.guide.modules.question.repository;
 
-import interview.guide.modules.question.enums.QuestionDifficulty;
+import interview.guide.modules.interview.service.DifficultyAdjustmentService.Difficulty;
 import interview.guide.modules.question.model.QuestionEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,14 +23,26 @@ public interface QuestionRepository extends JpaRepository<QuestionEntity, Long> 
     List<QuestionEntity> findByQuestionBankId(Long questionBankId);
 
     /**
-     * 分页查询指定题库下的所有题目
+     * 删除指定题库下的所有题目
      */
-    Page<QuestionEntity> findByQuestionBankId(Long questionBankId, Pageable pageable);
+    void deleteByQuestionBankId(Long questionBankId);
 
     /**
      * 查询指定题库下指定难度的题目
      */
-    List<QuestionEntity> findByQuestionBankIdAndDifficulty(Long questionBankId, QuestionDifficulty difficulty);
+    List<QuestionEntity> findByQuestionBankIdAndDifficulty(Long questionBankId, Difficulty difficulty);
+
+    /**
+     * 分页查询 - 支持动态组合（难度 + 关键词搜索内容/答案/标签）
+     */
+    @Query("SELECT q FROM QuestionEntity q WHERE q.questionBankId = :bankId " +
+           "AND (:difficulty IS NULL OR q.difficulty = :difficulty) " +
+           "AND (:keyword IS NULL OR q.content LIKE %:keyword% OR q.answer LIKE %:keyword%)")
+    Page<QuestionEntity> findByBankIdWithFilters(
+            @Param("bankId") Long bankId,
+            @Param("difficulty") Difficulty difficulty,
+            @Param("keyword") String keyword,
+            Pageable pageable);
 
     /**
      * 统计指定题库的题目数量
@@ -42,12 +54,6 @@ public interface QuestionRepository extends JpaRepository<QuestionEntity, Long> 
      */
     @Query(value = "SELECT * FROM questions WHERE question_bank_id = :bankId ORDER BY RANDOM() LIMIT :limit", nativeQuery = true)
     List<QuestionEntity> findRandomQuestions(@Param("bankId") Long bankId, @Param("limit") int limit);
-
-    /**
-     * 根据题库ID列表获取题目
-     */
-    @Query("SELECT q FROM QuestionEntity q WHERE q.questionBankId IN :bankIds")
-    List<QuestionEntity> findByQuestionBankIdIn(@Param("bankIds") List<Long> bankIds);
 
     /**
      * 随机获取指定题库列表的题目
@@ -68,4 +74,23 @@ public interface QuestionRepository extends JpaRepository<QuestionEntity, Long> 
         LIMIT :limit
         """, nativeQuery = true)
     List<QuestionEntity> fullTextSearch(@Param("bankIds") List<Long> bankIds, @Param("keywords") String keywords, @Param("limit") int limit);
+
+    /**
+     * 全文搜索题目（使用 PostgreSQL 全文检索，支持难度过滤）
+     * 按相关性排序返回结果
+     */
+    @Query(value = """
+        SELECT *, ts_rank(content_tsv, plainto_tsquery('simple', :keywords)) AS rank
+        FROM questions
+        WHERE question_bank_id IN (:bankIds)
+          AND content_tsv @@ plainto_tsquery('simple', :keywords)
+          AND (:difficulty IS NULL OR difficulty = :difficulty)
+        ORDER BY rank DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<QuestionEntity> fullTextSearchWithDifficulty(
+            @Param("bankIds") List<Long> bankIds,
+            @Param("keywords") String keywords,
+            @Param("difficulty") String difficulty,
+            @Param("limit") int limit);
 }

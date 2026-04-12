@@ -37,6 +37,7 @@ public class RagChatSessionService {
     private final RagChatMessageRepository messageRepository;
     private final KnowledgeBaseRepository knowledgeBaseRepository;
     private final KnowledgeBaseQueryService queryService;
+    private final KnowledgeBaseCountService countService;
     private final RagChatMapper ragChatMapper;
     private final KnowledgeBaseMapper knowledgeBaseMapper;
 
@@ -195,7 +196,8 @@ public class RagChatSessionService {
         Long sessionId = session.getId();
 
         // 获取当前消息数量作为起始顺序
-        int nextOrder = session.getMessageCount();
+        int messageCount = messageRepository.countBySessionId(sessionId);
+        int nextOrder = messageCount;
 
         // 保存用户消息
         RagChatMessageEntity userMessage = new RagChatMessageEntity();
@@ -215,9 +217,11 @@ public class RagChatSessionService {
         assistantMessage.setCompleted(false);
         assistantMessage = messageRepository.save(assistantMessage);
 
-        // 更新会话消息数量
-        session.setMessageCount(nextOrder + 2);
-        sessionRepository.save(session);
+        // 更新关联知识库的提问计数
+        List<Long> kbIds = session.getKnowledgeBaseIds();
+        if (!kbIds.isEmpty()) {
+            countService.updateQuestionCounts(kbIds);
+        }
 
         log.info("准备流式消息: sessionId={}, messageId={}", sessionId, assistantMessage.getId());
 
@@ -370,10 +374,18 @@ public class RagChatSessionService {
      */
     @Transactional
     public void deleteSession(Long sessionId) {
-        if (!sessionRepository.existsById(sessionId)) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "会话不存在");
-        }
+        RagChatSessionEntity session = sessionRepository.findById(sessionId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
+
+        // 获取关联的知识库ID列表（用于减少计数）
+        List<Long> kbIds = session.getKnowledgeBaseIds();
+
         sessionRepository.deleteById(sessionId);
+
+        // 减少关联知识库的提问计数
+        if (!kbIds.isEmpty()) {
+            countService.decrementQuestionCounts(kbIds);
+        }
 
         log.info("删除会话: sessionId={}", sessionId);
     }
@@ -391,7 +403,15 @@ public class RagChatSessionService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "无权删除他人的会话");
         }
 
+        // 获取关联的知识库ID列表（用于减少计数）
+        List<Long> kbIds = session.getKnowledgeBaseIds();
+
         sessionRepository.deleteById(sessionId);
+
+        // 减少关联知识库的提问计数
+        if (!kbIds.isEmpty()) {
+            countService.decrementQuestionCounts(kbIds);
+        }
 
         log.info("删除会话: sessionId={}, userId={}", sessionId, userId);
     }

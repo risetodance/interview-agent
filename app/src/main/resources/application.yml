@@ -218,3 +218,9 @@ app:
     websearch:
       enabled: ${APP_MCP_WEBSEARCH_ENABLED:true}
       timeout: ${APP_MCP_WEBSEARCH_TIMEOUT:10000}
+
+  # 题目导入配置
+  question:
+    import:
+      # 单次导入最大题目数量
+      max-count: ${APP_QUESTION_IMPORT_MAX_COUNT:1000}

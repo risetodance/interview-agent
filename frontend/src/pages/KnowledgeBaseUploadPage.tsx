@@ -12,12 +12,12 @@ export default function KnowledgeBaseUploadPage({ onUploadComplete, onBack }: Kn
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleUpload = async (file: File, name?: string) => {
+  const handleUpload = async (file: File, name?: string, category?: string) => {
     setUploading(true);
     setError('');
 
     try {
-      const data = await knowledgeBaseApi.uploadKnowledgeBase(file, name);
+      const data = await knowledgeBaseApi.uploadKnowledgeBase(file, name, category);
       onUploadComplete(data);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : '上传失败，请重试';
@@ -39,6 +39,9 @@ export default function KnowledgeBaseUploadPage({ onUploadComplete, onBack }: Kn
       showNameInput={true}
       nameLabel="知识库名称（可选）"
       namePlaceholder="留空则使用文件名"
+      showCategoryInput={true}
+      categoryLabel="分类（可选）"
+      categoryPlaceholder="输入分类名称，如：Java面试"
       error={error}
       onUpload={handleUpload}
       onBack={onBack}

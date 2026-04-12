@@ -4,11 +4,14 @@ import interview.guide.common.result.Result;
 import interview.guide.modules.question.model.QuestionDTO;
 import interview.guide.modules.question.service.QuestionImportService;
 import interview.guide.modules.question.service.QuestionService;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -87,6 +90,17 @@ public class QuestionImportController {
     public Result<List<QuestionDTO>> previewMarkdown(@RequestBody ImportMarkdownRequest request) {
         List<QuestionDTO> questions = questionImportService.parseMarkdown(request.getContent());
         return Result.success(questions);
+    }
+
+    /**
+     * 下载 Excel 导入模板
+     *
+     * @param response HTTP 响应
+     */
+    @GetMapping("/template")
+    public void downloadTemplate(HttpServletResponse response) throws IOException {
+        log.info("下载 Excel 导入模板");
+        questionImportService.generateTemplate(response);
     }
 
     /**

@@ -72,11 +72,6 @@ public class RagChatSessionEntity {
     private LocalDateTime updatedAt;
 
     /**
-     * 消息数量（冗余字段，方便查询）
-     */
-    private Integer messageCount = 0;
-
-    /**
      * 是否置顶
      */
     @Column(columnDefinition = "boolean default false")
@@ -118,7 +113,6 @@ public class RagChatSessionEntity {
     public void addMessage(RagChatMessageEntity message) {
         messages.add(message);
         message.setSession(this);
-        messageCount = messages.size();
         updatedAt = LocalDateTime.now();
     }
 

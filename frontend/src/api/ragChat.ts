@@ -14,7 +14,6 @@ export interface RagChatSession {
 export interface RagChatSessionListItem {
   id: number;
   title: string;
-  messageCount: number;
   knowledgeBaseNames: string[];
   updatedAt: string;
   isPinned: boolean;

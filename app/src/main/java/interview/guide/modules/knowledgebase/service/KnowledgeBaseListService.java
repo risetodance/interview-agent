@@ -245,13 +245,12 @@ public class KnowledgeBaseListService {
 
     /**
      * 获取知识库统计信息（按用户过滤）
-     * 总提问次数从用户消息数统计，确保多知识库提问只算一次
      */
     public KnowledgeBaseStatsDTO getStatistics(Long userId) {
         return new KnowledgeBaseStatsDTO(
             knowledgeBaseRepository.countByUserId(userId),
-            ragChatMessageRepository.countByTypeAndUserId(MessageType.USER, userId),  // 按用户过滤的提问次数
             knowledgeBaseRepository.sumAccessCountByUserId(userId),
+            knowledgeBaseRepository.sumFileSizeByUserId(userId),
             knowledgeBaseRepository.countByUserIdAndVectorStatus(userId, VectorStatus.COMPLETED),
             knowledgeBaseRepository.countByUserIdAndVectorStatus(userId, VectorStatus.PROCESSING)
         );

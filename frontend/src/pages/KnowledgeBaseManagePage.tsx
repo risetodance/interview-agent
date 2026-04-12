@@ -34,13 +34,14 @@ interface KnowledgeBaseManagePageProps {
   onChat: () => void;
 }
 
-// 格式化文件大小
+// 格式化文件大小（动态单位，最大TB）
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  const unitIndex = Math.min(i, sizes.length - 1);
+  return parseFloat((bytes / Math.pow(k, unitIndex)).toFixed(1)) + ' ' + sizes[unitIndex];
 }
 
 // 格式化日期
@@ -96,7 +97,7 @@ function StatCard({
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  value: number;
+  value: number | string;
   color: string;
 }) {
   return (
@@ -111,7 +112,7 @@ function StatCard({
         </div>
         <div>
           <p className="text-sm text-slate-500">{label}</p>
-          <p className="text-2xl font-bold text-slate-800">{value.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-slate-800">{typeof value === 'number' ? value.toLocaleString() : value}</p>
         </div>
       </div>
     </motion.div>
@@ -325,16 +326,16 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
             color="bg-primary-500"
           />
           <StatCard
-            icon={MessageSquare}
-            label="总提问次数"
-            value={stats.totalQuestionCount}
-            color="bg-indigo-500"
-          />
-          <StatCard
             icon={Eye}
             label="总访问次数"
             value={stats.totalAccessCount}
             color="bg-emerald-500"
+          />
+          <StatCard
+            icon={HardDrive}
+            label="总存储大小"
+            value={formatFileSize(stats.totalStorageSize)}
+            color="bg-blue-500"
           />
         </div>
       )}
@@ -370,7 +371,6 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
               <option value="time">按时间排序</option>
               <option value="size">按大小排序</option>
               <option value="access">按访问排序</option>
-              <option value="question">按提问排序</option>
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
@@ -429,9 +429,6 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
                 </th>
                 <th className="text-left px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
                   状态
-                </th>
-                <th className="text-left px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
-                  提问
                 </th>
                 <th className="text-right px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
                   操作
@@ -542,9 +539,6 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
                         {getStatusText(kb.vectorStatus)}
                       </span>
                     </div>
-                  </td>
-                  <td className="px-3 py-3 text-sm text-slate-600">
-                    {kb.questionCount}
                   </td>
                   <td className="px-3 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
