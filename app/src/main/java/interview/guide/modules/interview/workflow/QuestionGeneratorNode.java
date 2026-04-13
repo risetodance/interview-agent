@@ -82,14 +82,9 @@ public class QuestionGeneratorNode {
             String mergedSearchContext = "";
             if (keywords != null && !keywords.isBlank()) {
                 try {
-                    // 获取题库ID列表
-                    List<Long> bankIds = parseKnowledgeBaseIds(session.getKnowledgeBaseIds());
-                    // 获取会话关联的知识库ID
-
                     // 调用混合检索服务
                     HybridSearchService.HybridSearchResult hybridResult = hybridSearchService.search(
-                            bankIds,
-                            bankIds,
+                            session.getUserId(),  // 用户ID
                             keywords,
                             session.getCurrentDifficulty(),  // 当前出题难度
                             searchEnabled  // 是否启用 Web 搜索
@@ -276,20 +271,5 @@ public class QuestionGeneratorNode {
         }
 
         return state;
-    }
-
-    /**
-     * 解析知识库ID列表
-     */
-    private List<Long> parseKnowledgeBaseIds(String knowledgeBaseIdsJson) {
-        if (knowledgeBaseIdsJson == null || knowledgeBaseIdsJson.isBlank()) {
-            return Collections.emptyList();
-        }
-        try {
-            return objectMapper.readValue(knowledgeBaseIdsJson, new TypeReference<List<Long>>() {});
-        } catch (Exception e) {
-            log.warn("解析知识库ID失败: {}", e.getMessage());
-            return Collections.emptyList();
-        }
     }
 }

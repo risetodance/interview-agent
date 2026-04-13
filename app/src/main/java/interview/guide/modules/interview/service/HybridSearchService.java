@@ -2,6 +2,7 @@ package interview.guide.modules.interview.service;
 
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.ErrorCode;
+import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
 import interview.guide.modules.question.model.QuestionEntity;
 import interview.guide.modules.question.repository.QuestionRepository;
@@ -11,13 +12,15 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.document.Document;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.Resource;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -34,11 +37,16 @@ import java.util.stream.Collectors;
 public class HybridSearchService {
 
     private final QuestionRepository questionRepository;
+    private final KnowledgeBaseRepository knowledgeBaseRepository;
     private final KnowledgeBaseVectorService knowledgeBaseVectorService;
     private final ToolCallbackProvider toolCallbackProvider;
     private final StructuredOutputInvoker structuredOutputInvoker;
     private final ChatClient chatClient;
     private final ChatClient smallModelChatClient;
+
+    @Autowired
+    @Lazy
+    private HybridSearchService self;
 
     @Value("classpath:prompts/web-search-system.st")
     private Resource systemPromptResource;
@@ -63,6 +71,7 @@ public class HybridSearchService {
     @Autowired
     public HybridSearchService(
             QuestionRepository questionRepository,
+            KnowledgeBaseRepository knowledgeBaseRepository,
             KnowledgeBaseVectorService knowledgeBaseVectorService,
             @Autowired(required = false) ToolCallbackProvider toolCallbackProvider,
             StructuredOutputInvoker structuredOutputInvoker,
@@ -71,6 +80,7 @@ public class HybridSearchService {
             @Value("${app.ai.small-model.enabled:true}") boolean smallModelEnabled,
             @Value("${app.ai.small-model.temperature:0.1}") double smallModelTemperature) {
         this.questionRepository = questionRepository;
+        this.knowledgeBaseRepository = knowledgeBaseRepository;
         this.knowledgeBaseVectorService = knowledgeBaseVectorService;
         this.toolCallbackProvider = toolCallbackProvider;
         this.structuredOutputInvoker = structuredOutputInvoker;
@@ -147,8 +157,7 @@ public class HybridSearchService {
      * 执行混合检索（三路并行，共用 keywords）
      */
     public HybridSearchResult search(
-            List<Long> bankIds,
-            List<Long> knowledgeBaseIds,
+            Long userId,
             String keywords,
             String difficulty,
             boolean enableWebSearch) {
@@ -160,18 +169,16 @@ public class HybridSearchService {
         // 使用配置的 topK 作为默认值
         int effectiveTopK = hybridSearchTopK;
 
-        // 并行执行三路搜索
+        // 并行执行三路搜索（通过异步方法 + CompletableFuture 实现）
         CompletableFuture<List<QuestionEntity>> questionBankFuture =
-                CompletableFuture.supplyAsync(() ->
-                        questionBankFullTextSearch(bankIds, keywords, difficulty, effectiveTopK));
+                self.questionBankFullTextSearchAsync(userId, keywords, difficulty, effectiveTopK);
 
         CompletableFuture<List<Document>> knowledgeBaseFuture =
-                CompletableFuture.supplyAsync(() ->
-                        knowledgeBaseVectorSearch(keywords, knowledgeBaseIds, effectiveTopK));
+                self.knowledgeBaseVectorSearchAsync(userId, keywords, effectiveTopK);
 
         CompletableFuture<List<WebSearchResult>> webSearchFuture =
-                enableWebSearch ? CompletableFuture.supplyAsync(() ->
-                        webSearch(keywords, effectiveTopK)) : CompletableFuture.completedFuture(List.of());
+                enableWebSearch ? self.webSearchAsync(keywords, effectiveTopK)
+                        : CompletableFuture.completedFuture(List.of());
 
         // 等待所有搜索完成
         CompletableFuture.allOf(
@@ -207,6 +214,106 @@ public class HybridSearchService {
                 .webSearchContext(webSearchContext)
                 .mergedContext(mergedContext)
                 .build();
+    }
+
+    /**
+     * 题库全文搜索（异步）
+     */
+    @Async
+    public CompletableFuture<List<QuestionEntity>> questionBankFullTextSearchAsync(
+            Long userId, String keywords, String difficulty, int topK) {
+        if (keywords == null || keywords.isBlank() || userId == null) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+        try {
+            List<QuestionEntity> results;
+            if (difficulty != null && !difficulty.isBlank()) {
+                results = questionRepository.fullTextSearchWithDifficulty(userId, keywords, difficulty, topK);
+            } else {
+                results = questionRepository.fullTextSearch(userId, keywords, topK);
+            }
+            return CompletableFuture.completedFuture(results);
+        } catch (Exception e) {
+            log.warn("题库全文搜索失败: {}", e.getMessage());
+            return CompletableFuture.completedFuture(List.of());
+        }
+    }
+
+    /**
+     * 知识库向量搜索（异步）
+     */
+    @Async
+    public CompletableFuture<List<Document>> knowledgeBaseVectorSearchAsync(
+            Long userId, String keywords, int topK) {
+        if (keywords == null || keywords.isBlank() || userId == null) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+        try {
+            List<Long> kbIds = knowledgeBaseRepository.findIdsByUserId(userId);
+            List<Document> results = knowledgeBaseVectorService.similaritySearch(keywords, kbIds, topK, 0.5);
+            return CompletableFuture.completedFuture(results);
+        } catch (Exception e) {
+            log.warn("知识库向量搜索失败: {}", e.getMessage());
+            return CompletableFuture.completedFuture(List.of());
+        }
+    }
+
+    /**
+     * Web 搜索（异步，使用 MCP 工具 + structuredOutputInvoker，AI 直接返回 List<WebSearchResult>）
+     */
+    @Async
+    public CompletableFuture<List<WebSearchResult>> webSearchAsync(String keywords, int topK) {
+        if (keywords == null || keywords.isBlank()) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+        try {
+            // 1. 从 ToolCallbackProvider 获取 web_search 工具
+            ToolCallback webSearchCallback = null;
+            if (toolCallbackProvider != null) {
+                for (ToolCallback callback : toolCallbackProvider.getToolCallbacks()) {
+                    if ("web_search".equals(callback.getToolDefinition().name())) {
+                        webSearchCallback = callback;
+                        break;
+                    }
+                }
+            }
+
+            if (webSearchCallback == null) {
+                log.warn("web_search tool not found in ToolCallbackProvider");
+                return CompletableFuture.completedFuture(List.of());
+            }
+
+            // 2. 构建提示词
+            String systemPrompt = systemPromptResource.getContentAsString(StandardCharsets.UTF_8);
+            String userPromptTemplate = userPromptResource.getContentAsString(StandardCharsets.UTF_8);
+            String userPrompt = userPromptTemplate
+                    .replace("{{keywords}}", keywords)
+                    .replace("{{topK}}", String.valueOf(topK));
+
+            // 3. 使用 structuredOutputInvoker.invoke() 调用 MCP 工具，AI 直接返回 WebSearchResultList
+            WebSearchResultList resultList = structuredOutputInvoker.invoke(
+                    chatClient,
+                    systemPrompt,
+                    userPrompt,
+                    webSearchResultConverter,
+                    ErrorCode.AI_SERVICE_ERROR,
+                    "Web搜索失败",
+                    "HybridSearchService",
+                    log,
+                    webSearchCallback
+            );
+
+            List<WebSearchResult> results = resultList != null && resultList.results() != null
+                    ? resultList.results()
+                    : List.of();
+
+            log.debug("Web search completed: {} results", results.size());
+            return CompletableFuture.completedFuture(results);
+
+        } catch (Exception e) {
+            log.warn("Web 搜索失败: {}", e.getMessage());
+            return CompletableFuture.completedFuture(List.of());
+        }
     }
 
     /**
@@ -369,99 +476,6 @@ public class HybridSearchService {
     }
 
     /**
-     * 题库全文搜索
-     */
-    private List<QuestionEntity> questionBankFullTextSearch(
-            List<Long> bankIds, String keywords, String difficulty, int topK) {
-        if (keywords == null || keywords.isBlank() || bankIds == null || bankIds.isEmpty()) {
-            return List.of();
-        }
-        try {
-            if (difficulty != null && !difficulty.isBlank()) {
-                return questionRepository.fullTextSearchWithDifficulty(bankIds, keywords, difficulty, topK);
-            } else {
-                return questionRepository.fullTextSearch(bankIds, keywords, topK);
-            }
-        } catch (Exception e) {
-            log.warn("题库全文搜索失败: {}", e.getMessage());
-            return List.of();
-        }
-    }
-
-    /**
-     * 知识库向量搜索
-     */
-    private List<org.springframework.ai.document.Document> knowledgeBaseVectorSearch(
-            String keywords, List<Long> kbIds, int topK) {
-        if (keywords == null || keywords.isBlank()) {
-            return List.of();
-        }
-        try {
-            return knowledgeBaseVectorService.similaritySearch(keywords, kbIds, topK, 0.5);
-        } catch (Exception e) {
-            log.warn("知识库向量搜索失败: {}", e.getMessage());
-            return List.of();
-        }
-    }
-
-    /**
-     * Web 搜索（使用 MCP 工具 + structuredOutputInvoker，AI 直接返回 List<WebSearchResult>）
-     */
-    private List<WebSearchResult> webSearch(String keywords, int topK) {
-        if (keywords == null || keywords.isBlank()) {
-            return List.of();
-        }
-        try {
-            // 1. 从 ToolCallbackProvider 获取 web_search 工具
-            ToolCallback webSearchCallback = null;
-            if (toolCallbackProvider != null) {
-                for (ToolCallback callback : toolCallbackProvider.getToolCallbacks()) {
-                    if ("web_search".equals(callback.getToolDefinition().name())) {
-                        webSearchCallback = callback;
-                        break;
-                    }
-                }
-            }
-
-            if (webSearchCallback == null) {
-                log.warn("web_search tool not found in ToolCallbackProvider");
-                return List.of();
-            }
-
-            // 2. 构建提示词
-            String systemPrompt = systemPromptResource.getContentAsString(StandardCharsets.UTF_8);
-            String userPromptTemplate = userPromptResource.getContentAsString(StandardCharsets.UTF_8);
-            String userPrompt = userPromptTemplate
-                    .replace("{{keywords}}", keywords)
-                    .replace("{{topK}}", String.valueOf(topK));
-
-            // 3. 使用 structuredOutputInvoker.invoke() 调用 MCP 工具，AI 直接返回 WebSearchResultList
-            WebSearchResultList resultList = structuredOutputInvoker.invoke(
-                    chatClient,
-                    systemPrompt,
-                    userPrompt,
-                    webSearchResultConverter,
-                    ErrorCode.AI_SERVICE_ERROR,
-                    "Web搜索失败",
-                    "HybridSearchService",
-                    log,
-                    webSearchCallback
-            );
-
-            List<WebSearchResult> results = resultList != null && resultList.results() != null
-                    ? resultList.results()
-                    : List.of();
-
-            log.debug("Web search completed: {} results", results.size());
-            return results;
-
-        } catch (Exception e) {
-            log.warn("Web 搜索失败: {}", e.getMessage());
-            return List.of();
-        }
-    }
-
-    /**
      * 构建题库上下文
      */
     private String buildQuestionBankContext(List<QuestionEntity> results) {
@@ -477,7 +491,7 @@ public class HybridSearchService {
     /**
      * 构建知识库上下文
      */
-    private String buildKnowledgeBaseContext(List<org.springframework.ai.document.Document> results) {
+    private String buildKnowledgeBaseContext(List<Document> results) {
         if (results == null || results.isEmpty()) {
             return "";
         }

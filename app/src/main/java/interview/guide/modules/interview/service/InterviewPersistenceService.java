@@ -47,6 +47,7 @@ public class InterviewPersistenceService {
         try {
             InterviewSessionEntity session = new InterviewSessionEntity();
             session.setSessionId(sessionId);
+            session.setUserId(userId);
             session.setTotalQuestions(totalQuestions);
             session.setCurrentQuestionIndex(0);
             session.setStatus(InterviewSessionEntity.SessionStatus.CREATED);
@@ -92,6 +93,7 @@ public class InterviewPersistenceService {
 
             InterviewSessionEntity session = new InterviewSessionEntity();
             session.setSessionId(sessionId);
+            session.setUserId(userId);
             session.setResume(resume);
             session.setTotalQuestions(totalQuestions);
             session.setCurrentQuestionIndex(0);
@@ -143,6 +145,7 @@ public class InterviewPersistenceService {
         try {
             InterviewSessionEntity session = new InterviewSessionEntity();
             session.setSessionId(sessionId);
+            session.setUserId(userId);
             session.setTotalQuestions(totalQuestions);
             session.setCurrentQuestionIndex(0);
             session.setStatus(InterviewSessionEntity.SessionStatus.CREATED);

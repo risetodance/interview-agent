@@ -139,6 +139,10 @@ public class InterviewSessionEntity {
     @Column(name = "perspective_weights", columnDefinition = "TEXT")
     private String perspectiveWeights;
 
+    // 用户ID（用于数据隔离）
+    @Column(name = "user_id")
+    private Long userId;
+
     public enum SessionStatus {
         CREATED,      // 会话已创建
         IN_PROGRESS,  // 面试进行中
@@ -403,5 +407,13 @@ public class InterviewSessionEntity {
 
     public void setPerspectiveWeights(String perspectiveWeights) {
         this.perspectiveWeights = perspectiveWeights;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 }

@@ -121,6 +121,12 @@ public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEnti
     List<KnowledgeBaseEntity> findByUserIdOrderByUploadedAtDesc(Long userId);
 
     /**
+     * 按用户ID查找知识库ID列表
+     */
+    @Query("SELECT k.id FROM KnowledgeBaseEntity k WHERE k.userId = :userId")
+    List<Long> findIdsByUserId(@Param("userId") Long userId);
+
+    /**
      * 按用户ID和向量化状态查找知识库（按上传时间倒序）
      */
     List<KnowledgeBaseEntity> findByUserIdAndVectorStatusOrderByUploadedAtDesc(Long userId, VectorStatus vectorStatus);
