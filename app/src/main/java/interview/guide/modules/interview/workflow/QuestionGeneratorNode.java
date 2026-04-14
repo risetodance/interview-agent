@@ -120,9 +120,24 @@ public class QuestionGeneratorNode {
                     log.info("解析selectedPerspectives成功: {}", selectedPerspectives);
 
                     if (selectedPerspectives != null && !selectedPerspectives.isEmpty()) {
-                        // 如果没有指定视角，选择第一个
+                        // 如果没有指定视角（第一题），按权重排序选择最高的视角
                         if (selectedPerspectiveId == 0) {
+                            final Map<Long, Double> sessionWeights;
+                            if (session.getPerspectiveWeights() != null && !session.getPerspectiveWeights().isBlank()) {
+                                sessionWeights = objectMapper.readValue(
+                                        session.getPerspectiveWeights(), new TypeReference<>() {
+                                        });
+                            } else {
+                                sessionWeights = null;
+                            }
+                            selectedPerspectives.sort((p1, p2) -> {
+                                double w1 = sessionWeights != null && sessionWeights.containsKey(p1) ? sessionWeights.get(p1) : 1.0;
+                                double w2 = sessionWeights != null && sessionWeights.containsKey(p2) ? sessionWeights.get(p2) : 1.0;
+                                return Double.compare(w2, w1);
+                            });
                             selectedPerspectiveId = selectedPerspectives.getFirst();
+                            log.info("第一题按权重排序选取视角: selectedPerspectives={}, sessionWeights={}, chosenId={}",
+                                    selectedPerspectives, sessionWeights, selectedPerspectiveId);
                         }
 
                         log.info("即将查询视角: selectedPerspectiveId={}", selectedPerspectiveId);

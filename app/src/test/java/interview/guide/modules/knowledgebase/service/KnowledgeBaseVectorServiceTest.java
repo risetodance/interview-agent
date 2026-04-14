@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,10 +48,13 @@ class KnowledgeBaseVectorServiceTest {
     @Mock
     private VectorRepository vectorRepository;
 
+    @Mock
+    private JdbcTemplate jdbcTemplate;
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        vectorService = new KnowledgeBaseVectorService(vectorStore, vectorRepository);
+        vectorService = new KnowledgeBaseVectorService(vectorStore, vectorRepository,jdbcTemplate);
     }
 
     // ==================== 共享辅助方法 ====================

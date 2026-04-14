@@ -62,32 +62,32 @@ public interface QuestionRepository extends JpaRepository<QuestionEntity, Long> 
     List<QuestionEntity> findRandomQuestionsByBankIds(@Param("bankIds") List<Long> bankIds, @Param("limit") int limit);
 
     /**
-     * 全文搜索题目（使用 PostgreSQL 全文检索，按用户ID过滤通过QuestionBank关联）
+     * 全文搜索题目（使用 ParadeDB pg_search BM25 检索，按用户ID过滤通过QuestionBank关联）
      * 按相关性排序返回结果
      */
     @Query(value = """
-        SELECT q.*, ts_rank(q.content_tsv, plainto_tsquery('simple', :keywords)) AS rank
+        SELECT q.*
         FROM questions q
         INNER JOIN question_banks qb ON q.question_bank_id = qb.id
         WHERE qb.user_id = :userId
-          AND q.content_tsv @@ plainto_tsquery('simple', :keywords)
-        ORDER BY rank DESC
+          AND q.content @@@ :keywords
+        ORDER BY paradedb.score(q.id) DESC
         LIMIT :limit
         """, nativeQuery = true)
     List<QuestionEntity> fullTextSearch(@Param("userId") Long userId, @Param("keywords") String keywords, @Param("limit") int limit);
 
     /**
-     * 全文搜索题目（使用 PostgreSQL 全文检索，支持难度过滤，按用户ID过滤通过QuestionBank关联）
+     * 全文搜索题目（使用 ParadeDB pg_search BM25 检索，支持难度过滤，按用户ID过滤通过QuestionBank关联）
      * 按相关性排序返回结果
      */
     @Query(value = """
-        SELECT q.*, ts_rank(q.content_tsv, plainto_tsquery('simple', :keywords)) AS rank
+        SELECT q.*
         FROM questions q
         INNER JOIN question_banks qb ON q.question_bank_id = qb.id
         WHERE qb.user_id = :userId
-          AND q.content_tsv @@ plainto_tsquery('simple', :keywords)
+          AND q.content @@@ :keywords
           AND (:difficulty IS NULL OR q.difficulty = :difficulty)
-        ORDER BY rank DESC
+        ORDER BY paradedb.score(q.id) DESC
         LIMIT :limit
         """, nativeQuery = true)
     List<QuestionEntity> fullTextSearchWithDifficulty(

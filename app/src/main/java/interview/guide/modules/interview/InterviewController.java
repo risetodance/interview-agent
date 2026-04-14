@@ -86,22 +86,6 @@ public class InterviewController {
         return Result.success(question);
     }
 
-    /**
-     * 提交答案（自适应难度版本）
-     */
-    @PostMapping("/api/interview/sessions/{sessionId}/answers")
-    @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL}, count = 10)
-    public Result<SubmitAnswerResponse> submitAnswer(
-            @CurrentUser Long userId,
-            @PathVariable String sessionId,
-            @RequestBody Map<String, Object> body) {
-        sessionService.validateSessionOwnership(userId, sessionId);
-        Integer questionIndex = (Integer) body.get("questionIndex");
-        String answer = (String) body.get("answer");
-        log.info("提交答案: 用户{}, 会话{}, 问题{}", userId, sessionId, questionIndex);
-        SubmitAnswerResponse response = sessionService.submitAnswerForAdaptive(sessionId, questionIndex, answer);
-        return Result.success(response);
-    }
 
     /**
      * 查询面试评估状态（轻量级接口，不触发评估）

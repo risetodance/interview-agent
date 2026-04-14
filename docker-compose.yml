@@ -32,10 +32,10 @@ services:
       retries: 5
 
   # =========================================
-  # PostgreSQL 数据库服务（带 pgvector 扩展）
+  # PostgreSQL 数据库服务（带 pgvector + pg_search 扩展）
   # =========================================
   postgres:
-    image: pgvector/pgvector:pg16
+    image: paradedb/paradedb:latest
     container_name: interview-postgres
     restart: unless-stopped
     mem_limit: 512m
@@ -50,7 +50,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - ${POSTGRES_DATA_DIR}:/var/lib/postgresql/data
+      - ${POSTGRES_DATA_DIR}:/var/lib/postgresql
       - ${POSTGRES_LOGS_DIR}:/var/log/postgresql
     command: >
       -c shared_buffers=128MB

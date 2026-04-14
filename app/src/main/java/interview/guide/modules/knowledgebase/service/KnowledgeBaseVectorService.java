@@ -1,44 +1,56 @@
 package interview.guide.modules.knowledgebase.service;
 
 import interview.guide.modules.knowledgebase.repository.VectorRepository;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TextSplitter;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
  * 知识库向量存储服务
  * 负责文档分块、向量化和检索
+ * 实现混合检索：向量搜索 + BM25 全文搜索 + RRF 重排序
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class KnowledgeBaseVectorService {
-    
+
     /**
      * 阿里云 DashScope Embedding API 批量大小限制
      */
     private static final int MAX_BATCH_SIZE = 10;
+
+    /**
+     * RRF 融合公式参数：k 值越小排名越靠前的结果权重越大
+     */
+    private static final int RRF_K = 60;
+
     private final VectorStore vectorStore;
-    private final TextSplitter textSplitter;
     private final VectorRepository vectorRepository;
-    public KnowledgeBaseVectorService(VectorStore vectorStore, VectorRepository vectorRepository) {
-        this.vectorStore = vectorStore;
-        this.vectorRepository = vectorRepository;
-        // 使用TokenTextSplitter，每个chunk约500 tokens，重叠50 tokens
+    private final JdbcTemplate jdbcTemplate;
+    private TextSplitter textSplitter;
+
+    @PostConstruct
+    public void init() {
         this.textSplitter = new TokenTextSplitter();
     }
+
     /**
      * 将知识库内容向量化并存储
+     *
      * @param knowledgeBaseId 知识库ID
-     * @param content 知识库文本内容
+     * @param content         知识库文本内容
      */
     @Transactional
     public void vectorizeAndStore(Long knowledgeBaseId, String content) {
@@ -46,14 +58,14 @@ public class KnowledgeBaseVectorService {
         try {
             // 1. 先删除该知识库的旧向量数据
             deleteByKnowledgeBaseId(knowledgeBaseId);
-            
+
             // 2. 将文本分块
             List<Document> chunks = textSplitter.apply(
-                List.of(new Document(content))
+                    List.of(new Document(content))
             );
-            
+
             log.info("文本分块完成: {} 个chunks", chunks.size());
-            
+
             // 3. 为每个chunk添加metadata（知识库ID）
             // 统一使用 String 类型存储，确保查询一致性
             chunks.forEach(chunk -> chunk.getMetadata().put("kb_id", knowledgeBaseId.toString()));
@@ -76,23 +88,48 @@ public class KnowledgeBaseVectorService {
             throw new RuntimeException("向量化知识库失败: " + e.getMessage(), e);
         }
     }
-    
+
     /**
-     * 基于多个知识库进行相似度搜索
-     * 
-     * @param query 查询文本
+     * 基于多个知识库进行混合检索（向量搜索 + BM25 全文搜索 + RRF 重排序）
+     *
+     * @param query            查询文本
      * @param knowledgeBaseIds 知识库ID列表（如果为空则搜索所有）
-     * @param topK 返回top K个结果
+     * @param topK             返回top K个结果
+     * @param minScore         最小相似度分数
      * @return 相关文档列表
      */
     public List<Document> similaritySearch(String query, List<Long> knowledgeBaseIds, int topK, double minScore) {
-        log.info("向量相似度搜索: query={}, kbIds={}, topK={}, minScore={}",
-            query, knowledgeBaseIds, topK, minScore);
-        
+        log.info("混合检索开始: query={}, kbIds={}, topK={}, minScore={}",
+                query, knowledgeBaseIds, topK, minScore);
+
+        try {
+            // 并行执行向量搜索和 BM25 搜索
+            List<Document> vectorResults = vectorSearch(query, knowledgeBaseIds, topK * 3, minScore);
+            List<Document> bm25Results = bm25Search(query, knowledgeBaseIds, topK * 3);
+
+            log.info("搜索完成: 向量搜索={}条, BM25搜索={}条",
+                    vectorResults.size(), bm25Results.size());
+
+            // 使用 RRF 融合两种搜索结果
+            List<Document> fusedResults = reciprocalRankFusion(vectorResults, bm25Results, topK);
+
+            log.info("RRF 融合完成: 最终返回 {} 个结果", fusedResults.size());
+            return fusedResults;
+
+        } catch (Exception e) {
+            log.warn("混合检索失败，回退到向量搜索: {}", e.getMessage());
+            return vectorSearch(query, knowledgeBaseIds, topK, minScore);
+        }
+    }
+
+    /**
+     * 向量相似度搜索
+     */
+    private List<Document> vectorSearch(String query, List<Long> knowledgeBaseIds, int topK, double minScore) {
         try {
             SearchRequest.Builder builder = SearchRequest.builder()
-                .query(query)
-                .topK(Math.max(topK, 1));
+                    .query(query)
+                    .topK(Math.max(topK, 1));
 
             if (minScore > 0) {
                 builder.similarityThreshold(minScore);
@@ -102,81 +139,217 @@ public class KnowledgeBaseVectorService {
                 builder.filterExpression(buildKbFilterExpression(knowledgeBaseIds));
             }
 
-            List<Document> results = vectorStore.similaritySearch(builder.build());
-            if (results == null) {
-                return List.of();
-            }
-            
-            log.info("搜索完成: 找到 {} 个相关文档", results.size());
-            return results;
-            
+            return vectorStore.similaritySearch(builder.build());
         } catch (Exception e) {
-            log.warn("向量搜索前置过滤失败，回退到本地过滤: {}", e.getMessage());
-            return similaritySearchFallback(query, knowledgeBaseIds, topK, minScore);
+            log.warn("向量搜索失败: {}", e.getMessage());
+            return List.of();
         }
     }
 
-    private List<Document> similaritySearchFallback(String query, List<Long> knowledgeBaseIds, int topK, double minScore) {
-        try {
-            // 回退检索仍保留 topK/minScore，避免兜底路径引入过多弱相关命中
-            SearchRequest.Builder builder = SearchRequest.builder()
-                .query(query)
-                .topK(Math.max(topK * 3, topK));
-            if (minScore > 0) {
-                builder.similarityThreshold(minScore);
-            }
+    /**
+     * BM25 全文搜索（使用 ParadeDB pg_search 的 @@@ 运算符）
+     * 使用 SearchRequest.Builder 风格的链式调用构建查询
+     */
+    private List<Document> bm25Search(String query, List<Long> knowledgeBaseIds, int topK) {
+        if (query == null || query.isBlank()) {
+            return List.of();
+        }
 
-            List<Document> allResults = vectorStore.similaritySearch(builder.build());
-            if (allResults == null || allResults.isEmpty()) {
+        try {
+            // 检查 pg_search 扩展是否可用
+            if (!isPgSearchAvailable()) {
+                log.debug("pg_search 扩展不可用，跳过 BM25 搜索");
                 return List.of();
             }
 
+            // 使用 Builder 模式构建 BM25 查询
+            Bm25SearchRequest request = Bm25SearchRequest.builder()
+                    .query(query)
+                    .topK(topK)
+                    .knowledgeBaseIds(knowledgeBaseIds);
+
+            // 执行查询
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(request.getSql(), request.getParams().toArray());
+
+            // 转换为 Document 对象
+            List<Document> results = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                String id = (String) row.get("id");
+                String content = (String) row.get("content");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> metadata = (Map<String, Object>) row.get("metadata");
+                Double rank = ((Number) row.get("rank")).doubleValue();
+
+                if (content != null) {
+                    Document doc = new Document(id, content, metadata != null ? metadata : new HashMap<>());
+                    doc.getMetadata().put("bm25_rank", rank);
+                    doc.getMetadata().put("score_source", "bm25");
+                    results.add(doc);
+                }
+            }
+
+            log.debug("BM25 搜索完成: 找到 {} 条结果", results.size());
+            return results;
+
+        } catch (Exception e) {
+            log.warn("BM25 搜索失败: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * BM25 搜索请求构建器
+     * 使用 Builder 模式提供清晰的 SQL 和参数构建
+     */
+    private static class Bm25SearchRequest {
+        private String query;
+        private int topK;
+        private List<Long> knowledgeBaseIds;
+
+        private Bm25SearchRequest() {
+        }
+
+        public static Bm25SearchRequest builder() {
+            return new Bm25SearchRequest();
+        }
+
+        public Bm25SearchRequest query(String query) {
+            this.query = query;
+            return this;
+        }
+
+        public Bm25SearchRequest topK(int topK) {
+            this.topK = topK;
+            return this;
+        }
+
+        public Bm25SearchRequest knowledgeBaseIds(List<Long> knowledgeBaseIds) {
+            this.knowledgeBaseIds = knowledgeBaseIds;
+            return this;
+        }
+
+        public String getSql() {
+            StringBuilder sql = new StringBuilder();
+            sql.append("SELECT id, content, metadata, paradedb.score(id) AS rank ");
+            sql.append("FROM vector_store ");
+            sql.append("WHERE content @@@ ? ");
+
+            // 添加知识库过滤
             if (knowledgeBaseIds != null && !knowledgeBaseIds.isEmpty()) {
-                allResults = allResults.stream()
-                    .filter(doc -> isDocInKnowledgeBases(doc, knowledgeBaseIds))
-                    .collect(Collectors.toList());
+                sql.append(" AND (")
+                        .append("metadata->>'kb_id' = ANY(string_to_array(?, ',', ''))::bigint[]")
+                        .append(" OR ")
+                        .append("(metadata->>'kb_id_long' IS NOT NULL AND (metadata->>'kb_id_long')::bigint = ANY(string_to_array(?, ',', ''))::bigint[])")
+                        .append(")");
             }
 
-            List<Document> results = allResults.stream()
-                .limit(topK)
-                .collect(Collectors.toList());
+            sql.append(" ORDER BY rank DESC LIMIT ?");
+            return sql.toString();
+        }
 
-            log.info("回退检索完成: 找到 {} 个相关文档", results.size());
-            return results;
-        } catch (Exception e) {
-            log.error("向量搜索失败: {}", e.getMessage(), e);
-            throw new RuntimeException("向量搜索失败: " + e.getMessage(), e);
+        public List<Object> getParams() {
+            List<Object> params = new ArrayList<>();
+            params.add(query);
+            if (knowledgeBaseIds != null && !knowledgeBaseIds.isEmpty()) {
+                String kbIdsStr = String.join(",", knowledgeBaseIds.stream()
+                        .filter(Objects::nonNull)
+                        .map(String::valueOf)
+                        .toList());
+                params.add(kbIdsStr);
+                params.add(kbIdsStr);
+            }
+            params.add(topK);
+            return params;
         }
     }
 
-    private boolean isDocInKnowledgeBases(Document doc, List<Long> knowledgeBaseIds) {
-        Object kbId = doc.getMetadata().get("kb_id");
-        if (kbId == null) {
-            return false;
-        }
+    /**
+     * 检查 pg_search 扩展是否可用
+     */
+    private boolean isPgSearchAvailable() {
         try {
-            Long kbIdLong = kbId instanceof Long
-                ? (Long) kbId
-                : Long.parseLong(kbId.toString());
-            return knowledgeBaseIds.contains(kbIdLong);
-        } catch (NumberFormatException e) {
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM pg_extension WHERE extname = 'pg_search'",
+                    Integer.class
+            );
+            return count != null && count > 0;
+        } catch (Exception e) {
+            log.debug("检查 pg_search 扩展失败: {}", e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * RRF (Reciprocal Rank Fusion) 融合算法
+     * 将两个不同搜索方法的结果按排名融合
+     */
+    private List<Document> reciprocalRankFusion(List<Document> vectorResults, List<Document> bm25Results, int topK) {
+        if (vectorResults.isEmpty() && bm25Results.isEmpty()) {
+            return List.of();
+        }
+
+        if (vectorResults.isEmpty()) {
+            return bm25Results.stream().limit(topK).collect(Collectors.toList());
+        }
+
+        if (bm25Results.isEmpty()) {
+            return vectorResults.stream().limit(topK).collect(Collectors.toList());
+        }
+
+        // 为每个结果分配排名分数
+        Map<String, Double> scores = new HashMap<>();
+        Map<String, Document> docMap = new HashMap<>();
+
+        // 向量搜索结果的 RRF 分数
+        setAndMergeDocuments(vectorResults, scores, docMap);
+
+        // BM25 搜索结果的 RRF 分数
+        setAndMergeDocuments(bm25Results, scores, docMap);
+
+        // 按分数降序排序
+        return scores.entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .limit(topK)
+                .map(entry -> docMap.get(entry.getKey()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    private void setAndMergeDocuments(List<Document> documents, Map<String, Double> scores, Map<String, Document> docMap) {
+        for (int i = 0; i < documents.size(); i++) {
+            Document doc = documents.get(i);
+            String docId = getDocId(doc);
+            double rrfScore = 1.0 / (RRF_K + i + 1);
+            scores.merge(docId, rrfScore, Double::sum);
+            docMap.put(docId, doc);
+        }
+    }
+
+    /**
+     * 获取文档的唯一标识符
+     */
+    private String getDocId(Document doc) {
+        // 优先使用 id 字段
+        if (!doc.getId().isBlank()) {
+            return doc.getId();
+        }
+        // 否则使用 content 的 hash
+        return String.valueOf(doc.getText().hashCode());
     }
 
     private String buildKbFilterExpression(List<Long> knowledgeBaseIds) {
         String values = knowledgeBaseIds.stream()
-            .filter(Objects::nonNull)
-            .map(String::valueOf)
-            .map(id -> "'" + id + "'")
-            .collect(Collectors.joining(", "));
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .map(id -> "'" + id + "'")
+                .collect(Collectors.joining(", "));
         return "kb_id in [" + values + "]";
     }
-    
+
     /**
      * 删除指定知识库的所有向量数据
      * 委托给 VectorRepository 处理
-     * 
+     *
      * @param knowledgeBaseId 知识库ID
      */
     @Transactional(rollbackFor = Exception.class)
@@ -185,9 +358,6 @@ public class KnowledgeBaseVectorService {
             vectorRepository.deleteByKnowledgeBaseId(knowledgeBaseId);
         } catch (Exception e) {
             log.error("删除向量数据失败: kbId={}, error={}", knowledgeBaseId, e.getMessage(), e);
-            // 不抛出异常，允许继续执行其他删除操作
-            // 如果确实需要严格保证，可以取消下面的注释
-            // throw new RuntimeException("删除向量数据失败: " + e.getMessage(), e);
         }
     }
 }
