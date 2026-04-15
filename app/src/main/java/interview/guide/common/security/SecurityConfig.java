@@ -91,6 +91,8 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         // SSE stream 接口（通过 URL 参数传递 token 验证）
                         .requestMatchers("/api/interview/sessions/*/stream").permitAll()
+                        // RAG chat 流式接口（permitAll，在接口内通过 @CurrentUser 校验用户）
+                        .requestMatchers("/api/rag-chat/sessions/*/messages/stream").permitAll()
                         // 管理后台接口白名单（不需要 ADMIN 权限）
                         .requestMatchers(adminWhitelist.toArray(new String[0])).permitAll()
                         // 管理后台接口需要管理员角色

@@ -451,7 +451,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
   };
 
   return (
-    <div className="max-w-7xl mx-auto pt-8 pb-10 px-4">
+    <div className="max-w-7xl mx-auto pt-8 pb-10 px-4 h-screen overflow-hidden flex flex-col">
       {/* 头部 */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -478,7 +478,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
         </div>
       </div>
 
-      <div className="flex gap-4 h-[calc(100vh-10rem)]">
+      <div className="flex gap-4 flex-1 min-h-0">
         {/* 左侧：对话历史 */}
         <AnimatePresence mode="wait">
           {leftPanelOpen && (

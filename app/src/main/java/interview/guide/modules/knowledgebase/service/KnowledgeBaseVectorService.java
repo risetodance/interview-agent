@@ -1,18 +1,26 @@
 package interview.guide.modules.knowledgebase.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import interview.guide.modules.knowledgebase.repository.VectorRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.postgresql.util.PGobject;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TextSplitter;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
+import org.springframework.ai.util.JacksonUtils;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -40,11 +48,58 @@ public class KnowledgeBaseVectorService {
     private final VectorRepository vectorRepository;
     private final JdbcTemplate jdbcTemplate;
     private TextSplitter textSplitter;
+    private JsonMapper objectMapper;
+    private DocumentRowMapper documentRowMapper;
 
     @PostConstruct
     public void init() {
+        this.objectMapper = JsonMapper.builder().addModules(JacksonUtils.instantiateAvailableModules()).build();
+        this.documentRowMapper = new DocumentRowMapper(this.objectMapper);
         this.textSplitter = new TokenTextSplitter();
     }
+
+    private record DocumentRowMapper(ObjectMapper objectMapper) implements RowMapper<Document> {
+
+            private static final String COLUMN_METADATA = "metadata";
+
+            private static final String COLUMN_ID = "id";
+
+            private static final String COLUMN_CONTENT = "content";
+
+
+            private static final String RANK = "rank";
+
+            private static final String BM25 = "BM25";
+
+
+        @Override
+            public Document mapRow(ResultSet rs, int rowNum) throws SQLException {
+                String id = rs.getString(COLUMN_ID);
+                String content = rs.getString(COLUMN_CONTENT);
+                PGobject pgMetadata = rs.getObject(COLUMN_METADATA, PGobject.class);
+
+                Map<String, Object> metadata = toMap(pgMetadata);
+                metadata.put("bm25_rank", RANK);
+                metadata.put("score_source", BM25);
+
+                return Document.builder()
+                        .id(id)
+                        .text(content)
+                        .metadata(metadata)
+                        .build();
+            }
+
+            private Map<String, Object> toMap(PGobject pgObject) {
+
+                String source = pgObject.getValue();
+                try {
+                    return (Map<String, Object>) this.objectMapper.readValue(source, Map.class);
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+        }
 
     /**
      * 将知识库内容向量化并存储
@@ -113,7 +168,7 @@ public class KnowledgeBaseVectorService {
             // 使用 RRF 融合两种搜索结果
             List<Document> fusedResults = reciprocalRankFusion(vectorResults, bm25Results, topK);
 
-            log.info("RRF 融合完成: 最终返回 {} 个结果", fusedResults.size());
+            log.info("RRF 融合完成: 最终返回 {} 个结果,结果为:{}", fusedResults.size(), fusedResults);
             return fusedResults;
 
         } catch (Exception e) {
@@ -169,30 +224,12 @@ public class KnowledgeBaseVectorService {
                     .knowledgeBaseIds(knowledgeBaseIds);
 
             // 执行查询
-            List<Map<String, Object>> rows = jdbcTemplate.queryForList(request.getSql(), request.getParams().toArray());
-
-            // 转换为 Document 对象
-            List<Document> results = new ArrayList<>();
-            for (Map<String, Object> row : rows) {
-                String id = (String) row.get("id");
-                String content = (String) row.get("content");
-                @SuppressWarnings("unchecked")
-                Map<String, Object> metadata = (Map<String, Object>) row.get("metadata");
-                Double rank = ((Number) row.get("rank")).doubleValue();
-
-                if (content != null) {
-                    Document doc = new Document(id, content, metadata != null ? metadata : new HashMap<>());
-                    doc.getMetadata().put("bm25_rank", rank);
-                    doc.getMetadata().put("score_source", "bm25");
-                    results.add(doc);
-                }
-            }
-
-            log.debug("BM25 搜索完成: 找到 {} 条结果", results.size());
-            return results;
+            List<Document> documents = jdbcTemplate.query(request.getSql(), this.documentRowMapper, request.getParams().toArray());
+            log.debug("BM25 搜索完成: 找到 {} 条结果", documents.size());
+            return documents;
 
         } catch (Exception e) {
-            log.warn("BM25 搜索失败: {}", e.getMessage());
+            log.error("BM25 搜索失败: ", e);
             return List.of();
         }
     }
@@ -214,6 +251,9 @@ public class KnowledgeBaseVectorService {
         }
 
         public Bm25SearchRequest query(String query) {
+            query = query == null ? "" : query
+                    // 默认按空格分词
+                    .replace("|", " ");
             this.query = query;
             return this;
         }
@@ -234,13 +274,14 @@ public class KnowledgeBaseVectorService {
             sql.append("FROM vector_store ");
             sql.append("WHERE content @@@ ? ");
 
-            // 添加知识库过滤
+            // 使用 JSONPath 语法过滤 kb_id
             if (knowledgeBaseIds != null && !knowledgeBaseIds.isEmpty()) {
-                sql.append(" AND (")
-                        .append("metadata->>'kb_id' = ANY(string_to_array(?, ',', ''))::bigint[]")
-                        .append(" OR ")
-                        .append("(metadata->>'kb_id_long' IS NOT NULL AND (metadata->>'kb_id_long')::bigint = ANY(string_to_array(?, ',', ''))::bigint[])")
-                        .append(")");
+                StringJoiner joiner = new StringJoiner(" || $.", "($.", ")");
+                for (Long kbId : knowledgeBaseIds) {
+                    joiner.add("kb_id == \"" + kbId + "\"");
+                }
+                String jsonPathCondition = joiner.toString();
+                sql.append(" AND metadata::jsonb @@ '").append(jsonPathCondition).append("'::jsonpath");
             }
 
             sql.append(" ORDER BY rank DESC LIMIT ?");
@@ -250,14 +291,6 @@ public class KnowledgeBaseVectorService {
         public List<Object> getParams() {
             List<Object> params = new ArrayList<>();
             params.add(query);
-            if (knowledgeBaseIds != null && !knowledgeBaseIds.isEmpty()) {
-                String kbIdsStr = String.join(",", knowledgeBaseIds.stream()
-                        .filter(Objects::nonNull)
-                        .map(String::valueOf)
-                        .toList());
-                params.add(kbIdsStr);
-                params.add(kbIdsStr);
-            }
             params.add(topK);
             return params;
         }
@@ -321,7 +354,10 @@ public class KnowledgeBaseVectorService {
             String docId = getDocId(doc);
             double rrfScore = 1.0 / (RRF_K + i + 1);
             scores.merge(docId, rrfScore, Double::sum);
-            docMap.put(docId, doc);
+            docMap.merge(docId, doc, (doc1, doc2) -> {
+                doc1.getMetadata().putAll(doc2.getMetadata());
+                return doc1;
+            });
         }
     }
 

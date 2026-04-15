@@ -25,6 +25,6 @@
   "directionMatch": true/false,
   "matchReason": "匹配/不匹配原因",
   "needSearch": true/false,
-  "keywords": "共用关键字（题库全文搜索、知识库向量搜索、Web搜索共用）",
+  "keywords": ["共用关键字1（题库全文搜索、知识库向量搜索、Web搜索共用）", "共用关键字2（题库全文搜索、知识库向量搜索、Web搜索共用）", "共用关键字3（题库全文搜索、知识库向量搜索、Web搜索共用）"],
   "reason": "搜索决策原因"
 }

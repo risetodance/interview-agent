@@ -104,14 +104,11 @@ public class SingleAnswerEvaluationService {
         log.info("开始评估答案: category={}, difficulty={}, perspective={}", category, difficulty, perspectiveName);
 
         try {
-            // 构建系统提示词：使用视角prompt替换占位符
-            String baseSystemPrompt = systemPromptTemplate.render();
-            String systemPrompt = getSystemPrompt(perspectivePrompt, baseSystemPrompt);
-
             Map<String, Object> variables = new HashMap<>();
             variables.put("question", question);
             variables.put("category", category);
             variables.put("difficulty", difficulty);
+            variables.put("role", perspectivePrompt);
             variables.put("userAnswer", userAnswer != null ? userAnswer : "");
             variables.put("resumeText", resumeText != null ? resumeText : "无简历信息");
 
@@ -123,6 +120,7 @@ public class SingleAnswerEvaluationService {
             }
 
             String userPrompt = userPromptTemplate.render(variables);
+            String systemPrompt = systemPromptTemplate.render(variables);
 
             String systemPromptWithFormat = systemPrompt + "\n\n" + outputConverter.getFormat();
 

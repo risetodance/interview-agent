@@ -1,5 +1,6 @@
 package interview.guide.modules.knowledgebase.service;
 
+import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.knowledgebase.model.QueryRequest;
@@ -7,6 +8,7 @@ import interview.guide.modules.knowledgebase.model.QueryResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -44,6 +46,8 @@ public class KnowledgeBaseQueryService {
     private final PromptTemplate systemPromptTemplate;
     private final PromptTemplate userPromptTemplate;
     private final PromptTemplate rewritePromptTemplate;
+    private final StructuredOutputInvoker structuredOutputInvoker;
+    private final BeanOutputConverter<RewrittenQuestion> outputConverter;
     private final boolean rewriteEnabled;
     private final int shortQueryLength;
     private final int topkShort;
@@ -52,11 +56,15 @@ public class KnowledgeBaseQueryService {
     private final double minScoreShort;
     private final double minScoreDefault;
 
+    private record RewrittenQuestion(String rewrittenQuestion) {
+    }
+
     public KnowledgeBaseQueryService(
             ChatClient.Builder chatClientBuilder,
             KnowledgeBaseVectorService vectorService,
             KnowledgeBaseListService listService,
             KnowledgeBaseCountService countService,
+            StructuredOutputInvoker structuredOutputInvoker,
             @Value("classpath:prompts/knowledgebase-query-system.st") Resource systemPromptResource,
             @Value("classpath:prompts/knowledgebase-query-user.st") Resource userPromptResource,
             @Value("classpath:prompts/knowledgebase-query-rewrite.st") Resource rewritePromptResource,
@@ -71,9 +79,11 @@ public class KnowledgeBaseQueryService {
         this.vectorService = vectorService;
         this.listService = listService;
         this.countService = countService;
+        this.structuredOutputInvoker = structuredOutputInvoker;
         this.systemPromptTemplate = new PromptTemplate(systemPromptResource.getContentAsString(StandardCharsets.UTF_8));
         this.userPromptTemplate = new PromptTemplate(userPromptResource.getContentAsString(StandardCharsets.UTF_8));
         this.rewritePromptTemplate = new PromptTemplate(rewritePromptResource.getContentAsString(StandardCharsets.UTF_8));
+        this.outputConverter = new BeanOutputConverter<>(RewrittenQuestion.class);
         this.rewriteEnabled = rewriteEnabled;
         this.shortQueryLength = shortQueryLength;
         this.topkShort = topkShort;
@@ -290,10 +300,19 @@ public class KnowledgeBaseQueryService {
             Map<String, Object> variables = new HashMap<>();
             variables.put("question", question);
             String rewritePrompt = rewritePromptTemplate.render(variables);
-            String rewritten = chatClient.prompt()
-                .user(rewritePrompt)
-                .call()
-                .content();
+            String systemPromptWithFormat = outputConverter.getFormat();
+
+            RewrittenQuestion dto = structuredOutputInvoker.invoke(
+                chatClient,
+                systemPromptWithFormat,
+                rewritePrompt,
+                outputConverter,
+                ErrorCode.KNOWLEDGE_BASE_QUERY_FAILED,
+                "Query rewrite 失败：",
+                "结构化Query rewrite",
+                log
+            );
+            String rewritten = dto.rewrittenQuestion();
             if (rewritten == null || rewritten.isBlank()) {
                 return question;
             }
@@ -301,7 +320,7 @@ public class KnowledgeBaseQueryService {
             log.info("Query rewrite: origin='{}', rewritten='{}'", question, normalized);
             return normalized;
         } catch (Exception e) {
-            log.warn("Query rewrite 失败，使用原问题继续检索: {}", e.getMessage());
+            log.warn("Query rewrite 失败，使用原问题继续检索: {}", e.getMessage(), e);
             return question;
         }
     }

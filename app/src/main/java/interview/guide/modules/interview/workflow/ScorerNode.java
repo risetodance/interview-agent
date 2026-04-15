@@ -26,7 +26,6 @@ import java.util.Optional;
 public class ScorerNode {
 
     private final SingleAnswerEvaluationService singleAnswerEvaluationService;
-    private final DifficultyAdjustmentService difficultyAdjustmentService;
     private final InterviewPersistenceService persistenceService;
     private final InterviewerRoleRepository interviewerRoleRepository;
 

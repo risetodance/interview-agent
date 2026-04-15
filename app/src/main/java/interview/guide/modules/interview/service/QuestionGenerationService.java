@@ -161,7 +161,7 @@ public class QuestionGenerationService {
 
             // 传入历史记录，让AI根据简历内容自行决定问题类型
             String userPromptText = buildUserPrompt(resumeText, difficulty, referenceContext, questionIndex,
-                    history, perspectiveName, perspectivePrompt, questionDirection);
+                    history, perspectiveName, questionDirection);
 
             // 调用 AI 生成
             SimpleQuestionDTO result = structuredOutputInvoker.invoke(
@@ -224,19 +224,12 @@ public class QuestionGenerationService {
                                    String referenceContext, int questionIndex,
                                    List<AnswerHistoryDTO> history,
                                    String perspectiveName,
-                                   String perspectivePrompt,
                                    String questionDirection) {
         StringBuilder prompt = new StringBuilder();
 
         // 根据是否有视角信息决定面试官身份
         if (perspectiveName != null && !perspectiveName.isBlank()) {
-            prompt.append("你是一位").append(perspectiveName).append("。");
-            // 拼接面试官专门的出题prompt
-            if (perspectivePrompt != null && !perspectivePrompt.isBlank()) {
-                prompt.append(perspectivePrompt).append("\n\n");
-            } else {
-                prompt.append("请根据候选人的简历内容，从本角色的视角出发，考察候选人的相关能力。\n\n");
-            }
+            prompt.append("你是一位").append(perspectiveName).append("。\n\n");
         } else {
             prompt.append("你是一个专业的技术面试官。请根据候选人的简历内容，自动选择一个最合适的技术方向来考察该候选人。\n\n");
         }

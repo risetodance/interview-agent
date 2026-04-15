@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -46,7 +47,7 @@ public class SearchPreparatorNode {
             boolean directionMatch,
             String matchReason,
             boolean needSearch,
-            String keywords,
+            List<String> keywords,
             String reason
     ) {
     }
@@ -128,7 +129,7 @@ public class SearchPreparatorNode {
             state.updateState(Map.of(
                     InterviewWorkflowState.DIRECTION_MATCH, decision.directionMatch(),
                     InterviewWorkflowState.SEARCH_ENABLED, decision.needSearch(),
-                    InterviewWorkflowState.SEARCH_KEYWORDS, decision.keywords() != null ? decision.keywords() : "",
+                    InterviewWorkflowState.SEARCH_KEYWORDS, decision.keywords() != null ? String.join("|", decision.keywords()) : "",
                     InterviewWorkflowState.SEARCH_DECISION_REASON, decision.reason()
             ));
 

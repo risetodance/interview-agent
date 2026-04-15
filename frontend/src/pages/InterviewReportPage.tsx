@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { perspectiveApi } from '../api/interviewerRole';
 import type { ComprehensiveReportDTO, PerspectiveDetailDTO, PerspectiveScore } from '../types/interviewerRole';
 import {
@@ -523,13 +525,21 @@ function PerspectiveReport({ detail }: { detail: PerspectiveDetailDTO }) {
                 {q.feedback && (
                   <div className="text-sm text-slate-700 bg-slate-50 rounded-lg p-3">
                     <p className="text-xs text-slate-500 mb-1">评价：</p>
-                    <p>{q.feedback}</p>
+                    <div className="prose prose-sm prose-slate max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {q.feedback}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 )}
                 {q.referenceAnswer && (
                   <div className="text-sm text-slate-700 bg-green-50 rounded-lg p-3 mt-2 border border-green-100">
                     <p className="text-xs text-green-600 mb-1 font-medium">参考答案：</p>
-                    <p className="whitespace-pre-wrap">{q.referenceAnswer}</p>
+                    <div className="prose prose-sm prose-green max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {q.referenceAnswer}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 )}
                 {q.keyPoints && q.keyPoints.length > 0 && (
