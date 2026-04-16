@@ -305,7 +305,7 @@ export default function HistoryList({ onSelectResume }: HistoryListProps) {
             icon={MessageSquare}
             label="面试总数"
             value={stats.totalInterviewCount}
-            color="bg-indigo-500"
+            color="bg-sky-500"
           />
           <StatCard
             icon={Eye}

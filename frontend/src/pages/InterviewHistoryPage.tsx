@@ -370,7 +370,7 @@ export default function InterviewHistoryPage({ onBack: _onBack, onViewInterview 
             label="平均分数"
             value={stats.averageScore}
             suffix="分"
-            color="bg-indigo-500"
+            color="bg-sky-500"
           />
         </div>
       )}

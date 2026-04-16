@@ -153,7 +153,7 @@ function ScoreCard({
   strokeDashoffset: number;
 }) {
   return (
-    <div className="bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 rounded-2xl p-8 text-white">
+    <div className="bg-gradient-to-br from-sky-600 via-sky-500 to-sky-400 rounded-2xl p-8 text-white">
       <div className="flex flex-col items-center text-center">
         {/* 圆环进度条 */}
         <div className="relative w-32 h-32 mb-6">

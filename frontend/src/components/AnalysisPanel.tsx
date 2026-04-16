@@ -123,7 +123,7 @@ export default function AnalysisPanel({
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
       '项目': 'bg-purple-100 text-purple-700',
-      '技能': 'bg-indigo-100 text-indigo-700',
+      '技能': 'bg-sky-100 text-sky-700',
       '内容': 'bg-emerald-100 text-emerald-700',
       '格式': 'bg-pink-100 text-pink-700',
       '结构': 'bg-cyan-100 text-cyan-700',

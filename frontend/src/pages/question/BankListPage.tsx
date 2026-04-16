@@ -150,8 +150,8 @@ export default function BankListPage({
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
-        <div className="flex items-center gap-4 text-sm text-slate-500">
+      <div className="mt-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 text-sm text-slate-500 whitespace-nowrap">
           <span className="flex items-center gap-1">
             <FileQuestion className="w-4 h-4" />
             {bank.questionCount} 道题目
@@ -167,7 +167,7 @@ export default function BankListPage({
             e.stopPropagation();
             handleViewQuestions(bank.id);
           }}
-          className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700"
+          className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 whitespace-nowrap"
         >
           <Eye className="w-4 h-4" />
           查看题目
@@ -237,7 +237,7 @@ export default function BankListPage({
           {systemBanks.length > 0 && (
             <div>
               <h2 className="text-lg font-semibold text-slate-900 mb-4">系统题库</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {systemBanks.map(bank => (
                   <BankCard key={bank.id} bank={bank} />
                 ))}
@@ -249,7 +249,7 @@ export default function BankListPage({
           {userBanks.length > 0 && (
             <div>
               <h2 className="text-lg font-semibold text-slate-900 mb-4">我的题库</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {userBanks.map(bank => (
                   <BankCard key={bank.id} bank={bank} />
                 ))}

@@ -154,10 +154,10 @@ export default function ScoreTrendChart({ className = '' }: ScoreTrendChartProps
               <Line
                 type="monotone"
                 dataKey="score"
-                stroke="#6366f1"
+                stroke="#0ea5e9"
                 strokeWidth={3}
-                dot={{ fill: '#6366f1', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 8, fill: '#6366f1' }}
+                dot={{ fill: '#0ea5e9', stroke: '#0ea5e9', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 8, fill: '#0ea5e9', stroke: '#0ea5e9', strokeWidth: 2 }}
                 name="score"
               />
             </LineChart>

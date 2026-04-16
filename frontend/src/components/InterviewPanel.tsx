@@ -135,13 +135,13 @@ export default function InterviewPanel({
                   }}
                   formatter={(value) => [`${value} 分`, '得分']}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="score" 
-                  stroke="#6366f1" 
+                <Line
+                  type="monotone"
+                  dataKey="score"
+                  stroke="#0ea5e9"
                   strokeWidth={3}
-                  dot={{ fill: '#6366f1', strokeWidth: 2, r: 5 }}
-                  activeDot={{ r: 8, fill: '#6366f1' }}
+                  dot={{ fill: '#0ea5e9', stroke: '#0ea5e9', strokeWidth: 2, r: 5 }}
+                  activeDot={{ r: 8, fill: '#0ea5e9', stroke: '#0ea5e9', strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>

@@ -66,8 +66,8 @@ export default function RadarChart({ data, height = 320, className = '' }: Radar
           <Radar
             name="得分"
             dataKey="score"
-            stroke="#6366f1"
-            fill="#6366f1"
+            stroke="#0ea5e9"
+            fill="#0ea5e9"
             fillOpacity={0.6}
             strokeWidth={2}
           />

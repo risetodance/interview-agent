@@ -434,7 +434,7 @@ function PerspectiveReport({ detail }: { detail: PerspectiveDetailDTO }) {
       {/* 视角信息卡片 */}
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <div className="flex items-center gap-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center text-3xl">
+          <div className="w-16 h-16 bg-gradient-to-br from-sky-500 to-sky-600 rounded-2xl flex items-center justify-center text-3xl">
             {detail.perspectiveIcon || '👤'}
           </div>
           <div className="flex-1">

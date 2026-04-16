@@ -95,7 +95,7 @@ function QuotaCard({
               initial={{ width: 0 }}
               animate={{ width: '100%' }}
               transition={{ duration: 0.8, ease: 'easeOut' }}
-              style={{ backgroundColor: color.includes('primary') ? '#6366f1' : color.includes('emerald') ? '#10b981' : '#f59e0b' }}
+              style={{ backgroundColor: color.includes('primary') ? '#0ea5e9' : color.includes('emerald') ? '#10b981' : '#f59e0b' }}
             />
           </div>
         )}

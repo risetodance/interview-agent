@@ -108,7 +108,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50">
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-sky-50">
       {/* 左侧边栏 */}
       <aside className="w-64 bg-white border-r border-slate-100 fixed h-screen left-0 top-0 z-50 flex flex-col">
         {/* Logo */}
@@ -244,7 +244,7 @@ export default function Layout() {
             </div>
           </button>
 
-          <div className="px-3 py-2 bg-gradient-to-r from-primary-50 to-indigo-50 rounded-xl">
+          <div className="px-3 py-2 bg-gradient-to-r from-primary-50 to-sky-50 rounded-xl">
             <p className="text-xs text-primary-600 font-medium">AI 面试助手 v1.0</p>
             <p className="text-xs text-slate-400 mt-0.5">Powered by AI</p>
           </div>

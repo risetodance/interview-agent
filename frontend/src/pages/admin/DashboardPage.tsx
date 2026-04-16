@@ -163,7 +163,7 @@ export default function DashboardPage() {
             icon={FileText}
             label="简历总数"
             value={stats.totalResumes}
-            color="bg-indigo-500"
+            color="bg-sky-500"
           />
           <StatCard
             icon={FileText}
