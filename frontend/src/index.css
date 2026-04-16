@@ -24,11 +24,11 @@
   html, body, #root {
     @apply h-full m-0 p-0;
   }
-  
+
   body {
     @apply font-sans antialiased bg-linear-to-br from-slate-50 to-indigo-50 text-slate-900;
   }
-  
+
   #root {
     @apply min-h-screen;
   }

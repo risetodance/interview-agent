@@ -415,7 +415,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
     if (!session) return null;
 
     return (
-      <div className="relative">
+      <div className="relative flex-1 min-h-0">
         {/* 加载下一题时的遮罩 */}
         {isLoadingQuestion && (
           <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
@@ -448,7 +448,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
   };
   
   return (
-    <div className="pb-10">
+    <div className="h-full flex flex-col">
       {/* 页面头部 */}
       <motion.div 
         className="text-center mb-10"
@@ -488,6 +488,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
+            className="flex-1 min-h-0 flex flex-col"
           >
             {renderInterview()}
           </motion.div>

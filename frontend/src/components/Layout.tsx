@@ -252,7 +252,7 @@ export default function Layout() {
       </aside>
 
       {/* 主内容区 */}
-      <main className="flex-1 ml-64 p-10 min-h-screen overflow-y-auto">
+      <main className="flex-1 ml-64 p-10 min-h-screen overflow-hidden">
         <Outlet />
       </main>
     </div>

@@ -451,7 +451,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
   };
 
   return (
-    <div className="max-w-7xl mx-auto pt-8 pb-10 px-4 h-screen overflow-hidden flex flex-col">
+    <div className="max-w-7xl mx-auto p-3 flex flex-col h-full">
       {/* 头部 */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -605,8 +605,8 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
         )}
 
         {/* 中间：聊天区域 */}
-        <div className="flex-1 min-w-0">
-          <div className="bg-white rounded-2xl shadow-sm flex flex-col h-full">
+        <div className="flex-1 min-w-0 flex flex-col h-full">
+          <div className="bg-white rounded-2xl shadow-sm flex flex-col flex-1">
             {selectedKbIds.size > 0 ? (
               <>
                 {/* 会话信息 */}
