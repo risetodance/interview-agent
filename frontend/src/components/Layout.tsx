@@ -1,11 +1,11 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Sparkles,
-  Upload,
-  FileStack,
-  Users,
-  Database,
-  MessageSquare,
+  Bot,
+  FileUp,
+  Folder,
+  ClipboardList,
+  Library,
+  MessageCircle,
   ChevronRight,
   User,
   BookOpen,
@@ -47,9 +47,9 @@ export default function Layout() {
       id: 'career',
       title: '简历与面试',
       items: [
-        { id: 'upload', path: '/upload', label: '上传简历', icon: Upload, description: 'AI 分析简历' },
-        { id: 'resumes', path: '/history', label: '简历库', icon: FileStack, description: '管理所有简历' },
-        { id: 'interviews', path: '/interviews', label: '面试记录', icon: Users, description: '查看面试历史' },
+        { id: 'upload', path: '/upload', label: '上传简历', icon: FileUp, description: 'AI智能分析简历' },
+        { id: 'resumes', path: '/history', label: '简历库', icon: Folder, description: '查看已分析简历' },
+        { id: 'interviews', path: '/interviews', label: '面试记录', icon: ClipboardList, description: '历史面试回顾' },
         { id: 'questions', path: '/questions', label: '题库管理', icon: BookOpen, description: '管理面试题库' },
       ],
     },
@@ -57,8 +57,8 @@ export default function Layout() {
       id: 'knowledge',
       title: '知识库',
       items: [
-        { id: 'kb-manage', path: '/knowledgebase', label: '知识库管理', icon: Database, description: '管理知识文档' },
-        { id: 'chat', path: '/knowledgebase/chat', label: '问答助手', icon: MessageSquare, description: '基于知识库问答' },
+        { id: 'kb-manage', path: '/knowledgebase', label: '知识库', icon: Library, description: '管理知识库文档' },
+        { id: 'chat', path: '/knowledgebase/chat', label: '问答助手', icon: MessageCircle, description: '基于知识库回答' },
       ],
     },
     {
@@ -110,16 +110,16 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-sky-50">
       {/* 左侧边栏 */}
-      <aside className="w-64 bg-white border-r border-slate-100 fixed h-screen left-0 top-0 z-50 flex flex-col">
+      <aside className="w-64 bg-white/80 backdrop-blur-xl border-r border-white/20 fixed h-screen left-0 top-0 z-50 flex flex-col shadow-xl">
         {/* Logo */}
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-5 border-b border-white/20 flex items-center justify-between">
           <Link to="/upload" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
-              <Sparkles className="w-5 h-5" />
+            <div className="w-10 h-10 bg-gradient-to-br from-sky-400/80 to-sky-500/80 backdrop-blur-lg rounded-xl flex items-center justify-center text-white shadow-lg shadow-sky-500/30 border border-white/20">
+              <Bot className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-lg font-bold text-slate-800 tracking-tight block">AI Interview</span>
-              <span className="text-xs text-slate-400">智能面试助手</span>
+              <span className="text-lg font-bold text-slate-800 tracking-tight block">AI Assistant</span>
+              <span className="text-xs text-slate-500">智能面试助手</span>
             </div>
           </Link>
           <NotificationBell />
@@ -143,16 +143,16 @@ export default function Layout() {
                       <Link
                         key={item.id}
                         to={item.path}
-                        className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200
+                        className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300
                           ${active
-                            ? 'bg-primary-50 text-primary-600'
-                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                            ? 'bg-sky-100/60 backdrop-blur-sm border-l-2 border-sky-400 text-sky-600'
+                            : 'text-slate-600 hover:bg-white/60 backdrop-blur-sm hover:text-slate-900 border-l-2 border-transparent'
                           }`}
                       >
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300 backdrop-blur-sm
                           ${active
-                            ? 'bg-primary-100 text-primary-600'
-                            : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700'
+                            ? 'bg-sky-200/70 text-sky-600'
+                            : 'bg-slate-100/60 text-slate-500 group-hover:bg-white/80 group-hover:text-slate-700'
                           }`}
                         >
                           <item.icon className="w-5 h-5" />
@@ -168,7 +168,7 @@ export default function Layout() {
                           )}
                         </div>
                         {active && (
-                          <ChevronRight className="w-4 h-4 text-primary-400" />
+                          <ChevronRight className="w-4 h-4 text-sky-400" />
                         )}
                       </Link>
                     );
@@ -192,16 +192,16 @@ export default function Layout() {
                       <Link
                         key={item.id}
                         to={item.path}
-                        className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200
+                        className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300
                           ${active
-                            ? 'bg-primary-50 text-primary-600'
-                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                            ? 'bg-sky-100/60 backdrop-blur-sm border-l-2 border-sky-400 text-sky-600'
+                            : 'text-slate-600 hover:bg-white/60 backdrop-blur-sm hover:text-slate-900 border-l-2 border-transparent'
                           }`}
                       >
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300 backdrop-blur-sm
                           ${active
-                            ? 'bg-primary-100 text-primary-600'
-                            : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700'
+                            ? 'bg-sky-200/70 text-sky-600'
+                            : 'bg-slate-100/60 text-slate-500 group-hover:bg-white/80 group-hover:text-slate-700'
                           }`}
                         >
                           <item.icon className="w-5 h-5" />
@@ -217,7 +217,7 @@ export default function Layout() {
                           )}
                         </div>
                         {active && (
-                          <ChevronRight className="w-4 h-4 text-primary-400" />
+                          <ChevronRight className="w-4 h-4 text-sky-400" />
                         )}
                       </Link>
                     );
@@ -229,13 +229,13 @@ export default function Layout() {
         </nav>
 
         {/* 底部信息 */}
-        <div className="p-4 border-t border-slate-100 space-y-2">
+        <div className="p-4 border-t border-white/20 space-y-2">
           {/* 登出按钮 */}
           <button
             onClick={handleLogoutClick}
-            className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
+            className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:bg-red-50/60 backdrop-blur-sm hover:text-red-600 transition-all duration-300"
           >
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100 text-slate-500 group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100/60 backdrop-blur-sm text-slate-500 group-hover:bg-red-100/60 group-hover:text-red-600 transition-all duration-300">
               <LogOut className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
@@ -244,8 +244,8 @@ export default function Layout() {
             </div>
           </button>
 
-          <div className="px-3 py-2 bg-gradient-to-r from-primary-50 to-sky-50 rounded-xl">
-            <p className="text-xs text-primary-600 font-medium">AI 面试助手 v1.0</p>
+          <div className="px-3 py-3 bg-sky-100/40 backdrop-blur-lg rounded-xl border border-white/20 shadow-sm">
+            <p className="text-xs text-sky-600 font-medium">AI驱动的高效面试</p>
             <p className="text-xs text-slate-400 mt-0.5">Powered by AI</p>
           </div>
         </div>

@@ -53,11 +53,22 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 px-4 py-12">
-      {/* 背景装饰 */}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-100 via-sky-50 to-white px-4 py-12 relative overflow-hidden">
+      {/* 背景装饰 - 玻璃态圆形 */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000" />
+        <div className="absolute top-20 left-20 w-72 h-72 bg-sky-200/40 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-sky-300/30 rounded-full blur-3xl animate-pulse animation-delay-2000" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-sky-100/20 rounded-full blur-3xl" />
+      </div>
+
+      {/* 装饰性圆点 - 动画效果 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-32 right-32 w-3 h-3 bg-sky-400/60 rounded-full animate-float-1" />
+        <div className="absolute top-48 right-48 w-2 h-2 bg-sky-300/80 rounded-full animate-float-2" />
+        <div className="absolute bottom-40 left-32 w-4 h-4 bg-sky-400/50 rounded-full animate-float-3" />
+        <div className="absolute bottom-60 left-48 w-2 h-2 bg-sky-300/70 rounded-full animate-float-4" />
+        <div className="absolute top-40 left-1/4 w-2 h-2 bg-sky-400/40 rounded-full animate-float-5" />
+        <div className="absolute bottom-32 right-1/3 w-3 h-3 bg-sky-400/50 rounded-full animate-float-6" />
       </div>
 
       <motion.div

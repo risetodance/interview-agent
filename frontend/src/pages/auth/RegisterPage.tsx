@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useUser } from '../../store/user';
 import { getErrorMessage } from '../../api/request';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -94,8 +95,29 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-100 via-sky-50 to-white py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* 背景装饰 - 玻璃态圆形 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-20 w-72 h-72 bg-sky-200/40 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-sky-300/30 rounded-full blur-3xl animate-pulse animation-delay-2000" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-sky-100/20 rounded-full blur-3xl" />
+      </div>
+
+      {/* 装饰性星星 - 动画效果 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-32 right-32 w-5 h-5 bg-sky-400/60 animate-float-1" style={{clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'}} />
+        <div className="absolute top-48 right-48 w-4 h-4 bg-sky-300/80 animate-float-2" style={{clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'}} />
+        <div className="absolute bottom-40 left-32 w-6 h-6 bg-sky-400/50 animate-float-3" style={{clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'}} />
+        <div className="absolute bottom-60 left-48 w-4 h-4 bg-sky-300/70 animate-float-4" style={{clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'}} />
+        <div className="absolute top-40 left-1/4 w-3 h-3 bg-sky-400/40 animate-float-5" style={{clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'}} />
+        <div className="absolute bottom-32 right-1/3 w-5 h-5 bg-sky-400/50 animate-float-6" style={{clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'}} />
+      </div>
+        <motion.div
+        className="relative w-full max-w-md"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         {/* 标题 */}
         <div className="text-center">
           <h2 className="text-3xl font-bold text-slate-900">创建账户</h2>
@@ -108,7 +130,7 @@ export default function RegisterPage() {
         </div>
 
         {/* 表单 */}
-        <form className="mt-8 space-y-6 bg-white py-8 px-6 shadow-lg rounded-xl" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6 bg-white/80 backdrop-blur-sm py-8 px-6 shadow-lg rounded-xl border border-white/50" onSubmit={handleSubmit}>
           {/* 错误提示 */}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
@@ -128,7 +150,7 @@ export default function RegisterPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="请输入用户名（3-50个字符）"
-                className="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
+                className="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
                 disabled={loading}
               />
             </div>
@@ -144,7 +166,7 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="请输入邮箱地址"
-                className="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
+                className="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
                 disabled={loading}
               />
             </div>
@@ -161,7 +183,7 @@ export default function RegisterPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="请输入密码（6-100个字符）"
-                  className="block w-full px-4 py-3 pr-12 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
+                  className="block w-full px-4 py-3 pr-12 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
                   disabled={loading}
                 />
                 <button
@@ -187,7 +209,7 @@ export default function RegisterPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="请再次输入密码"
-                  className="block w-full px-4 py-3 pr-12 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
+                  className="block w-full px-4 py-3 pr-12 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
                   disabled={loading}
                 />
                 <button
@@ -212,7 +234,7 @@ export default function RegisterPage() {
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="请输入昵称（可选）"
-                className="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
+                className="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
                 disabled={loading}
               />
             </div>
@@ -234,7 +256,7 @@ export default function RegisterPage() {
             )}
           </button>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 }

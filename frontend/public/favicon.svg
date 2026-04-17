@@ -2,13 +2,19 @@
   <!-- 背景圆形 -->
   <rect width="32" height="32" rx="8" fill="url(#gradient)"/>
 
-  <!-- 人物图标 -->
-  <circle cx="16" cy="11" r="4" fill="white"/>
-  <path d="M9 23c0-3.866 3.134-7 7-7s7 3.134 7 7" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <!-- 机器人头部 -->
+  <rect x="8" y="10" width="16" height="14" rx="3" fill="white"/>
 
-  <!-- AI 星星装饰 -->
-  <path d="M24 6l0.5 1.5L26 8l-1.5 0.5L24 10l-0.5-1.5L22 8l1.5-0.5L24 6z" fill="#fbbf24"/>
-  <path d="M7 8l0.3 0.9L8 9.2l-0.7 0.3L7 10.4l-0.3-0.9L6 9.2l0.7-0.3L7 8z" fill="#fbbf24"/>
+  <!-- 机器人天线 -->
+  <line x1="16" y1="6" x2="16" y2="10" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="16" cy="6" r="2" fill="#38bdf8"/>
+
+  <!-- 机器人眼睛 -->
+  <circle cx="12" cy="15" r="2" fill="#0ea5e9"/>
+  <circle cx="20" cy="15" r="2" fill="#0ea5e9"/>
+
+  <!-- 机器人嘴巴 -->
+  <rect x="12" y="19" width="8" height="2" rx="1" fill="#0ea5e9"/>
 
   <!-- 渐变定义 -->
   <defs>

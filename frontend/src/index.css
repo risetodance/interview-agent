@@ -59,3 +59,53 @@ svg *:focus,
 svg *:focus-visible {
   outline-color: #0ea5e9 !important;
 }
+
+/* 登录页圆点浮动动画 */
+@keyframes float-1 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(10px, -15px); }
+  50% { transform: translate(-5px, -25px); }
+  75% { transform: translate(-15px, -10px); }
+}
+
+@keyframes float-2 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-15px, 10px); }
+  50% { transform: translate(5px, 20px); }
+  75% { transform: translate(10px, 5px); }
+}
+
+@keyframes float-3 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(8px, 12px); }
+  50% { transform: translate(-12px, 8px); }
+  75% { transform: translate(12px, -8px); }
+}
+
+@keyframes float-4 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-8px, -12px); }
+  50% { transform: translate(12px, -5px); }
+  75% { transform: translate(-5px, 12px); }
+}
+
+@keyframes float-5 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(12px, 5px); }
+  50% { transform: translate(-8px, -8px); }
+  75% { transform: translate(5px, 12px); }
+}
+
+@keyframes float-6 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-5px, 15px); }
+  50% { transform: translate(15px, -5px); }
+  75% { transform: translate(-10px, -10px); }
+}
+
+.animate-float-1 { animation: float-1 6s ease-in-out infinite; }
+.animate-float-2 { animation: float-2 7s ease-in-out infinite; }
+.animate-float-3 { animation: float-3 8s ease-in-out infinite; }
+.animate-float-4 { animation: float-4 6.5s ease-in-out infinite; }
+.animate-float-5 { animation: float-5 7.5s ease-in-out infinite; }
+.animate-float-6 { animation: float-6 8.5s ease-in-out infinite; }
