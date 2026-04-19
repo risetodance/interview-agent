@@ -109,3 +109,8 @@ svg *:focus-visible {
 .animate-float-4 { animation: float-4 6.5s ease-in-out infinite; }
 .animate-float-5 { animation: float-5 7.5s ease-in-out infinite; }
 .animate-float-6 { animation: float-6 8.5s ease-in-out infinite; }
+
+/* 动画延迟类 */
+.animation-delay-2000 {
+  animation-delay: 2s;
+}

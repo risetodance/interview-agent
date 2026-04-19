@@ -451,7 +451,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-3 flex flex-col h-full">
+    <div className="w-full flex flex-col h-full">
       {/* 头部 */}
       <div className="flex items-center justify-between mb-6">
         <div>

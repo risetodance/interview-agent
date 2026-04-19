@@ -110,16 +110,16 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-sky-50">
       {/* 左侧边栏 */}
-      <aside className="w-64 bg-white/80 backdrop-blur-xl border-r border-white/20 fixed h-screen left-0 top-0 z-50 flex flex-col shadow-xl">
+        <aside className="w-64 bg-white border-r border-gray-100 fixed h-screen left-0 top-0 z-50 flex flex-col shadow-lg">
         {/* Logo */}
-        <div className="p-5 border-b border-white/20 flex items-center justify-between">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
           <Link to="/upload" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-sky-400/80 to-sky-500/80 backdrop-blur-lg rounded-xl flex items-center justify-center text-white shadow-lg shadow-sky-500/30 border border-white/20">
+            <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-sky-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-sky-500/30">
               <Bot className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-lg font-bold text-slate-800 tracking-tight block">AI Assistant</span>
-              <span className="text-xs text-slate-500">智能面试助手</span>
+              <span className="text-lg font-bold text-gray-800 tracking-tight block">AI Assistant</span>
+              <span className="text-xs text-gray-400">智能面试助手</span>
             </div>
           </Link>
           <NotificationBell />
@@ -127,42 +127,42 @@ export default function Layout() {
 
         {/* 导航菜单 */}
         <nav className="flex-1 p-4 overflow-y-auto">
-          <div className="space-y-6">
+          <div className="space-y-5">
             {/* 管理员后台入口 */}
             {adminNav && (
               <div>
                 <div className="px-3 mb-2">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                     {adminNav.title}
                   </span>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {adminNav.items.map((item) => {
                     const active = isActive(item.path);
                     return (
                       <Link
                         key={item.id}
                         to={item.path}
-                        className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300
+                        className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200
                           ${active
-                            ? 'bg-sky-100/60 backdrop-blur-sm border-l-2 border-sky-400 text-sky-600'
-                            : 'text-slate-600 hover:bg-white/60 backdrop-blur-sm hover:text-slate-900 border-l-2 border-transparent'
+                            ? 'bg-sky-50 border-l-[3px] border-sky-500 text-sky-600'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-l-[3px] border-transparent'
                           }`}
                       >
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300 backdrop-blur-sm
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors
                           ${active
-                            ? 'bg-sky-200/70 text-sky-600'
-                            : 'bg-slate-100/60 text-slate-500 group-hover:bg-white/80 group-hover:text-slate-700'
+                            ? 'bg-sky-100 text-sky-600'
+                            : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200 group-hover:text-gray-700'
                           }`}
                         >
-                          <item.icon className="w-5 h-5" />
+                          <item.icon className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <span className={`text-sm block ${active ? 'font-semibold' : 'font-medium'}`}>
                             {item.label}
                           </span>
                           {item.description && (
-                            <span className="text-xs text-slate-400 truncate block">
+                            <span className="text-xs text-gray-400 truncate block">
                               {item.description}
                             </span>
                           )}
@@ -179,39 +179,39 @@ export default function Layout() {
             {navGroups.map((group) => (
               <div key={group.id}>
                 {/* 分组标题 */}
-                <div className="px-3 mb-2">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                <div className="px-3 mb-2 mt-4 first:mt-0">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                     {group.title}
                   </span>
                 </div>
                 {/* 分组下的导航项 */}
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {group.items.map((item) => {
                     const active = isActive(item.path);
                     return (
                       <Link
                         key={item.id}
                         to={item.path}
-                        className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300
+                        className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200
                           ${active
-                            ? 'bg-sky-100/60 backdrop-blur-sm border-l-2 border-sky-400 text-sky-600'
-                            : 'text-slate-600 hover:bg-white/60 backdrop-blur-sm hover:text-slate-900 border-l-2 border-transparent'
+                            ? 'bg-sky-50 border-l-[3px] border-sky-500 text-sky-600'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-l-[3px] border-transparent'
                           }`}
                       >
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300 backdrop-blur-sm
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors
                           ${active
-                            ? 'bg-sky-200/70 text-sky-600'
-                            : 'bg-slate-100/60 text-slate-500 group-hover:bg-white/80 group-hover:text-slate-700'
+                            ? 'bg-sky-100 text-sky-600'
+                            : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200 group-hover:text-gray-700'
                           }`}
                         >
-                          <item.icon className="w-5 h-5" />
+                          <item.icon className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <span className={`text-sm block ${active ? 'font-semibold' : 'font-medium'}`}>
                             {item.label}
                           </span>
                           {item.description && (
-                            <span className="text-xs text-slate-400 truncate block">
+                            <span className="text-xs text-gray-400 truncate block">
                               {item.description}
                             </span>
                           )}
@@ -229,31 +229,51 @@ export default function Layout() {
         </nav>
 
         {/* 底部信息 */}
-        <div className="p-4 border-t border-white/20 space-y-2">
+        <div className="p-4 border-t border-gray-100 space-y-2">
           {/* 登出按钮 */}
           <button
             onClick={handleLogoutClick}
-            className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:bg-red-50/60 backdrop-blur-sm hover:text-red-600 transition-all duration-300"
+            className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
           >
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100/60 backdrop-blur-sm text-slate-500 group-hover:bg-red-100/60 group-hover:text-red-600 transition-all duration-300">
-              <LogOut className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100 text-gray-500 group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
+              <LogOut className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
               <span className="text-sm font-medium block">退出登录</span>
-              {user && <span className="text-xs text-slate-400 truncate block">{user.username}</span>}
+              {user && <span className="text-xs text-gray-400 truncate block">{user.username}</span>}
             </div>
           </button>
 
-          <div className="px-3 py-3 bg-sky-100/40 backdrop-blur-lg rounded-xl border border-white/20 shadow-sm">
+          <div className="px-3 py-3 bg-gradient-to-r from-sky-50 to-sky-100/50 rounded-xl border border-gray-100">
             <p className="text-xs text-sky-600 font-medium">AI驱动的高效面试</p>
-            <p className="text-xs text-slate-400 mt-0.5">Powered by AI</p>
+            <p className="text-xs text-gray-400 mt-0.5">Powered by AI</p>
           </div>
         </div>
       </aside>
 
       {/* 主内容区 */}
-      <main className="flex-1 ml-64 p-10 min-h-screen overflow-hidden">
-        <Outlet />
+      <main className="flex-1 ml-64 flex flex-col min-h-screen relative">
+        {/* 背景装饰 - 玻璃态圆形 */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-1/4 w-72 h-72 bg-sky-200/40 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-20 right-20 w-96 h-96 bg-sky-300/30 rounded-full blur-3xl animate-pulse animation-delay-2000" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-sky-100/20 rounded-full blur-3xl" />
+        </div>
+
+        {/* 装饰性圆点 - 动画效果 */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-32 right-32 w-3 h-3 bg-sky-400/60 rounded-full animate-float-1" />
+          <div className="absolute top-48 right-48 w-2 h-2 bg-sky-300/80 rounded-full animate-float-2" />
+          <div className="absolute bottom-40 left-1/3 w-4 h-4 bg-sky-400/50 rounded-full animate-float-3" />
+          <div className="absolute bottom-60 left-48 w-2 h-2 bg-sky-300/70 rounded-full animate-float-4" />
+          <div className="absolute top-40 left-1/4 w-2 h-2 bg-sky-400/40 rounded-full animate-float-5" />
+          <div className="absolute bottom-32 right-1/3 w-3 h-3 bg-sky-400/50 rounded-full animate-float-6" />
+        </div>
+
+        {/* 页面内容 */}
+        <div className="relative w-full h-full p-10 overflow-auto">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

@@ -185,7 +185,7 @@ export default function BankListPage({
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="w-full">
       {/* 页面标题和操作栏 */}
       <div className="flex items-center justify-between mb-6">
         <div>
