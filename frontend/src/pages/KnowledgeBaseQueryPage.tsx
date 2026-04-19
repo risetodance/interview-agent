@@ -437,10 +437,10 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
   };
 
   // 切换 think 展开状态
-  const toggleThink = (index: number) => {
+  const toggleThink = (msgIndex: number, thinkIndex: number) => {
     setExpandedThinks(prev => {
       const next = new Set(prev);
-      const key = `${messages.length - 1}-${index}`;
+      const key = `${msgIndex}-${thinkIndex}`;
       if (next.has(key)) {
         next.delete(key);
       } else {
@@ -660,7 +660,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
                               ) : (
                                 (() => {
                                   const { main, thinks, streamingThink } = parseThinkBlocks(msg.content);
-                                  const msgIndex = messages.length - 1;
+                                  const msgIndex = index;
                                   const isLastMessage = loading && index === messages.length - 1;
                                   const isWaiting = isLastMessage && waitingForFirstChunk && !msg.content;
 
@@ -687,12 +687,12 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
                                           {thinks.map((think, i) => {
                                             const key = `${msgIndex}-${i}`;
                                             // 新消息的 think 默认展开
-                                            const isAutoExpanded = isLastMessage;
+                                            const isAutoExpanded = isLastMessage && !expandedThinks.has(key);
                                             const isExpanded = isAutoExpanded || expandedThinks.has(key);
                                             return (
                                               <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
                                                 <button
-                                                  onClick={() => toggleThink(i)}
+                                                  onClick={() => toggleThink(msgIndex, i)}
                                                   className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
                                                 >
                                                   <div className="flex items-center gap-2">
