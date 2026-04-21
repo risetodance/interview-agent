@@ -9,18 +9,14 @@ import interview.guide.infrastructure.redis.InterviewSessionCache.CachedSession;
 import interview.guide.modules.interview.listener.EvaluateStreamProducer;
 import interview.guide.modules.interview.model.*;
 import interview.guide.modules.interview.model.InterviewSessionDTO.SessionStatus;
-import interview.guide.modules.interview.repository.InterviewerRoleRepository;
 import interview.guide.modules.interview.workflow.WorkflowExecutor;
-import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * 面试会话管理服务
@@ -36,12 +32,6 @@ public class InterviewSessionService {
     private final InterviewSessionCache sessionCache;
     private final ObjectMapper objectMapper;
     private final EvaluateStreamProducer evaluateStreamProducer;
-    private final KnowledgeBaseVectorService knowledgeBaseVectorService;
-    private final DifficultyAdjustmentService difficultyAdjustmentService;
-    private final QuestionGenerationService questionGenerationService;
-    private final SingleAnswerEvaluationService singleAnswerEvaluationService;
-    private final PerspectiveEvaluationService perspectiveEvaluationService;
-    private final InterviewerRoleRepository interviewerRoleRepository;
     private final WorkflowExecutor workflowExecutor;
 
     /**
@@ -271,7 +261,8 @@ public class InterviewSessionService {
             // 解析并设置知识库ID列表
             if (entity.getKnowledgeBaseIds() != null && !entity.getKnowledgeBaseIds().isBlank()) {
                 try {
-                    cachedSession.setKnowledgeBaseIds(objectMapper.readValue(entity.getKnowledgeBaseIds(), new TypeReference<List<Long>>() {}));
+                    cachedSession.setKnowledgeBaseIds(objectMapper.readValue(entity.getKnowledgeBaseIds(), new TypeReference<>() {
+                    }));
                 } catch (Exception e) {
                     log.warn("解析知识库ID失败: {}", e.getMessage());
                 }
@@ -448,38 +439,6 @@ public class InterviewSessionService {
                 .toList().size();
 
         return toDTO(session, answeredCount);
-    }
-
-    /**
-     * 从知识库检索相关内容作为上下文
-     */
-    private String retrieveKnowledgeBaseContext(List<Long> knowledgeBaseIds) {
-        try {
-            // 搜索与简历相关的知识库内容
-            // 这里使用一个通用查询来获取知识库的摘要信息
-            List<Document> docs = knowledgeBaseVectorService.similaritySearch(
-                    "面试题 技术知识 项目经验",
-                    knowledgeBaseIds,
-                    10,
-                    0
-            );
-
-            if (docs.isEmpty()) {
-                log.info("知识库检索结果为空");
-                return null;
-            }
-
-            // 合并检索到的文档内容
-            String context = docs.stream()
-                    .map(Document::getText)
-                    .collect(Collectors.joining("\n\n"));
-
-            log.info("从知识库检索到 {} 个相关文档片段", docs.size());
-            return context;
-        } catch (Exception e) {
-            log.warn("从知识库检索内容失败: {}", e.getMessage());
-            return null;
-        }
     }
 
     /**
@@ -703,8 +662,6 @@ public class InterviewSessionService {
      * 获取能力画像
      */
     public AbilityProfileDTO getAbilityProfile(String sessionId) {
-        InterviewSessionEntity session = persistenceService.findBySessionId(sessionId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND));
 
         // 计算分类得分
         Map<String, CategoryScoreDTO> categoryScores = calculateCategoryScores(sessionId);

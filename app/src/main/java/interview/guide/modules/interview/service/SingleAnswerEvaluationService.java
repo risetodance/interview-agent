@@ -114,9 +114,10 @@ public class SingleAnswerEvaluationService {
 
             if (referenceContext != null && !referenceContext.isBlank()) {
                 variables.put("referenceContext", referenceContext);
-                log.info("<UNK>: referenceContext={}", referenceContext);
+                log.info("referenceContext length={}", referenceContext.length());
             } else {
                 variables.put("referenceContext", "无");
+                log.info("referenceContext length={}", referenceContext.length());
             }
 
             String userPrompt = userPromptTemplate.render(variables);

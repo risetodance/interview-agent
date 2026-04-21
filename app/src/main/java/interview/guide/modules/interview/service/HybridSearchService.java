@@ -205,7 +205,7 @@ public class HybridSearchService {
 
         // 构建合并上下文（按重排序顺序）
         String mergedContext = buildMergedContext(rerankedResults);
-        log.info("mergedContext={}", mergedContext);
+        log.info("mergedContext length={}", mergedContext.length());
 
         return HybridSearchResult.builder()
                 .rerankedResults(rerankedResults)
