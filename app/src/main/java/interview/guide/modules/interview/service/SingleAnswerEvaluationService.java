@@ -117,7 +117,7 @@ public class SingleAnswerEvaluationService {
                 log.info("referenceContext length={}", referenceContext.length());
             } else {
                 variables.put("referenceContext", "无");
-                log.info("referenceContext length={}", referenceContext.length());
+                log.info("referenceContext is empty or null, using default");
             }
 
             String userPrompt = userPromptTemplate.render(variables);
