@@ -4,7 +4,9 @@ import com.alibaba.cloud.ai.graph.OverAllState;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.interview.model.InterviewerRoleEntity;
+import interview.guide.modules.interview.model.SseEventType;
 import interview.guide.modules.interview.repository.InterviewerRoleRepository;
+import interview.guide.modules.interview.service.InterviewStreamService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -31,13 +33,16 @@ public class SearchPreparatorNode {
     private final ChatClient chatClient;
     private final StructuredOutputInvoker structuredOutputInvoker;
     private final InterviewerRoleRepository interviewerRoleRepository;
+    private final InterviewStreamService interviewStreamService;
 
     public SearchPreparatorNode(ChatClient.Builder chatClientBuilder,
                                 InterviewerRoleRepository interviewerRoleRepository,
-                                StructuredOutputInvoker structuredOutputInvoker) {
+                                StructuredOutputInvoker structuredOutputInvoker,
+                                InterviewStreamService interviewStreamService) {
         this.chatClient = chatClientBuilder.build();
         this.interviewerRoleRepository = interviewerRoleRepository;
         this.structuredOutputInvoker = structuredOutputInvoker;
+        this.interviewStreamService = interviewStreamService;
     }
 
     /**
@@ -74,6 +79,11 @@ public class SearchPreparatorNode {
         Long currentPerspectiveId = ((Number) state.value(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID).orElse(0L)).longValue();
         // 获取 DeciderNode 输出的出题方向
         String questionDirection = (String) state.value(InterviewWorkflowState.QUESTION_DIRECTION).orElse("");
+
+        // 推送进度状态：搜索准备中
+        if (sessionId != null) {
+            interviewStreamService.publishProgress(sessionId, SseEventType.PROGRESS_SEARCH_PREPARING);
+        }
 
         log.info("Search preparator node: sessionId={}, feedback={}, category={}, mcpEnabled={}, questionDirection={}",
                 sessionId, feedback, category, mcpSearchEnabled, questionDirection);

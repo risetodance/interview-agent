@@ -5,6 +5,7 @@ import interview.guide.modules.interview.model.AnswerHistoryDTO;
 import interview.guide.modules.interview.model.CurrentQuestionDTO;
 import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewerRoleEntity;
+import interview.guide.modules.interview.model.SseEventType;
 import interview.guide.modules.interview.repository.InterviewerRoleRepository;
 import interview.guide.modules.interview.service.HybridSearchService;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
@@ -44,6 +45,11 @@ public class QuestionGeneratorNode {
 
         // 从状态中获取当前视角
         Long currentPerspectiveId = ((Number) state.value(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID).orElse(0L)).longValue();
+
+        // 推送进度状态：生成问题中
+        if (sessionId != null) {
+            interviewStreamService.publishProgress(sessionId, SseEventType.PROGRESS_GENERATING);
+        }
 
         log.info("Question generator node: sessionId={}, index={}, perspectiveId={}",
                 sessionId, questionIndex, currentPerspectiveId);

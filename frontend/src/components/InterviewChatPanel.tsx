@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import type { CurrentQuestionDTO, DifficultyLevel, InterviewSession } from '../types/interview';
+import { PROGRESS_LABELS, type ProgressStageKey } from '../api/interview';
 import {
   Send,
   User,
@@ -35,6 +36,7 @@ interface InterviewChatPanelProps {
   isLoadingQuestion?: boolean;
   showCompleteConfirm: boolean;
   onShowCompleteConfirm: (show: boolean) => void;
+  progressStage?: ProgressStageKey | null;
 }
 
 // 难度等级颜色映射
@@ -65,7 +67,8 @@ export default function InterviewChatPanel({
   isSubmitting,
   isLoadingQuestion,
   // showCompleteConfirm, // 暂时未使用
-  onShowCompleteConfirm
+  onShowCompleteConfirm,
+  progressStage
 }: InterviewChatPanelProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
 
@@ -134,19 +137,19 @@ export default function InterviewChatPanel({
             <div className="flex flex-col gap-2">
               <motion.button
                 onClick={onSubmit}
-                disabled={!answer.trim() || isSubmitting || isLoadingQuestion}
+                disabled={!answer.trim() || isSubmitting || isLoadingQuestion || !!progressStage}
                 className="px-6 py-3 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                whileHover={{ scale: isSubmitting || isLoadingQuestion || !answer.trim() ? 1 : 1.02 }}
-                whileTap={{ scale: isSubmitting || isLoadingQuestion || !answer.trim() ? 1 : 0.98 }}
+                whileHover={{ scale: isSubmitting || isLoadingQuestion || !!progressStage || !answer.trim() ? 1 : 1.02 }}
+                whileTap={{ scale: isSubmitting || isLoadingQuestion || !!progressStage || !answer.trim() ? 1 : 0.98 }}
               >
-                {isSubmitting || isLoadingQuestion ? (
+                {isSubmitting || isLoadingQuestion || progressStage ? (
                   <>
                     <motion.div
                       className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
                       animate={{ rotate: 360 }}
                       transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                     />
-                    {isLoadingQuestion ? '加载中...' : '提交中'}
+                    {progressStage ? PROGRESS_LABELS[progressStage] : (isLoadingQuestion ? '加载中...' : '提交中')}
                   </>
                 ) : (
                   <>
@@ -157,10 +160,10 @@ export default function InterviewChatPanel({
               </motion.button>
               <motion.button
                 onClick={() => onShowCompleteConfirm(true)}
-                disabled={isSubmitting || isLoadingQuestion}
+                disabled={isSubmitting || isLoadingQuestion || !!progressStage}
                 className="px-6 py-3 bg-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                whileHover={{ scale: isSubmitting || isLoadingQuestion ? 1 : 1.02 }}
-                whileTap={{ scale: isSubmitting || isLoadingQuestion ? 1 : 0.98 }}
+                whileHover={{ scale: isSubmitting || isLoadingQuestion || !!progressStage ? 1 : 1.02 }}
+                whileTap={{ scale: isSubmitting || isLoadingQuestion || !!progressStage ? 1 : 0.98 }}
               >
                 提前交卷
               </motion.button>

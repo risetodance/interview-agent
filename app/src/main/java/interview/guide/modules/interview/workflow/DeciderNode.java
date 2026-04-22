@@ -6,8 +6,10 @@ import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.interview.model.InterviewerRoleEntity;
+import interview.guide.modules.interview.model.SseEventType;
 import interview.guide.modules.interview.repository.InterviewerRoleRepository;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
+import interview.guide.modules.interview.service.InterviewStreamService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.converter.BeanOutputConverter;
@@ -38,18 +40,21 @@ public class DeciderNode {
     private final ChatClient chatClient;
     private final StructuredOutputInvoker structuredOutputInvoker;
     private final ObjectMapper objectMapper;
+    private final InterviewStreamService interviewStreamService;
 
     @Autowired
     public DeciderNode(InterviewPersistenceService persistenceService,
                        InterviewerRoleRepository interviewerRoleRepository,
                        ChatClient.Builder chatClientBuilder,
                        StructuredOutputInvoker structuredOutputInvoker,
-                       ObjectMapper objectMapper) {
+                       ObjectMapper objectMapper,
+                       InterviewStreamService interviewStreamService) {
         this.persistenceService = persistenceService;
         this.interviewerRoleRepository = interviewerRoleRepository;
         this.chatClient = chatClientBuilder.build();
         this.structuredOutputInvoker = structuredOutputInvoker;
         this.objectMapper = objectMapper;
+        this.interviewStreamService = interviewStreamService;
     }
 
     // LLM 输出结构（decision 直接用枚举）
@@ -77,6 +82,11 @@ public class DeciderNode {
         String feedback = (String) state.value(InterviewWorkflowState.FEEDBACK).orElse("");
         String adjustedDifficulty = (String) state.value(InterviewWorkflowState.ADJUSTED_DIFFICULTY).orElse("BASIC");
         Long currentPerspectiveId = ((Number) state.value(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID).orElse(0L)).longValue();
+
+        // 推送进度状态：决策中
+        if (sessionId != null) {
+            interviewStreamService.publishProgress(sessionId, SseEventType.PROGRESS_DECIDING);
+        }
 
         log.info("Decider node: sessionId={}, index={}, score={}, feedback={}, difficulty={}, perspectiveId={}",
                 sessionId, currentIndex, score, feedback, adjustedDifficulty, currentPerspectiveId);

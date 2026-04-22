@@ -5,9 +5,11 @@ import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.interview.model.InterviewerRoleEntity;
+import interview.guide.modules.interview.model.SseEventType;
 import interview.guide.modules.interview.repository.InterviewerRoleRepository;
 import interview.guide.modules.interview.service.DifficultyAdjustmentService;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
+import interview.guide.modules.interview.service.InterviewStreamService;
 import interview.guide.modules.interview.service.SingleAnswerEvaluationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,16 +24,31 @@ import java.util.Optional;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ScorerNode {
 
     private final SingleAnswerEvaluationService singleAnswerEvaluationService;
     private final InterviewPersistenceService persistenceService;
     private final InterviewerRoleRepository interviewerRoleRepository;
+    private final InterviewStreamService interviewStreamService;
+
+    public ScorerNode(SingleAnswerEvaluationService singleAnswerEvaluationService,
+                      InterviewPersistenceService persistenceService,
+                      InterviewerRoleRepository interviewerRoleRepository,
+                      InterviewStreamService interviewStreamService) {
+        this.singleAnswerEvaluationService = singleAnswerEvaluationService;
+        this.persistenceService = persistenceService;
+        this.interviewerRoleRepository = interviewerRoleRepository;
+        this.interviewStreamService = interviewStreamService;
+    }
 
     public OverAllState execute(OverAllState state) {
         String sessionId = (String) state.value(InterviewWorkflowState.SESSION_ID).orElse(null);
         Integer questionIndex = (Integer) state.value(InterviewWorkflowState.CURRENT_QUESTION_INDEX).orElse(null);
+
+        // 推送进度状态：评分中
+        if (sessionId != null) {
+            interviewStreamService.publishProgress(sessionId, SseEventType.PROGRESS_SCORING);
+        }
 
         // 从 HumanFeedback 获取用户答案
         String userAnswer = null;

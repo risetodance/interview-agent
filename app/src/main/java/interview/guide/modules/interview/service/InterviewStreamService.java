@@ -1,6 +1,7 @@
 package interview.guide.modules.interview.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import interview.guide.modules.interview.model.SseEventType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.codec.ServerSentEvent;
@@ -9,6 +10,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -54,7 +56,7 @@ public class InterviewStreamService {
         // 心跳流，如果发送失败说明客户端已断开，清理 sink
         Flux<ServerSentEvent<String>> heartbeatFlux = Flux.interval(Duration.ofMillis(heartbeatInterval))
                 .map(tick -> ServerSentEvent.<String>builder()
-                        .event("ping")
+                        .event(SseEventType.PING.getEventName())
                         .data("{\"timestamp\": " + System.currentTimeMillis() + "}")
                         .build())
                 .takeWhile(tick -> sessionSinks.containsKey(sessionId));
@@ -74,13 +76,31 @@ public class InterviewStreamService {
     }
 
     /**
+     * 发布进度状态
+     * @param sessionId 会话ID
+     * @param eventType 进度事件类型: PROGRESS_SCORING, PROGRESS_DECIDING, PROGRESS_SEARCH_PREPARING, PROGRESS_GENERATING
+     */
+    public void publishProgress(String sessionId, SseEventType eventType) {
+        Sinks.Many<ServerSentEvent<String>> sink = sessionSinks.get(sessionId);
+        if (sink != null) {
+            Map<String, Object> data = new HashMap<>();
+            data.put("stage", eventType.name());
+            data.put("timestamp", System.currentTimeMillis());
+            sink.emitNext(ServerSentEvent.<String>builder()
+                    .event(eventType.getEventName())
+                    .data(toJson(data))
+                    .build(), Sinks.EmitFailureHandler.FAIL_FAST);
+        }
+    }
+
+    /**
      * 发布问题事件
      */
     public void publishQuestion(String sessionId, Map<String, Object> questionData) {
         Sinks.Many<ServerSentEvent<String>> sink = sessionSinks.get(sessionId);
         if (sink != null) {
             sink.emitNext(ServerSentEvent.<String>builder()
-                    .event("question")
+                    .event(SseEventType.QUESTION.getEventName())
                     .data(toJson(questionData))
                     .build(), Sinks.EmitFailureHandler.FAIL_FAST);
         }
@@ -93,7 +113,7 @@ public class InterviewStreamService {
         Sinks.Many<ServerSentEvent<String>> sink = sessionSinks.get(sessionId);
         if (sink != null) {
             sink.emitNext(ServerSentEvent.<String>builder()
-                    .event("interview_complete")
+                    .event(SseEventType.INTERVIEW_COMPLETE.getEventName())
                     .data(toJson(reportData))
                     .build(), Sinks.EmitFailureHandler.FAIL_FAST);
             // 面试完成时调用 emitComplete，这样订阅者会正常结束
@@ -108,7 +128,7 @@ public class InterviewStreamService {
         Sinks.Many<ServerSentEvent<String>> sink = sessionSinks.get(sessionId);
         if (sink != null) {
             sink.emitNext(ServerSentEvent.<String>builder()
-                    .event("error")
+                    .event(SseEventType.ERROR.getEventName())
                     .data("{\"message\": \"" + errorMessage + "\"}")
                     .build(), Sinks.EmitFailureHandler.FAIL_FAST);
         }
@@ -121,7 +141,7 @@ public class InterviewStreamService {
         Sinks.Many<ServerSentEvent<String>> sink = sessionSinks.get(sessionId);
         if (sink != null) {
             sink.emitNext(ServerSentEvent.<String>builder()
-                    .event("connected")
+                    .event(SseEventType.CONNECTED.getEventName())
                     .data("{\"sessionId\": \"" + sessionId + "\", \"status\": \"connected\"}")
                     .build(), Sinks.EmitFailureHandler.FAIL_FAST);
         }

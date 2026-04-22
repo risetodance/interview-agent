@@ -10,6 +10,18 @@ import type {
   SubmitAnswerRequest,
 } from '../types/interview';
 
+/**
+ * 进度阶段描述
+ */
+export const PROGRESS_LABELS = {
+  progress_scoring: '正在评分...',
+  progress_deciding: '正在决策...',
+  progress_search_preparing: '正在准备搜索...',
+  progress_generating: '正在出题...',
+} as const;
+
+export type ProgressStageKey = keyof typeof PROGRESS_LABELS;
+
 export const interviewApi = {
   /**
    * 创建面试会话
@@ -123,6 +135,10 @@ export const interviewApi = {
     EVALUATION: 'evaluation',
     INTERVIEW_COMPLETE: 'interview_complete',
     ERROR: 'error',
+    PROGRESS_SCORING: 'progress_scoring',
+    PROGRESS_DECIDING: 'progress_deciding',
+    PROGRESS_SEARCH_PREPARING: 'progress_search_preparing',
+    PROGRESS_GENERATING: 'progress_generating',
   } as const,
 
   /**
@@ -136,6 +152,7 @@ export const interviewApi = {
       onEvaluation?: (data: { questionIndex: number; score: number; feedback: string }) => void;
       onComplete?: (data: { overallScore: number; summary: Record<string, unknown> }) => void;
       onError?: (error: string) => void;
+      onProgress?: (stage: ProgressStageKey) => void;
     }
   ): { eventSource: EventSource; cleanup: () => void } {
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
@@ -173,6 +190,20 @@ export const interviewApi = {
       callbacks.onError?.(data.message || '未知错误');
       // 关闭连接，防止自动重连
       eventSource.close();
+    });
+
+    // 进度事件监听
+    const progressEvents = [
+      this.SSE_EVENT_TYPES.PROGRESS_SCORING,
+      this.SSE_EVENT_TYPES.PROGRESS_DECIDING,
+      this.SSE_EVENT_TYPES.PROGRESS_SEARCH_PREPARING,
+      this.SSE_EVENT_TYPES.PROGRESS_GENERATING,
+    ];
+
+    progressEvents.forEach((eventType) => {
+      eventSource.addEventListener(eventType, () => {
+        callbacks.onProgress?.(eventType as ProgressStageKey);
+      });
     });
 
     eventSource.onerror = () => {

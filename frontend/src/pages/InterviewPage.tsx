@@ -1,6 +1,6 @@
 import {useEffect, useState, useRef} from 'react';
 import {AnimatePresence, motion} from 'framer-motion';
-import {interviewApi} from '../api/interview';
+import {interviewApi, PROGRESS_LABELS} from '../api/interview';
 import {interviewerRoleApi} from '../api/interviewerRole';
 import ConfirmDialog from '../components/ConfirmDialog';
 import InterviewConfigPanel from '../components/InterviewConfigPanel';
@@ -54,6 +54,8 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
   const [selectedPerspectives, setSelectedPerspectives] = useState<number[]>([]);
   // 会话级权重配置
   const [perspectiveWeights, setPerspectiveWeights] = useState<Record<number, number>>({});
+  // 进度阶段状态
+  const [progressStage, setProgressStage] = useState<keyof typeof PROGRESS_LABELS | null>(null);
 
   // 使用 ref 防止重复请求
   const hasInitialized = useRef(false);
@@ -107,6 +109,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
       },
       onQuestion: (question) => {
         console.log('SSE onQuestion received, current readyState:', eventSourceRef.current?.readyState);
+        setProgressStage(null);
         setCurrentQuestion(question);
         // 使用函数式更新，不创建新的 session 对象引用
         // 只更新 currentQuestionIndex，不触发 session 对象变化
@@ -141,6 +144,10 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
       onError: (errorMsg) => {
         setError(errorMsg);
         setIsSubmitting(false);
+      },
+      onProgress: (stage) => {
+        console.log('SSE onProgress received:', stage);
+        setProgressStage(stage);
       },
     });
 
@@ -437,6 +444,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
           isLoadingQuestion={isLoadingQuestion}
           showCompleteConfirm={showCompleteConfirm}
           onShowCompleteConfirm={setShowCompleteConfirm}
+          progressStage={progressStage}
         />
       </div>
     );
