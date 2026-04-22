@@ -1,5 +1,6 @@
 package interview.guide.modules.knowledgebase.retriever;
 
+import interview.guide.common.config.ChunkingProperties;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -20,13 +21,14 @@ import java.util.Map;
 @Component
 public class HybridDocumentRetriever implements DocumentRetriever {
 
-    private static final int DEFAULT_TOP_K = 10;
     private static final double DEFAULT_MIN_SCORE = 0.0;
 
     private final KnowledgeBaseVectorService vectorService;
+    private final ChunkingProperties chunkingProperties;
 
-    public HybridDocumentRetriever(KnowledgeBaseVectorService vectorService) {
+    public HybridDocumentRetriever(KnowledgeBaseVectorService vectorService, ChunkingProperties chunkingProperties) {
         this.vectorService = vectorService;
+        this.chunkingProperties = chunkingProperties;
     }
 
     @NotNull
@@ -38,13 +40,23 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         }
 
         List<Long> kbIds = extractKbIds(query.context());
-        int topK = extractIntParam(query.context(), "topK", DEFAULT_TOP_K);
+        // 使用 ChunkingProperties 的 retrievalTopK 作为 topK
+        int topK = extractIntParam(query.context(), "topK", chunkingProperties.getRetrievalTopK());
         double minScore = extractDoubleParam(query.context(), "minScore", DEFAULT_MIN_SCORE);
 
         log.info("HybridDocumentRetriever 检索: query={}, kbIds={}, topK={}, minScore={}",
                 queryText, kbIds, topK, minScore);
 
-        return vectorService.similaritySearch(queryText, kbIds, topK, minScore);
+        List<Document> results = vectorService.similaritySearch(queryText, kbIds, topK, minScore);
+
+        // 使用 ChunkingProperties 的 retrievalTopN 限制最终返回数量
+        int topN = chunkingProperties.getRetrievalTopN();
+        if (results.size() > topN) {
+            results = results.subList(0, topN);
+            log.info("HybridDocumentRetriever 限制返回数量: {} -> {}", results.size(), topN);
+        }
+
+        return results;
     }
 
     private List<Long> extractKbIds(Map<String, Object> context) {

@@ -1,5 +1,6 @@
 package interview.guide.modules.knowledgebase.service;
 
+import interview.guide.common.config.ChunkingProperties;
 import interview.guide.modules.knowledgebase.model.ParentDocumentEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -12,7 +13,7 @@ import java.util.Map;
 /**
  * 语义分块服务
  * 实现 Parent-Child Retrieval 分块策略：
- * - Parent: 按自然段落 (\n\n) 切分，限制 800-1500 Token
+ * - Parent: 按自然段落 (\n\n) 切分，相邻小段落合并，限制 800-1500 Token
  * - Child: 从 Parent 按句子/换行进一步切分
  * - 仅对 Child 向量化，Parent 存入独立表
  */
@@ -20,39 +21,70 @@ import java.util.Map;
 @Service
 public class SemanticChunkingService {
 
-    private static final int PARENT_MAX_TOKENS = 1200;
-    private static final int CHILD_MAX_TOKENS = 300;
-    private static final int CHUNK_SIZE = PARENT_MAX_TOKENS * 2;
+    private final ChunkingProperties chunkingProperties;
+
+    public SemanticChunkingService(ChunkingProperties chunkingProperties) {
+        this.chunkingProperties = chunkingProperties;
+    }
 
     public List<ParentDocumentEntity> splitIntoParents(Long kbId, String content) {
         List<ParentDocumentEntity> parents = new ArrayList<>();
 
-        // 边界条件：空内容直接返回
         if (content == null || content.isBlank()) {
             return parents;
         }
 
-        // 按自然段落切分（双换行符分隔）
         String[] paragraphs = content.split("\n\n");
-
+        StringBuilder buffer = new StringBuilder();
+        int bufferTokens = 0;
         int chunkIndex = 0;
+        int maxTokens = chunkingProperties.getParentMaxTokens();
+
         for (String paragraph : paragraphs) {
-            // 跳过空段落
             if (paragraph.isBlank()) {
                 continue;
             }
 
-            // 估算段落token数
             int paragraphTokens = estimateTokens(paragraph);
 
-            // 小于等于最大token限制，直接作为parent
-            if (paragraphTokens <= PARENT_MAX_TOKENS) {
-                parents.add(new ParentDocumentEntity(kbId, paragraph.trim(), chunkIndex++, paragraphTokens));
-            } else {
-                // 超过限制，需要进一步切分
-                parents.addAll(splitLargeParagraph(kbId, paragraph, chunkIndex));
+            // 大段落：超过限制，需要切分
+            if (paragraphTokens > maxTokens) {
+                // 先输出当前buffer
+                if (bufferTokens > 0) {
+                    String bufferStr = buffer.toString().trim();
+                    parents.add(new ParentDocumentEntity(kbId, bufferStr, chunkIndex++, bufferTokens));
+                    buffer = new StringBuilder();
+                    bufferTokens = 0;
+                }
+                // 切分大段落
+                parents.addAll(splitLargeParagraph(kbId, paragraph, chunkIndex, maxTokens));
                 chunkIndex = parents.size();
+            } else {
+                // 小段落：尝试加入buffer
+                if (bufferTokens + paragraphTokens <= maxTokens) {
+                    // 可以合并
+                    if (bufferTokens > 0) {
+                        buffer.append("\n\n");
+                    }
+                    buffer.append(paragraph.trim());
+                    bufferTokens += paragraphTokens;
+                } else {
+                    // 超过限制，输出当前buffer，开启新buffer
+                    if (bufferTokens > 0) {
+                        String bufferStr = buffer.toString().trim();
+                        parents.add(new ParentDocumentEntity(kbId, bufferStr, chunkIndex++, bufferTokens));
+                    }
+                    buffer = new StringBuilder();
+                    buffer.append(paragraph.trim());
+                    bufferTokens = paragraphTokens;
+                }
             }
+        }
+
+        // 处理最后剩余的buffer
+        if (bufferTokens > 0) {
+            String bufferStr = buffer.toString().trim();
+            parents.add(new ParentDocumentEntity(kbId, bufferStr, chunkIndex, bufferTokens));
         }
 
         log.info("Parent 切分完成: kbId={}, parentCount={}", kbId, parents.size());
@@ -65,7 +97,7 @@ public class SemanticChunkingService {
      * 策略：按行切分，累积多行直到达到最大token限制。
      * 如果单行就超过限制，则使用硬切分（固定长度）
      */
-    private List<ParentDocumentEntity> splitLargeParagraph(Long kbId, String paragraph, int startIndex) {
+    private List<ParentDocumentEntity> splitLargeParagraph(Long kbId, String paragraph, int startIndex, int maxTokens) {
         List<ParentDocumentEntity> parents = new ArrayList<>();
 
         String[] lines = paragraph.split("\n");
@@ -80,35 +112,30 @@ public class SemanticChunkingService {
 
             int lineTokens = estimateTokens(line);
 
-            // 累加该行不超过限制，加入buffer
-            if (bufferTokens + lineTokens <= PARENT_MAX_TOKENS) {
+            if (bufferTokens + lineTokens <= maxTokens) {
                 if (!buffer.isEmpty()) {
                     buffer.append("\n");
                 }
                 buffer.append(line);
                 bufferTokens += lineTokens;
             } else {
-                // 超过限制，先输出当前buffer
-                if (!buffer.isEmpty()) {
+                if (bufferTokens > 0) {
                     String bufferStr = buffer.toString().trim();
                     parents.add(new ParentDocumentEntity(kbId, bufferStr, chunkIndex++, estimateTokens(bufferStr)));
                     buffer = new StringBuilder();
                     bufferTokens = 0;
                 }
 
-                // 单行就超过限制：硬切分
-                if (lineTokens > PARENT_MAX_TOKENS) {
-                    parents.addAll(hardSplit(kbId, line, chunkIndex));
+                if (lineTokens > maxTokens) {
+                    parents.addAll(hardSplit(kbId, line, chunkIndex, maxTokens));
                     chunkIndex = parents.size();
                 } else {
-                    // 单行可以接受，作为新的buffer起点
                     buffer.append(line);
                     bufferTokens = lineTokens;
                 }
             }
         }
 
-        // 处理最后剩余的buffer
         if (!buffer.isEmpty()) {
             String bufferStr = buffer.toString().trim();
             parents.add(new ParentDocumentEntity(kbId, bufferStr, chunkIndex, estimateTokens(bufferStr)));
@@ -121,16 +148,19 @@ public class SemanticChunkingService {
      * 硬切分：按固定长度切分超长文本
      * <p>
      * 用于处理单个句子/段落就超过token限制的情况。
-     * 使用固定字符数切分（CHUNK_SIZE = PARENT_MAX_TOKENS * 2）
+     * 使用固定字符数切分（maxTokens * 2）
      */
-    private List<ParentDocumentEntity> hardSplit(Long kbId, String text, int startIndex) {
+    private List<ParentDocumentEntity> hardSplit(Long kbId, String text, int startIndex, int maxTokens) {
         List<ParentDocumentEntity> parents = new ArrayList<>();
         int chunkIndex = startIndex;
+        int chunkSize = maxTokens * 2;
 
-        for (int i = 0; i < text.length(); i += CHUNK_SIZE) {
-            int end = Math.min(i + CHUNK_SIZE, text.length());
+        for (int i = 0; i < text.length(); i += chunkSize) {
+            int end = Math.min(i + chunkSize, text.length());
             String chunk = text.substring(i, end).trim();
-            parents.add(new ParentDocumentEntity(kbId, chunk, chunkIndex++, estimateTokens(chunk)));
+            if (!chunk.isEmpty()) {
+                parents.add(new ParentDocumentEntity(kbId, chunk, chunkIndex++, estimateTokens(chunk)));
+            }
         }
 
         return parents;
@@ -139,7 +169,6 @@ public class SemanticChunkingService {
     public List<Document> splitIntoChildren(List<ParentDocumentEntity> parents) {
         List<Document> children = new ArrayList<>();
 
-        // 遍历每个parent，切分出child
         for (ParentDocumentEntity parent : parents) {
             children.addAll(splitParentIntoChildren(parent));
         }
@@ -167,6 +196,7 @@ public class SemanticChunkingService {
 
         StringBuilder buffer = new StringBuilder();
         int bufferTokens = 0;
+        int maxTokens = chunkingProperties.getChildMaxTokens();
 
         for (String sentence : sentences) {
             if (sentence.isBlank()) {
@@ -176,7 +206,7 @@ public class SemanticChunkingService {
             int sentenceTokens = estimateTokens(sentence);
 
             // 累加句子不超过限制，加入buffer
-            if (bufferTokens + sentenceTokens <= CHILD_MAX_TOKENS) {
+            if (bufferTokens + sentenceTokens <= maxTokens) {
                 if (!buffer.isEmpty()) {
                     buffer.append(" ");
                 }
@@ -191,7 +221,7 @@ public class SemanticChunkingService {
                 }
 
                 // 单句子超过限制：直接添加
-                if (sentenceTokens > CHILD_MAX_TOKENS) {
+                if (sentenceTokens > maxTokens) {
                     children.add(createChildDocument(sentence.trim(), parent));
                 } else {
                     // 新的句子加入buffer

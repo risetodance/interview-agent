@@ -1,5 +1,6 @@
 package interview.guide.modules.knowledgebase.service;
 
+import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.knowledgebase.model.QueryRequest;
@@ -7,6 +8,7 @@ import interview.guide.modules.knowledgebase.model.QueryResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -16,13 +18,15 @@ import reactor.core.publisher.Flux;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 知识库查询服务
- * 基于 RetrievalAugmentationAdvisor 的 RAG 问答
+ * 基于 RetrievalAugmentationAdvisor 的 RAG 问答，支持 Query Rewrite
  */
 @Slf4j
 @Service
@@ -36,6 +40,10 @@ public class KnowledgeBaseQueryService {
     private final KnowledgeBaseCountService countService;
     private final RetrievalAugmentationAdvisor retrievalAugmentationAdvisor;
     private final PromptTemplate systemPromptTemplate;
+    private final PromptTemplate rewritePromptTemplate;
+    private final StructuredOutputInvoker structuredOutputInvoker;
+    private final BeanOutputConverter<RewrittenQuestion> outputConverter;
+    private final boolean rewriteEnabled;
     private final int shortQueryLength;
     private final int topkShort;
     private final int topkMedium;
@@ -43,12 +51,18 @@ public class KnowledgeBaseQueryService {
     private final double minScoreShort;
     private final double minScoreDefault;
 
+    private record RewrittenQuestion(String rewrittenQuestion) {
+    }
+
     public KnowledgeBaseQueryService(
             ChatClient.Builder chatClientBuilder,
             KnowledgeBaseListService listService,
             KnowledgeBaseCountService countService,
             RetrievalAugmentationAdvisor retrievalAugmentationAdvisor,
+            StructuredOutputInvoker structuredOutputInvoker,
             @Value("classpath:prompts/knowledgebase-query-system.st") Resource systemPromptResource,
+            @Value("classpath:prompts/knowledgebase-query-rewrite.st") Resource rewritePromptResource,
+            @Value("${app.ai.rag.rewrite.enabled:true}") boolean rewriteEnabled,
             @Value("${app.ai.rag.search.short-query-length:4}") int shortQueryLength,
             @Value("${app.ai.rag.search.topk-short:20}") int topkShort,
             @Value("${app.ai.rag.search.topk-medium:12}") int topkMedium,
@@ -59,7 +73,11 @@ public class KnowledgeBaseQueryService {
         this.listService = listService;
         this.countService = countService;
         this.retrievalAugmentationAdvisor = retrievalAugmentationAdvisor;
+        this.structuredOutputInvoker = structuredOutputInvoker;
         this.systemPromptTemplate = new PromptTemplate(systemPromptResource.getContentAsString(StandardCharsets.UTF_8));
+        this.rewritePromptTemplate = new PromptTemplate(rewritePromptResource.getContentAsString(StandardCharsets.UTF_8));
+        this.outputConverter = new BeanOutputConverter<>(RewrittenQuestion.class);
+        this.rewriteEnabled = rewriteEnabled;
         this.shortQueryLength = shortQueryLength;
         this.topkShort = topkShort;
         this.topkMedium = topkMedium;
@@ -90,11 +108,14 @@ public class KnowledgeBaseQueryService {
         // 2. 解析检索参数
         SearchParams searchParams = resolveSearchParams(question);
 
+        // 3. Query rewrite
+        String rewrittenQuestion = rewriteQuestion(question);
+
         try {
-            // 3. 使用 Advisor 模式调用 AI（检索和上下文注入由 Advisor 自动完成）
+            // 4. 使用 Advisor 模式调用 AI（检索和上下文注入由 Advisor 自动完成）
             String answer = chatClient.prompt()
                     .system(systemPromptTemplate.render())
-                    .user(question)
+                    .user(rewrittenQuestion)
                     .advisors(a -> a
                             .param("knowledgeBaseIds", knowledgeBaseIds)
                             .param("topK", searchParams.topK())
@@ -144,10 +165,13 @@ public class KnowledgeBaseQueryService {
             // 2. 解析检索参数
             SearchParams searchParams = resolveSearchParams(question);
 
-            // 3. 使用 Advisor 模式流式调用 AI
+            // 3. Query rewrite
+            String rewrittenQuestion = rewriteQuestion(question);
+
+            // 4. 使用 Advisor 模式流式调用 AI
             Flux<String> responseFlux = chatClient.prompt()
                     .system(systemPromptTemplate.render())
-                    .user(question)
+                    .user(rewrittenQuestion)
                     .advisors(a -> a
                             .param("knowledgeBaseIds", knowledgeBaseIds)
                             .param("topK", searchParams.topK())
@@ -168,6 +192,39 @@ public class KnowledgeBaseQueryService {
         } catch (Exception e) {
             log.error("知识库流式问答失败: {}", e.getMessage(), e);
             return Flux.just("【错误】知识库查询失败：" + e.getMessage());
+        }
+    }
+
+    private String rewriteQuestion(String question) {
+        if (!rewriteEnabled || question.isBlank()) {
+            return question;
+        }
+        try {
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("question", question);
+            String rewritePrompt = rewritePromptTemplate.render(variables);
+            String systemPromptWithFormat = outputConverter.getFormat();
+
+            RewrittenQuestion dto = structuredOutputInvoker.invoke(
+                chatClient,
+                systemPromptWithFormat,
+                rewritePrompt,
+                outputConverter,
+                ErrorCode.KNOWLEDGE_BASE_QUERY_FAILED,
+                "Query rewrite 失败：",
+                "结构化Query rewrite",
+                log
+            );
+            String rewritten = dto.rewrittenQuestion();
+            if (rewritten == null || rewritten.isBlank()) {
+                return question;
+            }
+            String normalized = rewritten.trim();
+            log.info("Query rewrite: origin='{}', rewritten='{}'", question, normalized);
+            return normalized;
+        } catch (Exception e) {
+            log.warn("Query rewrite 失败，使用原问题继续检索: {}", e.getMessage(), e);
+            return question;
         }
     }
 
