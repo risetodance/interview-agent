@@ -90,7 +90,7 @@ export default function AdminSidebar() {
       </div>
 
       {/* 导航菜单 */}
-      <nav className="flex-1 p-4 overflow-y-auto">
+      <nav className="flex-1 p-4 overflow-y-auto sidebar-scrollbar-dark">
         <div className="space-y-2">
           {navItems.map((item) => {
             const active = isActive(item.path);

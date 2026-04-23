@@ -126,7 +126,7 @@ export default function Layout() {
         </div>
 
         {/* 导航菜单 */}
-        <nav className="flex-1 p-4 overflow-y-auto">
+        <nav className="flex-1 p-4 overflow-y-auto sidebar-scrollbar">
           <div className="space-y-5">
             {/* 管理员后台入口 */}
             {adminNav && (

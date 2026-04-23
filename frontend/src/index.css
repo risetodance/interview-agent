@@ -49,6 +49,60 @@
   }
 }
 
+/* 侧边栏菜单滚动条 */
+@layer utilities {
+  .sidebar-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .sidebar-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .sidebar-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.3);
+    border-radius: 10px;
+    transition: background-color 0.2s;
+  }
+
+  .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(148, 163, 184, 0.5);
+  }
+
+  /* Firefox */
+  .sidebar-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+  }
+}
+
+/* 深色侧边栏滚动条 */
+@layer utilities {
+  .sidebar-scrollbar-dark::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .sidebar-scrollbar-dark::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .sidebar-scrollbar-dark::-webkit-scrollbar-thumb {
+    background-color: rgba(100, 116, 139, 0.4);
+    border-radius: 10px;
+    transition: background-color 0.2s;
+  }
+
+  .sidebar-scrollbar-dark::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(100, 116, 139, 0.6);
+  }
+
+  /* Firefox */
+  .sidebar-scrollbar-dark {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
+  }
+}
+
 /* 全局覆盖浏览器默认的紫色 focus outline */
 *:focus,
 *:focus-visible {
