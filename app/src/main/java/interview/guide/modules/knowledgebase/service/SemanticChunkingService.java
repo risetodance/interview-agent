@@ -14,6 +14,7 @@ import java.util.Map;
  * 语义分块服务
  * 实现 Parent-Child Retrieval 分块策略：
  * - Parent: 按自然段落 (\n\n) 切分，相邻小段落合并，限制 800-1500 Token
+ * - 相邻 Parent 块之间保留 100~200 tokens 重叠，防止语义断裂
  * - Child: 从 Parent 按句子/换行进一步切分
  * - 仅对 Child 向量化，Parent 存入独立表
  */
@@ -87,8 +88,98 @@ public class SemanticChunkingService {
             parents.add(new ParentDocumentEntity(kbId, bufferStr, chunkIndex, bufferTokens));
         }
 
+        // 添加相邻块之间的 overlap，防止语义断裂
+        addOverlapBetweenParents(parents);
+
         log.info("Parent 切分完成: kbId={}, parentCount={}", kbId, parents.size());
         return parents;
+    }
+
+    /**
+     * 在相邻 Parent 块之间添加双向 overlap
+     * <p>
+     * - 当前块末尾添加下一个块开头的 100~200 tokens
+     * - 下一个块开头添加当前块末尾的 100~200 tokens
+     * 防止在语义边界处断裂。
+     */
+    private void addOverlapBetweenParents(List<ParentDocumentEntity> parents) {
+        if (parents == null || parents.size() < 2) {
+            return;
+        }
+
+        int overlapMinTokens = 100;
+        int overlapMaxTokens = 200;
+        int targetOverlapTokens = (overlapMinTokens + overlapMaxTokens) / 2;
+
+        for (int i = 0; i < parents.size() - 1; i++) {
+            ParentDocumentEntity current = parents.get(i);
+            ParentDocumentEntity next = parents.get(i + 1);
+
+            // 当前块末尾添加下一个块开头的 overlap
+            String leadingOverlap = extractLeadingTokens(next.getContent(), targetOverlapTokens);
+            String newCurrentContent = current.getContent() + "\n\n" + leadingOverlap;
+            current.setContent(newCurrentContent);
+            current.setTokenCount(estimateTokens(newCurrentContent));
+
+            // 下一个块开头添加当前块末尾的 overlap
+            String trailingOverlap = extractTrailingTokens(current.getContent(), targetOverlapTokens);
+            String newNextContent = trailingOverlap + "\n\n" + next.getContent();
+            next.setContent(newNextContent);
+            next.setTokenCount(estimateTokens(newNextContent));
+        }
+    }
+
+    /**
+     * 从文本开头提取指定数量的 tokens
+     */
+    private String extractLeadingTokens(String text, int maxTokens) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder result = new StringBuilder();
+        int currentTokens = 0;
+        int chineseCount = 0;
+
+        for (int i = 0; i < text.length() && currentTokens < maxTokens; i++) {
+            char c = text.charAt(i);
+            result.append(c);
+
+            if (c >= 0x4e00 && c <= 0x9fa5) {
+                chineseCount++;
+            }
+            int nonChineseCount = result.length() - chineseCount;
+            currentTokens = (int) Math.ceil(chineseCount / 2.0 + nonChineseCount / 4.0);
+        }
+
+        return result.toString().trim();
+    }
+
+    /**
+     * 从文本末尾提取指定数量的 tokens
+     */
+    private String extractTrailingTokens(String text, int maxTokens) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder result = new StringBuilder();
+        int currentTokens = 0;
+        int chineseCount = 0;
+
+        // 从文本末尾开始收集字符
+        for (int i = text.length() - 1; i >= 0 && currentTokens < maxTokens; i--) {
+            char c = text.charAt(i);
+            result.insert(0, c); // 头部插入，保持正序
+
+            if (c >= 0x4e00 && c <= 0x9fa5) {
+                chineseCount++;
+            }
+            int nonChineseCount = result.length() - chineseCount;
+            currentTokens = (int) Math.ceil(chineseCount / 2.0 + nonChineseCount / 4.0);
+        }
+
+        return result.toString().trim();
     }
 
     /**
