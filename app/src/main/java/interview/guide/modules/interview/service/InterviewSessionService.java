@@ -468,16 +468,6 @@ public class InterviewSessionService {
             return null; // 所有问题已回答完毕
         }
 
-        // 检查是否有未完成的工作流，如果有则恢复
-        if (workflowExecutor.hasActiveWorkflow(sessionId)) {
-            log.info("发现未完成的工作流，恢复执行: sessionId={}", sessionId);
-            // 获取当前状态
-            var stateSnapshot = workflowExecutor.getWorkflowState(sessionId);
-            if (stateSnapshot.isPresent()) {
-                var state = stateSnapshot.get().state();
-                return toCurrentQuestionDTO(state);
-            }
-        }
 
         // 触发工作流执行：entry → question_generator → [中断]
         // 工作流内部会通过 SSE 推送问题
