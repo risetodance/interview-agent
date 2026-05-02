@@ -119,8 +119,7 @@ onMounted(() => {
 </template>
 
 <style lang="scss">
-$primary-color: #6366f1;
-$primary-light: #a5b4fc;
+@import '../../styles/variables.scss';
 
 .create-interview-container {
   display: flex;

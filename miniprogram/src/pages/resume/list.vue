@@ -245,19 +245,7 @@ const formatDate = (date: string): string => {
 </template>
 
 <style lang="scss">
-// 配色变量 - 靛蓝清新配色
-$primary: #6366f1;
-$primary-light: #a5b4fc;
-$primary-dark: #4f46e5;
-$accent: #818cf8;
-$bg: #f8fafc;
-$card-bg: #ffffff;
-$text-primary: #1e293b;
-$text-secondary: #475569;
-$text-muted: #94a3b8;
-$success: #6366f1;
-$warning: #f59e0b;
-$danger: #ef4444;
+@import '../../styles/variables.scss';
 
 .resume-list-container {
   display: flex;

@@ -489,7 +489,8 @@ const formatWeight = (weight: number) => {
 </template>
 
 <style lang="scss">
-$primary: #6366f1;
+@import '../../styles/variables.scss';
+
 $success: #67C23A;
 $warning: #E6A23C;
 $danger: #F56C6C;
@@ -578,7 +579,7 @@ $text-secondary: #909399;
 }
 
 .score-card {
-  background: linear-gradient(135deg, $primary 0%, #818cf8 100%);
+  background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
   border-radius: 24rpx;
   padding: 40rpx;
   display: flex;
@@ -616,7 +617,7 @@ $text-secondary: #909399;
     width: 100rpx;
     height: 100rpx;
     border-radius: 50%;
-    background: linear-gradient(135deg, $primary 0%, #818cf8 100%);
+    background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -960,7 +961,7 @@ $text-secondary: #909399;
 }
 
 .perspective-score-card {
-  background: linear-gradient(135deg, $primary 0%, #818cf8 100%);
+  background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
   border-radius: 24rpx;
   padding: 40rpx;
   margin-bottom: 20rpx;

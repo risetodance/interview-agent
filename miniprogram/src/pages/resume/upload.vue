@@ -343,6 +343,8 @@ const goBack = () => {
 </template>
 
 <style lang="scss">
+@import '../../styles/variables.scss';
+
 .upload-container {
   min-height: 100vh;
   background-color: #f5f5f5;
@@ -358,7 +360,7 @@ const goBack = () => {
   .back-btn,
   .placeholder {
     font-size: 30rpx;
-    color: #6366f1;
+    color: #0ea5e9;
     width: 120rpx;
   }
 
@@ -389,7 +391,7 @@ const goBack = () => {
   transition: all 0.3s;
 
   &:active {
-    border-color: #6366f1;
+    border-color: #0ea5e9;
     background-color: #f8fbf8;
   }
 
@@ -405,7 +407,7 @@ const goBack = () => {
 
     .iconfont {
       font-size: 64rpx;
-      color: #6366f1;
+      color: #0ea5e9;
     }
   }
 
@@ -483,7 +485,7 @@ const goBack = () => {
 
 .change-btn {
   font-size: 28rpx;
-  color: #6366f1;
+  color: #0ea5e9;
   padding: 10rpx 20rpx;
 }
 
@@ -527,7 +529,7 @@ const goBack = () => {
 
   .progress-percent {
     font-size: 28rpx;
-    color: #6366f1;
+    color: #0ea5e9;
     font-weight: 500;
   }
 }
@@ -542,7 +544,7 @@ const goBack = () => {
 
 .progress-inner {
   height: 100%;
-  background: linear-gradient(90deg, #6366f1, #45a049);
+  background: linear-gradient(90deg, #0ea5e9, #38bdf8);
   border-radius: 6rpx;
   transition: width 0.3s ease;
 }
@@ -577,7 +579,7 @@ const goBack = () => {
   background-color: #eef2ff;
 
   .iconfont {
-    color: #6366f1;
+    color: #0ea5e9;
   }
 }
 
@@ -597,7 +599,7 @@ const goBack = () => {
 }
 
 .success-text {
-  color: #6366f1;
+  color: #0ea5e9;
 }
 
 .error-text {
@@ -613,9 +615,9 @@ const goBack = () => {
 
 .retry-btn {
   font-size: 28rpx;
-  color: #6366f1;
+  color: #0ea5e9;
   padding: 16rpx 40rpx;
-  border: 2rpx solid #6366f1;
+  border: 2rpx solid #0ea5e9;
   border-radius: 40rpx;
 }
 
@@ -627,7 +629,7 @@ const goBack = () => {
   height: 96rpx;
   line-height: 96rpx;
   width: 100%;
-  background: linear-gradient(135deg, #6366f1, #45a049);
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
   border-radius: 16rpx;
   color: #fff;
   font-size: 32rpx;

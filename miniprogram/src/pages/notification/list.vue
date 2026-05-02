@@ -16,9 +16,9 @@ const hasMore = computed(() => notifications.value.length < total.value)
 
 // 通知类型映射
 const notificationTypeMap: Record<string, { label: string; icon: string; color: string }> = {
-  SYSTEM: { label: '系统通知', icon: '系统', color: '#6366f1' },
-  INTERVIEW: { label: '面试通知', icon: '面试', color: '#818cf8' },
-  RESUME: { label: '简历通知', icon: '简历', color: '#a5b4fc' },
+  SYSTEM: { label: '系统通知', icon: '系统', color: '#0ea5e9' },
+  INTERVIEW: { label: '面试通知', icon: '面试', color: '#38bdf8' },
+  RESUME: { label: '简历通知', icon: '简历', color: '#7dd3fc' },
   MEMBERSHIP: { label: '会员通知', icon: '会员', color: '#ffeaa7' },
   POINTS: { label: '积分通知', icon: '积分', color: '#fab1a0' },
   KNOWLEDGE: { label: '知识库', icon: '知识', color: '#81ecec' }
@@ -239,20 +239,7 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-// 配色变量 - 靛蓝清新配色
-$primary-color: #6366f1;
-$primary-light: #a5b4fc;
-$primary-dark: #4f46e5;
-$accent: #818cf8;
-$bg-color: #f8fafc;
-$card-bg: #ffffff;
-$text-primary: #1e293b;
-$text-secondary: #475569;
-$text-muted: #94a3b8;
-$success: #6366f1;
-$warning: #f59e0b;
-$danger: #ef4444;
-$info: #818cf8;
+@import '../../styles/variables.scss';
 
 .notification-container {
   min-height: 100vh;

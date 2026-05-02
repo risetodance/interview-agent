@@ -290,16 +290,9 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss" scoped>
-// 靛蓝清新配色
-$primary: #6366f1;
-$primary-light: #a5b4fc;
-$primary-dark: #4f46e5;
-$accent: #818cf8;
+@import '../../styles/variables.scss';
+
 $bg: #f0f4ff;
-$card-bg: #ffffff;
-$text-primary: #1e293b;
-$text-secondary: #475569;
-$text-muted: #94a3b8;
 
 .login-container {
   min-height: 100vh;

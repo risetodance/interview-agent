@@ -267,12 +267,7 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-// 靛蓝清新配色
-$primary-color: #6366f1;
-$primary-light: #a5b4fc;
-$primary-dark: #4f46e5;
-$accent: #818cf8;
-$bg-color: #f8fafc;
+@import '../../styles/variables.scss';
 
 .settings-container {
   min-height: 100vh;

@@ -58,7 +58,7 @@ const getPriorityBadgeColor = (priority: string) => {
 const getCategoryStyle = (category: string) => {
   const colors: Record<string, { bg: string; text: string }> = {
     '项目': { bg: '#f3e8ff', text: '#7c3aed' },    // purple-100, purple-700
-    '技能': { bg: '#e0e7ff', text: '#4f46e5' },    // indigo-100, indigo-700
+    '技能': { bg: '#e0f2fe', text: '#0284c7' },    // sky-100, sky-700
     '内容': { bg: '#d1fae5', text: '#059669' },    // emerald-100, emerald-700
     '格式': { bg: '#fce7f3', text: '#db2777' },    // pink-100, pink-700
     '结构': { bg: '#cffafe', text: '#0891b2' },    // cyan-100, cyan-700
@@ -895,6 +895,8 @@ const formatAnalysisItem = (item: any): string => {
 </template>
 
 <style lang="scss">
+@import '../../styles/variables.scss';
+
 .resume-detail-container {
   min-height: 100vh;
   background-color: #f5f5f5;
@@ -914,7 +916,7 @@ const formatAnalysisItem = (item: any): string => {
   .back-btn,
   .action-btn {
     font-size: 30rpx;
-    color: #6366f1;
+    color: #0ea5e9;
     width: 120rpx;
   }
 
@@ -966,7 +968,7 @@ const formatAnalysisItem = (item: any): string => {
   width: 80rpx;
   height: 80rpx;
   border: 6rpx solid #f0f0f0;
-  border-top-color: #6366f1;
+  border-top-color: #0ea5e9;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1010,7 +1012,7 @@ const formatAnalysisItem = (item: any): string => {
   color: #333;
   margin-bottom: 24rpx;
   padding-left: 20rpx;
-  border-left: 6rpx solid #6366f1;
+  border-left: 6rpx solid #0ea5e9;
 }
 
 // 附件简历卡片
@@ -1032,7 +1034,7 @@ const formatAnalysisItem = (item: any): string => {
 
     .icon-text {
       font-size: 32rpx;
-      color: #6366f1;
+      color: #0ea5e9;
       font-weight: 600;
     }
   }
@@ -1261,13 +1263,13 @@ const formatAnalysisItem = (item: any): string => {
 
     .match-inner {
       height: 100%;
-      background: linear-gradient(90deg, #6366f1, #45a049);
+      background: linear-gradient(90deg, #0ea5e9, #38bdf8);
       border-radius: 8rpx;
     }
 
     .match-value {
       font-size: 28rpx;
-      color: #6366f1;
+      color: #0ea5e9;
       font-weight: 500;
       min-width: 80rpx;
       text-align: right;
@@ -1294,7 +1296,7 @@ const formatAnalysisItem = (item: any): string => {
     .tag {
       padding: 8rpx 20rpx;
       background-color: #eef2ff;
-      color: #6366f1;
+      color: #0ea5e9;
       border-radius: 20rpx;
       font-size: 24rpx;
     }
@@ -1482,7 +1484,7 @@ const formatAnalysisItem = (item: any): string => {
     width: 20rpx;
     height: 20rpx;
     border-radius: 50%;
-    background-color: #6366f1;
+    background-color: #0ea5e9;
     border: 4rpx solid #fff;
     box-shadow: 0 0 0 4rpx #eef2ff;
   }
@@ -1604,7 +1606,7 @@ const formatAnalysisItem = (item: any): string => {
 
   .skill-level {
     font-size: 24rpx;
-    color: #6366f1;
+    color: #0ea5e9;
     padding: 4rpx 12rpx;
     background-color: #eef2ff;
     border-radius: 8rpx;

@@ -106,6 +106,31 @@
         "navigationBarTitleText": "积分商城",
         "enablePullDownRefresh": true
       }
+    },
+    {
+      "path": "pages/question-bank/list",
+      "style": {
+        "navigationBarTitleText": "题库管理",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/question-bank/create",
+      "style": {
+        "navigationBarTitleText": "创建题库"
+      }
+    },
+    {
+      "path": "pages/question-bank/detail",
+      "style": {
+        "navigationBarTitleText": "题目详情"
+      }
+    },
+    {
+      "path": "pages/question-bank/edit",
+      "style": {
+        "navigationBarTitleText": "编辑题目"
+      }
     }
   ],
   "globalStyle": {

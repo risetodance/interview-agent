@@ -394,12 +394,7 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss">
-// 靛蓝清新配色
-$primary-color: #6366f1;
-$primary-light: #a5b4fc;
-$primary-dark: #4f46e5;
-$accent: #818cf8;
-$bg-color: #f8fafc;
+@import '../../styles/variables.scss';
 
 .chat-container {
   display: flex;
@@ -488,7 +483,7 @@ $bg-color: #f8fafc;
 }
 
 .user-avatar {
-  background: linear-gradient(135deg, #6366f1 0%, #45a049 100%);
+  background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
   color: #fff;
   margin-left: 20rpx;
 }

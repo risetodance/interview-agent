@@ -50,6 +50,11 @@ const totalWeight = computed(() => {
   }, 0)
 })
 
+// 权重是否有效（总和为100%，容差0.01）
+const isWeightValid = computed(() => {
+  return Math.abs(totalWeight.value - 1) < 0.01
+})
+
 // 返回面试列表
 const goToList = () => {
   uni.redirectTo({
@@ -83,11 +88,21 @@ const loadPerspectives = async () => {
     const result: any = await getPerspectives()
     // 后端返回数组直接使用
     perspectives.value = Array.isArray(result) ? result : (result.list || [])
-    // 默认选中第一个视角（技术面试官），并初始化其权重
-    if (perspectives.value.length > 0) {
-      selectedPerspectiveIds.value = [perspectives.value[0].id]
-      // 初始化选中视角的默认权重
-      perspectives.value[0] && (perspectiveWeights.value[String(perspectives.value[0].id)] = perspectives.value[0].weight)
+
+    // 自动选中所有 status=true 且 defaultTemplate=true 的视角（最多3个）
+    // 初始化权重时，按各角色默认权重的比例归一化，使总和为1（与前端行为一致）
+    const enabledRoles = perspectives.value.filter(p => p.status)
+    const defaultRoleIds = enabledRoles.slice(0, MAX_PERSPECTIVES).map(p => p.id)
+    selectedPerspectiveIds.value = defaultRoleIds
+
+    // 初始化权重：按比例归一化，使总和为1
+    if (defaultRoleIds.length > 0) {
+      const totalDefaultWeight = enabledRoles.reduce((sum, r) => sum + r.weight, 0)
+      enabledRoles.forEach(role => {
+        perspectiveWeights.value[String(role.id)] = totalDefaultWeight > 0
+          ? role.weight / totalDefaultWeight
+          : 1 / defaultRoleIds.length
+      })
     }
   } catch (error) {
     console.error('加载视角列表失败:', error)
@@ -97,7 +112,9 @@ const loadPerspectives = async () => {
       { id: 2, roleName: 'HR面试官', roleCode: 'HR_INTERVIEWER', weight: 0.3, description: '重点考察综合素质和沟通能力', status: true, icon: 'user' },
       { id: 3, roleName: '技术总监', roleCode: 'TECH_DIRECTOR', weight: 0.3, description: '重点考察架构思维和团队协作', status: true, icon: 'admin' }
     ]
-    selectedPerspectiveIds.value = [1]
+    // 默认选中所有视角，并归一化权重
+    selectedPerspectiveIds.value = [1, 2, 3]
+    perspectiveWeights.value = { '1': 0.4, '2': 0.3, '3': 0.3 }
   } finally {
     perspectivesLoading.value = false
   }
@@ -107,16 +124,8 @@ const loadPerspectives = async () => {
 const togglePerspective = (id: number) => {
   const index = selectedPerspectiveIds.value.indexOf(id)
   if (index > -1) {
-    // 取消选择时重新分配权重
-    const removedWeight = perspectiveWeights.value[String(id)] || 0
+    // 取消选择，不调整其他视角的权重（与前端行为一致）
     selectedPerspectiveIds.value.splice(index, 1)
-    // 将移除视角的权重均分给剩余选中视角
-    if (selectedPerspectiveIds.value.length > 0) {
-      const avgAdd = removedWeight / selectedPerspectiveIds.value.length
-      selectedPerspectiveIds.value.forEach(pid => {
-        perspectiveWeights.value[String(pid)] = (perspectiveWeights.value[String(pid)] || 0) + avgAdd
-      })
-    }
     // 清理已移除视角的权重
     delete perspectiveWeights.value[String(id)]
   } else {
@@ -145,42 +154,29 @@ const formatWeight = (weight: number) => {
   return `${Math.round(weight * 100)}%`
 }
 
-// 调整视角权重
-const onWeightChange = (id: number, newWeight: number) => {
-  const remaining = selectedPerspectiveIds.value.filter(pid => pid !== id)
-  const remainingWeight = remaining.reduce((sum, pid) => {
-    return sum + (perspectiveWeights.value[String(pid)] || 0)
-  }, 0)
+// 验证权重总和（前端要求总和必须为100%才允许开始面试）
+const weightError = ref<string | null>(null)
 
-  // 确保其他视角权重足够分配
-  if (remainingWeight + newWeight > 1.05) {
-    // 超出部分从其他视角扣除
-    const excess = remainingWeight + newWeight - 1
-    const avgDeduct = excess / Math.max(remaining.length, 1)
-    remaining.forEach(pid => {
-      const currentWeight = perspectiveWeights.value[String(pid)] || 0
-      perspectiveWeights.value[String(pid)] = Math.max(0.05, currentWeight - avgDeduct)
-    })
+// 验证权重并在需要时自动调整
+const validateAndAdjustWeights = () => {
+  if (selectedPerspectiveIds.value.length === 0) {
+    weightError.value = null
+    return
   }
 
-  perspectiveWeights.value[String(id)] = newWeight
-
-  // 重新规范化确保总和为1
-  normalizeWeights()
+  const total = totalWeight.value
+  if (Math.abs(total - 1) < 0.01) {
+    weightError.value = null
+  } else {
+    weightError.value = `权重总和需为100%（当前${Math.round(total * 100)}%）`
+  }
 }
 
-// 规范化权重，确保总和为100%
-const normalizeWeights = () => {
-  const selected = selectedPerspectiveIds.value
-  if (selected.length === 0) return
-
-  let sum = selected.reduce((s, id) => s + (perspectiveWeights.value[String(id)] || 0), 0)
-  if (sum < 0.01) return
-
-  // 按比例调整使总和为1
-  selected.forEach(id => {
-    perspectiveWeights.value[String(id)] = (perspectiveWeights.value[String(id)] || 0) / sum
-  })
+// 调整视角权重
+const onWeightChange = (id: number, newWeight: number) => {
+  // 只更新当前视角的权重，不自动调整其他视角
+  perspectiveWeights.value[String(id)] = newWeight
+  validateAndAdjustWeights()
 }
 
 // 开始面试
@@ -195,11 +191,21 @@ const startInterview = async () => {
     return
   }
 
-  // 验证权重总和
+  // 验证并检查权重总和
   const weightSum = totalWeight.value
   if (weightSum < 0.99 || weightSum > 1.01) {
     uni.showToast({
       title: '权重总和需为100%',
+      icon: 'none'
+    })
+    return
+  }
+
+  // 再次验证
+  validateAndAdjustWeights()
+  if (weightError.value) {
+    uni.showToast({
+      title: weightError.value,
       icon: 'none'
     })
     return
@@ -305,7 +311,7 @@ onMounted(() => {
           <text class="perspective-weight">权重: {{ formatWeight(isPerspectiveSelected(perspective.id) ? (perspectiveWeights[String(perspective.id)] || perspective.weight) : perspective.weight) }}</text>
           <text class="perspective-desc">{{ perspective.description }}</text>
           <!-- 权重滑块（选中时显示） -->
-          <view v-if="isPerspectiveSelected(perspective.id)" class="weight-slider-wrapper">
+          <view v-if="isPerspectiveSelected(perspective.id)" class="weight-slider-wrapper" @click.stop>
             <text class="weight-slider-label">调整权重：</text>
             <slider
               class="weight-slider"
@@ -313,7 +319,7 @@ onMounted(() => {
               :min="5"
               :max="90"
               :step="5"
-              activeColor="#6366f1"
+              activeColor="#0ea5e9"
               backgroundColor="#e5e7eb"
               block-size="18"
               @change="(e: any) => onWeightChange(perspective.id, e.detail.value / 100)"
@@ -329,7 +335,19 @@ onMounted(() => {
         <text class="summary-text">
           {{ selectedPerspectivesDetail.map(p => p.roleName).join('、') }}
         </text>
-        <text class="summary-weight">（总权重 {{ formatWeight(totalWeight) }}）</text>
+        <view class="weight-status">
+          <text class="weight-total" :class="{ valid: isWeightValid, invalid: !isWeightValid }">
+            总权重 {{ formatWeight(totalWeight) }}
+          </text>
+          <text v-if="!isWeightValid" class="weight-hint">
+            {{ totalWeight < 1 ? '权重不足' : '权重超出' }}
+          </text>
+        </view>
+      </view>
+
+      <!-- 权重错误提示 -->
+      <view v-if="weightError" class="weight-error">
+        <text>⚠️ {{ weightError }}</text>
       </view>
     </view>
 
@@ -377,17 +395,18 @@ onMounted(() => {
       <view class="btn btn-back" @click="goToList">
         <text>← 返回</text>
       </view>
-      <view class="btn btn-start" :class="{ disabled: isCreating || selectedPerspectiveIds.length === 0 }" @click="startInterview">
-        <text v-if="!isCreating">开始面试 →</text>
-        <text v-else>创建中...</text>
+      <view class="btn btn-start" :class="{ disabled: isCreating || selectedPerspectiveIds.length === 0 || !isWeightValid }" @click="startInterview">
+        <text v-if="isCreating">创建中...</text>
+        <text v-else-if="selectedPerspectiveIds.length === 0">请选择视角</text>
+        <text v-else-if="!isWeightValid">权重不足</text>
+        <text v-else>开始面试 →</text>
       </view>
     </view>
   </view>
 </template>
 
 <style lang="scss">
-$primary-color: #6366f1;
-$primary-light: #a5b4fc;
+@import '../../styles/variables.scss';
 
 .config-container {
   min-height: 100vh;
@@ -579,10 +598,41 @@ $primary-light: #a5b4fc;
     font-weight: 600;
   }
 
-  .summary-weight {
-    font-size: 24rpx;
-    color: #999;
+  .weight-status {
+    display: flex;
+    align-items: center;
+    gap: 8rpx;
+    margin-left: auto;
   }
+
+  .weight-total {
+    font-size: 24rpx;
+    font-weight: 600;
+
+    &.valid {
+      color: #22c55e;
+    }
+
+    &.invalid {
+      color: #ef4444;
+    }
+  }
+
+  .weight-hint {
+    font-size: 22rpx;
+    color: #f59e0b;
+  }
+}
+
+.weight-error {
+  margin-top: 16rpx;
+  padding: 16rpx;
+  background-color: #fef3c7;
+  border: 2rpx solid #fbbf24;
+  border-radius: 12rpx;
+  color: #92400e;
+  font-size: 26rpx;
+  text-align: center;
 }
 
 .config-item {

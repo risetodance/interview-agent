@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useInterviewStore, type InterviewQuestion, type QuestionEvaluation } from '../../stores/interview'
-import { endInterview, getSessionProgress, connectInterviewStream, SSE_EVENT_TYPES, type AnswerHistoryDTO } from '../../api/interview'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useInterviewStore } from '../../stores/interview'
+import { getSessionProgress, connectInterviewStream, SSE_EVENT_TYPES, PROGRESS_LABELS, submitAnswerAdaptive, endInterview } from '../../api/interview'
 
 // 路由参数
 const pageId = ref<string>('')
@@ -39,6 +39,8 @@ const showReportLoading = ref(false)
 const sseCleanup = ref<(() => void) | null>(null)
 // 是否正在加载下一题（显示遮罩）
 const isLoadingNextQuestion = ref(false)
+// 进度阶段状态（用于显示不同的加载提示）
+const progressStage = ref<string | null>(null)
 
 // 恢复的当前问题（用于会话进度恢复）
 const restoredCurrentQuestion = ref<{
@@ -191,8 +193,8 @@ const initInterview = async () => {
         questionIndex: historyItem.questionIndex,
         difficulty: historyItem.difficulty,
         timestamp: Date.now(),
-        createdByPerspectiveId: (historyItem as any).createdByPerspectiveId,
-        createdByPerspectiveName: (historyItem as any).createdByPerspectiveName
+        createdByPerspectiveId: historyItem.createdByPerspectiveId,
+        createdByPerspectiveName: historyItem.createdByPerspectiveName
       })
       // 添加用户回答
       messages.value.push({
@@ -211,8 +213,8 @@ const initInterview = async () => {
         category: progress.currentQuestion.category,
         difficulty: progress.currentQuestion.difficulty,
         knowledgeBaseName: progress.currentQuestion.knowledgeBaseName,
-        createdByPerspectiveId: (progress.currentQuestion as any).createdByPerspectiveId,
-        createdByPerspectiveName: (progress.currentQuestion as any).createdByPerspectiveName
+        createdByPerspectiveId: progress.currentQuestion.createdByPerspectiveId,
+        createdByPerspectiveName: progress.currentQuestion.createdByPerspectiveName
       }
       // 添加当前问题到消息列表
       messages.value.push({
@@ -224,40 +226,9 @@ const initInterview = async () => {
         difficulty: progress.currentQuestion.difficulty,
         knowledgeBaseName: progress.currentQuestion.knowledgeBaseName,
         timestamp: Date.now(),
-        createdByPerspectiveId: (progress.currentQuestion as any).createdByPerspectiveId,
-        createdByPerspectiveName: (progress.currentQuestion as any).createdByPerspectiveName
+        createdByPerspectiveId: progress.currentQuestion.createdByPerspectiveId,
+        createdByPerspectiveName: progress.currentQuestion.createdByPerspectiveName
       })
-    } else {
-      // 新面试，还没有生成任何题目，调用 fetchCurrentQuestion 获取第一题
-      console.log('[Session] no current question, fetching first question...')
-      try {
-        const firstQuestion = await interviewStore.fetchCurrentQuestion(pageId.value)
-        console.log('[Session] first question fetched:', firstQuestion)
-        restoredCurrentQuestion.value = {
-          questionIndex: firstQuestion.questionIndex,
-          question: firstQuestion.question,
-          category: firstQuestion.category,
-          difficulty: firstQuestion.difficulty,
-          knowledgeBaseName: firstQuestion.knowledgeBaseName,
-          createdByPerspectiveId: (firstQuestion as any).createdByPerspectiveId,
-          createdByPerspectiveName: (firstQuestion as any).createdByPerspectiveName
-        }
-        // 添加第一题到消息列表
-        messages.value.push({
-          id: Date.now() + Math.random(),
-          type: 'interviewer',
-          content: firstQuestion.question,
-          category: firstQuestion.category,
-          questionIndex: firstQuestion.questionIndex,
-          difficulty: firstQuestion.difficulty,
-          knowledgeBaseName: firstQuestion.knowledgeBaseName,
-          timestamp: Date.now(),
-          createdByPerspectiveId: (firstQuestion as any).createdByPerspectiveId,
-          createdByPerspectiveName: (firstQuestion as any).createdByPerspectiveName
-        })
-      } catch (err) {
-        console.error('获取第一题失败:', err)
-      }
     }
 
     // 开始面试状态
@@ -291,8 +262,17 @@ const setupSSEConnection = () => {
       console.log('[SSE] connected')
       interviewStatus.value = 'connected'
     },
+    onProgress: (stage: string) => {
+      console.log('[SSE] received progress stage:', stage)
+      progressStage.value = stage
+      if (stage === 'QUESTION_GENERATING') {
+        isLoadingNextQuestion.value = true
+      }
+    },
     onQuestion: (question) => {
       console.log('[SSE] received question:', question)
+      // 清空进度阶段状态
+      progressStage.value = null
       // 更新当前问题
       restoredCurrentQuestion.value = {
         questionIndex: question.questionIndex,
@@ -328,6 +308,7 @@ const setupSSEConnection = () => {
     onComplete: (data) => {
       console.log('[SSE] interview complete:', data)
       interviewStatus.value = 'completed'
+      progressStage.value = null
       addSystemMessage('面试已完成')
       // 跳转到报告页面
       uni.redirectTo({
@@ -336,6 +317,7 @@ const setupSSEConnection = () => {
     },
     onError: (errorMsg) => {
       console.error('[SSE] error:', errorMsg)
+      progressStage.value = null
       uni.showToast({
         title: errorMsg || '连接错误',
         icon: 'none'
@@ -463,14 +445,13 @@ const scrollToBottom = () => {
 // 提交回答
 const submitAnswer = async () => {
   const answer = answerText.value.trim()
-  if (!answer) return
+  if (!answer || !restoredCurrentQuestion.value) return
 
-  // 获取当前问题的索引（优先使用恢复的问题）
-  const questionIndex = restoredCurrentQuestion.value?.questionIndex ?? currentQuestion.value?.questionIndex ?? currentIndex.value
-  if (questionIndex === undefined) return
+  const submittedAnswer = answer
+  const questionIndex = restoredCurrentQuestion.value.questionIndex
 
   // 添加回答消息
-  addAnswerMessage(answer, questionIndex)
+  addAnswerMessage(submittedAnswer, questionIndex)
 
   // 清空输入
   answerText.value = ''
@@ -478,19 +459,17 @@ const submitAnswer = async () => {
   // 显示正在加载下一题
   isLoadingNextQuestion.value = true
   interviewStatus.value = 'evaluating'
+  isSubmitting.value = true
 
   try {
-    // 使用自适应难度 API 提交答案（立即返回，SSE 推送下一题）
-    await interviewStore.submitQuestionAnswer({
-      interviewId: Number(pageId.value),
-      questionId: Number(questionIndex),  // 使用 questionIndex 作为 questionId
-      answer
-    })
+    // 使用 submitAnswerAdaptive API（立即返回，SSE 推送下一题）
+    await submitAnswerAdaptive(pageId.value, questionIndex, submittedAnswer)
     // 等待 SSE 事件来更新 UI（nextQuestion 或 complete）
   } catch (error) {
     console.error('提交答案失败:', error)
     interviewStatus.value = 'answering'
     isLoadingNextQuestion.value = false
+    isSubmitting.value = false
     uni.showToast({
       title: '提交失败，请重试',
       icon: 'none'
@@ -570,6 +549,14 @@ const goToQuestion = (index: number) => {
   showCurrentQuestion()
 }
 
+// 跳转到报告页面
+const goToReport = () => {
+  showReportLoading.value = false
+  uni.redirectTo({
+    url: `/pages/interview/report?id=${pageId.value}`
+  })
+}
+
 // 结束面试并等待结果
 const finishInterviewAndWaitForResult = async () => {
   try {
@@ -586,12 +573,7 @@ const finishInterviewAndWaitForResult = async () => {
         const status = await interviewStore.fetchEvaluateStatus(pageId.value)
 
         if (status && status.overallScore !== null && status.overallScore !== undefined) {
-          showReportLoading.value = false
-          interviewStatus.value = 'completed'
-
-          uni.navigateTo({
-            url: `/pages/interview/report?id=${pageId.value}`
-          })
+          goToReport()
         } else {
           pollTimer.value = setTimeout(pollResult, 2000) as unknown as number
         }
@@ -603,6 +585,7 @@ const finishInterviewAndWaitForResult = async () => {
     setTimeout(pollResult, 2000)
   } catch (error) {
     console.error('结束面试失败:', error)
+    showReportLoading.value = false
     uni.showToast({
       title: '结束面试失败',
       icon: 'none'
@@ -767,7 +750,7 @@ onUnmounted(() => {
             <view class="dot"></view>
             <view class="dot"></view>
           </view>
-          <text class="loading-text">{{ isLoadingNextQuestion ? '正在出题中...' : 'AI 正在分析你的回答...' }}</text>
+          <text class="loading-text">{{ progressStage ? PROGRESS_LABELS[progressStage] || progressStage : (isLoadingNextQuestion ? '正在出题中...' : 'AI 正在分析你的回答...') }}</text>
         </view>
       </scroll-view>
 
@@ -779,20 +762,22 @@ onUnmounted(() => {
             class="answer-input"
             placeholder="输入你的回答..."
             placeholder-class="input-placeholder"
-            :disabled="interviewStatus === 'evaluating' || isSubmitting"
+            :disabled="interviewStatus === 'evaluating' || isSubmitting || !!progressStage"
             :maxlength="2000"
           />
           <view class="button-group">
             <view
               class="submit-btn"
-              :class="{ disabled: !answerText.trim() || interviewStatus === 'evaluating' || isSubmitting }"
+              :class="{ disabled: !answerText.trim() || interviewStatus === 'evaluating' || isSubmitting || !!progressStage }"
               @click="submitAnswer"
             >
-              <text v-if="interviewStatus === 'evaluating' || isSubmitting">提交中...</text>
+              <text v-if="progressStage">{{ PROGRESS_LABELS[progressStage] || progressStage }}</text>
+              <text v-else-if="isSubmitting || interviewStatus === 'evaluating'">提交中...</text>
               <text v-else>提交</text>
             </view>
             <view
               class="early-exit-btn"
+              :class="{ disabled: isSubmitting || !!progressStage }"
               @click="finishInterview"
             >
               <text>提前交卷</text>
@@ -805,12 +790,7 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss">
-// 靛蓝清新配色
-$primary-color: #6366f1;
-$primary-light: #a5b4fc;
-$primary-dark: #4f46e5;
-$accent: #818cf8;
-$bg-color: #f8fafc;
+@import '../../styles/variables.scss';
 
 // 主容器
 .interview-session-container {

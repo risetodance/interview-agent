@@ -1,0 +1,25 @@
+// 小程序全局配色变量
+// 与 Web 前端保持一致，使用天蓝清新配色
+
+// 主色调
+$primary: #0ea5e9;
+$primary-color: #0ea5e9;  // 兼容有些页面使用 $primary-color
+$primary-light: #7dd3fc;
+$primary-dark: #0284c7;
+$accent: #38bdf8;
+
+// 背景色
+$bg: #f8fafc;
+$bg-color: #f8fafc;  // 兼容有些页面使用 $bg-color
+$card-bg: #ffffff;
+
+// 文字色
+$text-primary: #1e293b;
+$text-secondary: #475569;
+$text-muted: #94a3b8;
+
+// 功能色
+$success: #0ea5e9;
+$warning: #f59e0b;
+$danger: #ef4444;
+$info: #38bdf8;

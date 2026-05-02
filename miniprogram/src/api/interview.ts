@@ -524,13 +524,27 @@ export const SSE_EVENT_TYPES = {
   EVALUATION: 'evaluation',
   INTERVIEW_COMPLETE: 'interview_complete',
   ERROR: 'error',
+  // 进度阶段事件（与后端 SseEventType 一致）
+  PROGRESS_SCORING: 'progress_scoring',
+  PROGRESS_DECIDING: 'progress_deciding',
+  PROGRESS_SEARCH_PREPARING: 'progress_search_preparing',
+  PROGRESS_GENERATING: 'progress_generating',
 } as const
+
+// 进度阶段标签（与前端一致）
+export const PROGRESS_LABELS: Record<string, string> = {
+  'progress_scoring': 'AI 正在评分...',
+  'progress_deciding': '正在决策下一题...',
+  'progress_search_preparing': '正在准备搜索...',
+  'progress_generating': '正在出题中...',
+}
 
 /**
  * SSE 连接回调接口
  */
 export interface SSECallbacks {
   onConnected?: () => void
+  onProgress?: (stage: string) => void
   onQuestion?: (data: StreamCurrentQuestionDTO) => void
   onEvaluation?: (data: { questionIndex: number; score: number; feedback: string }) => void
   onComplete?: (data: { overallScore: number; summary: Record<string, unknown> }) => void
@@ -570,15 +584,33 @@ export const connectInterviewStream = (
   const env = process.env as Record<string, string>
   const apiBaseUrl = env.VITE_API_BASE_URL || ''
 
-  // 构建 SSE URL
-  const sseUrl = `${apiBaseUrl}/api/interview/sessions/${sessionId}/stream`
+  // 获取 token（EventSource 不支持自定义 header，通过 URL 参数传递）
+  // 注意：小程序端存储 token 的 key 是 'token'，不是 'auth_token'
+  const token = uni.getStorageSync('token') || ''
+  const streamUrl = token
+    ? `${apiBaseUrl}/api/interview/sessions/${sessionId}/stream?token=${encodeURIComponent(token)}`
+    : `${apiBaseUrl}/api/interview/sessions/${sessionId}/stream`
 
   // 创建 EventSource
-  const eventSource = new EventSource(sseUrl, { withCredentials: true })
+  const eventSource = new EventSource(streamUrl, { withCredentials: true })
 
   // 连接成功事件
   eventSource.addEventListener(SSE_EVENT_TYPES.CONNECTED, () => {
     callbacks.onConnected?.()
+  })
+
+  // 进度阶段事件（分别监听，与前端一致）
+  const progressEvents = [
+    SSE_EVENT_TYPES.PROGRESS_SCORING,
+    SSE_EVENT_TYPES.PROGRESS_DECIDING,
+    SSE_EVENT_TYPES.PROGRESS_SEARCH_PREPARING,
+    SSE_EVENT_TYPES.PROGRESS_GENERATING,
+  ]
+
+  progressEvents.forEach((eventType) => {
+    eventSource.addEventListener(eventType, () => {
+      callbacks.onProgress?.(eventType)
+    })
   })
 
   // 收到问题事件

@@ -12,8 +12,8 @@ const features = ref([
     title: '简历管理',
     desc: '智能分析简历',
     icon: '📄',
-    gradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)',
-    bgColor: '#eef2ff',
+    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)',
+    bgColor: '#e0f2fe',
     path: '/pages/resume/list'
   },
   {
@@ -21,8 +21,8 @@ const features = ref([
     title: 'AI面试',
     desc: '模拟面试实战',
     icon: '💼',
-    gradient: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
-    bgColor: '#e0e7ff',
+    gradient: 'linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)',
+    bgColor: '#e0f2fe',
     path: '/pages/interview/list'
   },
   {
@@ -30,9 +30,18 @@ const features = ref([
     title: '知识库',
     desc: '智能问答助手',
     icon: '📚',
-    gradient: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)',
-    bgColor: '#f5f3ff',
+    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)',
+    bgColor: '#e0f2fe',
     path: '/pages/knowledge/list'
+  },
+  {
+    id: 'question-bank',
+    title: '题库管理',
+    desc: '管理面试题库',
+    icon: '📝',
+    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)',
+    bgColor: '#e0f2fe',
+    path: '/pages/question-bank/list'
   },
   {
     id: 'notification',
@@ -42,12 +51,16 @@ const features = ref([
     gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)',
     bgColor: '#e0f2fe',
     path: '/pages/notification/list'
+  },
+  {
+    id: 'points',
+    title: '积分商城',
+    desc: '兑换惊喜好礼',
+    icon: '🎁',
+    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)',
+    bgColor: '#e0f2fe',
+    path: '/pages/points/index'
   }
-])
-
-// 快捷入口
-const quickActions = ref([
-  { id: 'points', title: '积分商城', icon: '🎁', gradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)', path: '/pages/points/index' }
 ])
 
 const goToFeature = (path: string) => {
@@ -132,22 +145,7 @@ const goToProfile = () => {
       </view>
     </view>
 
-    <!-- 快捷入口 -->
-    <view class="quick-section" v-if="isLoggedIn">
-      <view class="quick-grid">
-        <view
-          v-for="item in quickActions"
-          :key="item.id"
-          class="quick-card"
-          :style="{ background: item.gradient }"
-          @click="goToFeature(item.path)"
-        >
-          <text class="quick-icon">{{ item.icon }}</text>
-          <text class="quick-title">{{ item.title }}</text>
-        </view>
-      </view>
-    </view>
-
+    
     <!-- 底部 -->
     <view class="bottom-section">
       <text class="copyright">© 2026 AI面试指南</text>
@@ -156,16 +154,7 @@ const goToProfile = () => {
 </template>
 
 <style lang="scss" scoped>
-// 清新的薄荷绿配色
-$primary: #6366f1;
-$primary-light: #a5b4fc;
-$primary-dark: #4f46e5;
-$accent: #818cf8;
-$bg: #f8fafc;
-$card-bg: #ffffff;
-$text-primary: #1e293b;
-$text-secondary: #475569;
-$text-muted: #94a3b8;
+@import '../../styles/variables.scss';
 
 .index-container {
   min-height: 100vh;
