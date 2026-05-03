@@ -1,7 +1,17 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useInterviewStore, type Interview } from '../../stores/interview'
+
+// 判断面试是否正在评估中
+const isEvaluating = (item: Interview): boolean => {
+  return item.evaluateStatus === 'PENDING' || item.evaluateStatus === 'PROCESSING'
+}
+
+// 判断是否有面试正在评估
+const hasEvaluatingInterview = computed(() => {
+  return interviewList.value.some(item => isEvaluating(item))
+})
 
 // 状态筛选
 const statusTabs = [
@@ -26,6 +36,30 @@ const total = ref(0)
 
 // 面试列表
 const interviewList = computed(() => interviewStore.interviewList)
+
+// 轮询定时器
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+// 开始轮询检查评估状态
+const startPolling = () => {
+  if (pollTimer) return
+  pollTimer = setInterval(() => {
+    if (hasEvaluatingInterview.value) {
+      loadInterviewList(true)
+    } else {
+      // 没有正在评估的面试，停止轮询
+      stopPolling()
+    }
+  }, 3000)
+}
+
+// 停止轮询
+const stopPolling = () => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
 
 // 状态映射
 const statusMap: Record<string, { text: string; color: string; bgColor: string }> = {
@@ -150,6 +184,14 @@ const getStatusStyle = (status: string) => {
 
 onShow(() => {
   loadInterviewList()
+  // 启动轮询检查评估状态
+  if (hasEvaluatingInterview.value) {
+    startPolling()
+  }
+})
+
+onUnmounted(() => {
+  stopPolling()
 })
 </script>
 

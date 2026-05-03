@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { useInterviewStore } from '../../stores/interview'
+import { ref, computed, toRef, onMounted, onUnmounted, nextTick } from 'vue'
+import { useInterviewStore, InterviewQuestion } from '../../stores/interview'
 import { getCurrentQuestion, getSessionProgress, connectInterviewStream, SSE_EVENT_TYPES, PROGRESS_LABELS, submitAnswerAdaptive, endInterview } from '../../api/interview'
 
 // 路由参数
@@ -19,7 +19,8 @@ const currentQuestion = computed(() => interviewStore.currentQuestion)
 const progress = computed(() => interviewStore.progress)
 const currentIndex = computed(() => interviewStore.currentQuestionIndex)
 const isLoading = computed(() => interviewStore.isLoading)
-const isSubmitting = computed(() => interviewStore.isSubmitting)
+// 使用 toRef 保持与 store 状态的响应式连接，允许直接赋值
+const isSubmitting = toRef(interviewStore, 'isSubmitting')
 
 // UI状态
 const showEvaluation = ref(false)
@@ -349,10 +350,10 @@ const setupSSEConnection = () => {
     onComplete: (data) => {
       interviewStatus.value = 'completed'
       progressStage.value = null
-      addSystemMessage('面试已完成')
-      // 跳转到报告页面
+      addSystemMessage('面试已完成，评估进行中...')
+      // 跳转到面试列表页，等待评估完成后再查看报告
       uni.redirectTo({
-        url: `/pages/interview/report?id=${pageId.value}`
+        url: '/pages/interview/list'
       })
     },
     onError: (errorMsg) => {
@@ -601,26 +602,18 @@ const finishInterviewAndWaitForResult = async () => {
     // 调用后端接口结束面试
     await endInterview(pageId.value)
 
-    // 显示加载蒙版，等待评估完成
-    interviewStatus.value = 'evaluating'
-    showReportLoading.value = true
+    interviewStatus.value = 'completed'
+    showReportLoading.value = false
 
-    // 轮询等待评估完成
-    const pollResult = async () => {
-      try {
-        const status = await interviewStore.fetchEvaluateStatus(pageId.value)
+    uni.showToast({
+      title: '面试已结束，评估进行中',
+      icon: 'none'
+    })
 
-        if (status && status.overallScore !== null && status.overallScore !== undefined) {
-          goToReport()
-        } else {
-          pollTimer.value = setTimeout(pollResult, 2000) as unknown as number
-        }
-      } catch (error) {
-        pollTimer.value = setTimeout(pollResult, 2000) as unknown as number
-      }
-    }
-
-    setTimeout(pollResult, 2000)
+    // 跳转到面试列表页
+    uni.redirectTo({
+      url: '/pages/interview/list'
+    })
   } catch (error) {
     showReportLoading.value = false
     uni.showToast({

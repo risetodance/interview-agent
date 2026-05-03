@@ -532,6 +532,33 @@ export const PROGRESS_LABELS: Record<string, string> = {
 }
 
 /**
+ * SSE 事件类别常量（用于 connectInterviewStream）
+ */
+const EVENT_CATEGORY = {
+  PROGRESS: 'progress',
+  QUESTION: 'question',
+  EVALUATION: 'evaluation',
+  COMPLETE: 'complete',
+  ERROR: 'error',
+  CONNECTED: 'connected',
+} as const
+
+/**
+ * SSE 事件映射配置（将 SSE 事件类型映射到事件类别）
+ */
+const INTERVIEW_SSE_EVENTS = {
+  [SSE_EVENT_TYPES.CONNECTED]: EVENT_CATEGORY.CONNECTED,
+  [SSE_EVENT_TYPES.PROGRESS_SCORING]: EVENT_CATEGORY.PROGRESS,
+  [SSE_EVENT_TYPES.PROGRESS_DECIDING]: EVENT_CATEGORY.PROGRESS,
+  [SSE_EVENT_TYPES.PROGRESS_SEARCH_PREPARING]: EVENT_CATEGORY.PROGRESS,
+  [SSE_EVENT_TYPES.PROGRESS_GENERATING]: EVENT_CATEGORY.PROGRESS,
+  [SSE_EVENT_TYPES.QUESTION]: EVENT_CATEGORY.QUESTION,
+  [SSE_EVENT_TYPES.EVALUATION]: EVENT_CATEGORY.EVALUATION,
+  [SSE_EVENT_TYPES.INTERVIEW_COMPLETE]: EVENT_CATEGORY.COMPLETE,
+  [SSE_EVENT_TYPES.ERROR]: EVENT_CATEGORY.ERROR,
+} as const
+
+/**
  * SSE 连接回调接口
  */
 export interface SSECallbacks {
@@ -541,6 +568,210 @@ export interface SSECallbacks {
   onEvaluation?: (data: { questionIndex: number; score: number; feedback: string }) => void
   onComplete?: (data: { overallScore: number; summary: Record<string, unknown> }) => void
   onError?: (error: string) => void
+}
+
+/**
+ * 通用 SSE 事件回调接口
+ * 用于其他 SSE 连接场景（如知识库对话等）
+ */
+export interface SSEMessageCallbacks {
+  onConnected?: () => void
+  onMessage?: (eventType: string, data: any) => void
+  onError?: (error: string) => void
+}
+
+/**
+ * 连接通用 SSE 流（跨平台版本）
+ * H5 使用原生 EventSource，小程序使用 uni.request + enableChunked
+ * @param url 完整的 SSE 请求 URL
+ * @param callbacks 事件回调
+ * @returns 清理函数，调用后关闭连接
+ */
+export const connectSSE = (
+  url: string,
+  callbacks: SSEMessageCallbacks
+): (() => void) => {
+  // #ifdef H5
+  // H5 环境使用原生 EventSource
+  return connectSSE_H5(url, callbacks)
+  // #endif
+
+  // #ifndef H5
+  // 小程序环境使用 uni.request
+  return connectSSE_Uni(url, callbacks, undefined)
+  // #endif
+}
+
+/**
+ * H5 环境 SSE 连接（使用原生 EventSource）
+ */
+const connectSSE_H5 = (
+  url: string,
+  callbacks: SSEMessageCallbacks
+): (() => void) => {
+  const eventSource = new EventSource(url)
+
+  eventSource.addEventListener('open', () => {
+    callbacks.onConnected?.()
+  })
+
+  // 监听错误
+  eventSource.addEventListener('error', () => {
+    callbacks.onError?.('SSE 连接错误')
+    eventSource.close()
+  })
+
+  // 监听所有自定义事件类型（由服务器端发送）
+  const eventTypes = [
+    'connected',
+    'question',
+    'evaluation',
+    'interview_complete',
+    'error',
+    'progress_scoring',
+    'progress_deciding',
+    'progress_search_preparing',
+    'progress_generating',
+  ]
+
+  eventTypes.forEach((eventType) => {
+    eventSource.addEventListener(eventType, (event: MessageEvent) => {
+      try {
+        const data = event.data ? JSON.parse(event.data) : null
+        callbacks.onMessage?.(eventType, data)
+      } catch (e) {
+        callbacks.onMessage?.(eventType, event.data)
+      }
+    })
+  })
+
+  return () => eventSource.close()
+}
+
+/**
+ * 小程序环境 SSE 连接（使用 uni.request + enableChunked）
+ */
+const connectSSE_Uni = (
+  url: string,
+  callbacks: SSEMessageCallbacks,
+  _platform: unknown
+): (() => void) => {
+  // SSE 数据缓冲区
+  let buffer = ''
+
+  // 解析 SSE 数据块
+  const parseSSEMessage = (text: string) => {
+    const lines = text.split('\n')
+    let eventType: string | null = null
+    let data: string | null = null
+
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        eventType = line.slice(6).trim()
+      } else if (line.startsWith('data:')) {
+        // 多个 data 行应该用换行符连接（SSE 协议规范）
+        const lineData = line.slice(5).trim()
+        data = data === null ? lineData : data + '\n' + lineData
+      } else if (line === '') {
+        // 空行表示消息结束，处理数据
+        if (eventType && data !== null) {
+          handleSSEEvent(eventType, data)
+        } else if (eventType && data === '') {
+          // data 为空的情况（如 connected 事件）
+          handleSSEEvent(eventType, '')
+        }
+        eventType = null
+        data = null
+      }
+    }
+  }
+
+  // 处理 SSE 事件
+  const handleSSEEvent = (eventType: string, rawData: string) => {
+    // connected 事件不传递数据，只触发回调
+    if (eventType === 'connected') {
+      callbacks.onConnected?.()
+      return
+    }
+
+    try {
+      const data = rawData === '' ? null : JSON.parse(rawData)
+      callbacks.onMessage?.(eventType, data)
+    } catch (e) {
+      // JSON 解析错误，rawData 不是 JSON，传递给调用方处理
+      callbacks.onMessage?.(eventType, rawData)
+    }
+  }
+
+  // 创建 AbortController 用于取消请求
+  const abortController = {
+    aborted: false,
+    abort: () => {
+      abortController.aborted = true
+    }
+  }
+
+  // 创建 SSE 请求
+  const requestTask = uni.request({
+    url,
+    method: 'GET',
+    header: {
+      'Cache-Control': 'no-cache',
+    },
+    enableChunked: true,
+    fail: (err) => {
+      if (!abortController.aborted) {
+        callbacks.onError?.(err.errMsg || 'SSE 连接失败')
+      }
+    }
+  })
+
+  // 监听数据块（微信小程序端）
+  ;(requestTask as any).onChunkReceived((res: { data: ArrayBuffer }) => {
+    try {
+      // 将 ArrayBuffer 转为字符串（使用 TextDecoder 更高效）
+      const chunkStr = new TextDecoder().decode(res.data)
+
+      // 追加到缓冲区
+      buffer += chunkStr
+
+      // 按 SSE 格式分割处理（消息以空行 \n\n 分隔）
+      const messages = buffer.split('\n\n')
+      buffer = messages.pop() || '' // 保留不完整的最后一块
+
+      for (const message of messages) {
+        if (message.trim()) {
+          parseSSEMessage(message)
+        }
+      }
+    } catch (e) {
+      // 解析错误时忽略：数据块可能包含不完整的 UTF-8 序列
+      // TextDecoder 会抛出异常，但不影响接收后续完整数据
+    }
+  })
+
+  // 监听请求完成
+  ;(requestTask as any).onComplete(() => {
+    if (!abortController.aborted) {
+      // 处理缓冲区中剩余的数据
+      if (buffer.trim()) {
+        parseSSEMessage(buffer)
+      }
+      buffer = ''
+    }
+  })
+
+  // 返回清理函数
+  return () => {
+    abortController.abort()
+    buffer = ''
+    try {
+      (requestTask as any).abort?.()
+    } catch (e) {
+      // 忽略中止错误：请求可能已经完成或在不同状态下关闭
+      // 这是清理阶段的预期行为，不需要处理
+    }
+  }
 }
 
 /**
@@ -564,6 +795,7 @@ export interface StreamCurrentQuestionDTO {
 
 /**
  * 连接面试 SSE 流获取实时事件
+ * 使用通用 connectSSE 方法实现，支持 H5 和微信小程序
  * @param sessionId 会话 ID
  * @param callbacks 事件回调
  * @returns 清理函数，调用后关闭连接
@@ -576,84 +808,43 @@ export const connectInterviewStream = (
   const env = process.env as Record<string, string>
   const apiBaseUrl = env.VITE_API_BASE_URL || ''
 
-  // 获取 token（EventSource 不支持自定义 header，通过 URL 参数传递）
+  // 获取 token
   // 注意：小程序端存储 token 的 key 是 'token'，不是 'auth_token'
   const token = uni.getStorageSync('token') || ''
   const streamUrl = token
     ? `${apiBaseUrl}/api/interview/sessions/${sessionId}/stream?token=${encodeURIComponent(token)}`
     : `${apiBaseUrl}/api/interview/sessions/${sessionId}/stream`
 
-  // 创建 EventSource
-  const eventSource = new EventSource(streamUrl, { withCredentials: true })
+  // 使用通用 SSE 方法
+  return connectSSE(streamUrl, {
+    onMessage: (eventType, data) => {
+      const eventCategory = INTERVIEW_SSE_EVENTS[eventType as keyof typeof INTERVIEW_SSE_EVENTS]
 
-  // 连接成功事件
-  eventSource.addEventListener(SSE_EVENT_TYPES.CONNECTED, () => {
-    callbacks.onConnected?.()
-  })
-
-  // 进度阶段事件（分别监听，与前端一致）
-  const progressEvents = [
-    SSE_EVENT_TYPES.PROGRESS_SCORING,
-    SSE_EVENT_TYPES.PROGRESS_DECIDING,
-    SSE_EVENT_TYPES.PROGRESS_SEARCH_PREPARING,
-    SSE_EVENT_TYPES.PROGRESS_GENERATING,
-  ]
-
-  progressEvents.forEach((eventType) => {
-    eventSource.addEventListener(eventType, () => {
-      callbacks.onProgress?.(eventType)
-    })
-  })
-
-  // 收到问题事件
-  eventSource.addEventListener(SSE_EVENT_TYPES.QUESTION, (event: MessageEvent) => {
-    try {
-      const data = JSON.parse(event.data) as StreamCurrentQuestionDTO
-      callbacks.onQuestion?.(data)
-    } catch (e) {
-      // ignore parse error
+      switch (eventCategory) {
+        case EVENT_CATEGORY.PROGRESS:
+          callbacks.onProgress?.(eventType)
+          break
+        case EVENT_CATEGORY.QUESTION:
+          if (data) {
+            callbacks.onQuestion?.(data as StreamCurrentQuestionDTO)
+          }
+          break
+        case EVENT_CATEGORY.EVALUATION:
+          if (data) {
+            callbacks.onEvaluation?.(data)
+          }
+          break
+        case EVENT_CATEGORY.COMPLETE:
+          callbacks.onComplete?.(data || {})
+          break
+        case EVENT_CATEGORY.ERROR:
+          callbacks.onError?.(data?.message || '未知错误')
+          break
+        // EVENT_CATEGORY.CONNECTED 事件已在 connectSSE 内部处理，无需额外操作
+      }
+    },
+    onError: (error) => {
+      callbacks.onError?.(error)
     }
   })
-
-  // 收到评估事件
-  eventSource.addEventListener(SSE_EVENT_TYPES.EVALUATION, (event: MessageEvent) => {
-    try {
-      const data = JSON.parse(event.data)
-      callbacks.onEvaluation?.(data)
-    } catch (e) {
-      // ignore parse error
-    }
-  })
-
-  // 面试完成事件
-  eventSource.addEventListener(SSE_EVENT_TYPES.INTERVIEW_COMPLETE, (event: MessageEvent) => {
-    try {
-      const data = JSON.parse(event.data)
-      callbacks.onComplete?.(data)
-    } catch (e) {
-      // ignore parse error
-    } finally {
-      eventSource.close()
-    }
-  })
-
-  // 错误事件
-  eventSource.addEventListener(SSE_EVENT_TYPES.ERROR, (event: MessageEvent) => {
-    try {
-      const data = JSON.parse(event.data)
-      callbacks.onError?.(data.message || '未知错误')
-    } catch (e) {
-      callbacks.onError?.('SSE 连接错误')
-    } finally {
-      eventSource.close()
-    }
-  })
-
-  // 处理 EventSource 错误
-  eventSource.onerror = () => {
-    eventSource.close()
-  }
-
-  // 返回清理函数
-  return () => eventSource.close()
 }
