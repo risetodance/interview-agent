@@ -43,12 +43,10 @@ const initRecorder = () => {
   recorderManager.value = uni.getRecorderManager()
 
   recorderManager.value.onStop((res: any) => {
-    console.log('录音完成', res)
     handleVoiceRecord(res.tempFilePath)
   })
 
   recorderManager.value.onError((err: any) => {
-    console.error('录音错误', err)
     uni.showToast({
       title: '录音失败',
       icon: 'none'
@@ -143,7 +141,6 @@ const sendToAI = async (question: string) => {
       messages.value[loadingIndex].content += sourceText
     }
   } catch (error) {
-    console.error('AI 回答失败:', error)
 
     // 更新loading消息为错误
     const loadingIndex = messages.value.findIndex(m => m.id === loadingId)
@@ -204,7 +201,6 @@ const startRecording = () => {
       icon: 'none'
     })
   } catch (error) {
-    console.error('开始录音失败:', error)
     uni.showToast({
       title: '录音失败',
       icon: 'none'

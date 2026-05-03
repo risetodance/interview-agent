@@ -62,7 +62,6 @@ const loadReportData = async () => {
     // 加载综合报告
     try {
       const reportRes = await getComprehensiveReport(pageId.value)
-      console.log('[Report] comprehensiveReport:', reportRes)
       comprehensiveReport.value = reportRes
 
       // 构建 Tab 列表
@@ -78,7 +77,6 @@ const loadReportData = async () => {
         })
       }
     } catch (e) {
-      console.error('获取综合报告失败:', e)
     }
 
     // 加载视角评分列表
@@ -86,20 +84,16 @@ const loadReportData = async () => {
       const perspectivesRes: any = await getSessionPerspectives(pageId.value)
       perspectives.value = Array.isArray(perspectivesRes) ? perspectivesRes : ((perspectivesRes as any).list || [])
     } catch (e) {
-      console.error('获取视角列表失败:', e)
     }
 
     // 加载能力画像数据
     try {
       const profileRes = await getAbilityProfile(pageId.value)
-      console.log('[Report] profileRes:', profileRes)
       abilityLoading.value = false
     } catch (e) {
-      console.error('获取能力画像失败:', e)
       abilityLoading.value = false
     }
   } catch (error) {
-    console.error('获取面试详情失败:', error)
   } finally {
     loading.value = false
   }
@@ -111,7 +105,6 @@ const loadPerspectiveDetail = async (perspectiveId: number) => {
     const detail = await getPerspectiveDetail(pageId.value, perspectiveId)
     currentPerspectiveDetail.value = detail
   } catch (e) {
-    console.error('获取视角详情失败:', e)
   }
 }
 

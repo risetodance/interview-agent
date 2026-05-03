@@ -1,8 +1,6 @@
 // Mock 配置开关
 const mockEnvValue = import.meta.env.VITE_MOCK_ENABLED;
-console.log('[Mock] VITE_MOCK_ENABLED:', mockEnvValue);
 export const MOCK_ENABLED = mockEnvValue === 'true';
-console.log('[Mock] MOCK_ENABLED:', MOCK_ENABLED);
 
 // Mock 数据
 export const MOCK_DATA = {

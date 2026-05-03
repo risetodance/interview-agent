@@ -80,7 +80,6 @@ const handleSave = async () => {
       uni.navigateBack()
     }, 1500)
   } catch (error) {
-    console.error('保存题库失败:', error)
   } finally {
     saving.value = false
   }
@@ -95,7 +94,6 @@ const loadBankDetail = async (id: number) => {
     formData.value.name = bank.name || ''
     formData.value.description = bank.description || ''
   } catch (error) {
-    console.error('加载题库详情失败:', error)
   } finally {
     loading.value = false
   }

@@ -134,7 +134,7 @@ onMounted(() => {
   const pages = getCurrentPages()
   const page = pages[pages.length - 1] as any
   const options = page?.options || {}
-  console.log('[Session] page options:', options)
+  // 获取页面参数
 
   pageId.value = options.id || ''
   pageMode.value = options.mode === 'result' ? 'result' : 'interview'
@@ -143,7 +143,6 @@ onMounted(() => {
   // 如果 URL 中有 total 参数（新面试），设置总题数
   if (options.total) {
     sessionTotalQuestions.value = Number(options.total) || 0
-    console.log('[Session] set totalQuestions from URL:', sessionTotalQuestions.value)
   }
 
   if (pageId.value) {
@@ -154,15 +153,12 @@ onMounted(() => {
 // 初始化面试
 const initInterview = async () => {
   try {
-    console.log('[Session] initInterview start, pageId:', pageId.value, 'mode:', pageMode.value)
 
     // 如果是结果模式，获取面试结果
     if (pageMode.value === 'result') {
-      console.log('[Session] result mode - fetching result...')
       const result = await interviewStore.fetchInterviewResult(pageId.value)
       interviewResult.value = result
       interviewStatus.value = 'completed'
-      console.log('[Session] result mode ready')
       return
     }
 
@@ -171,11 +167,9 @@ const initInterview = async () => {
 
     if (isNewSession) {
       // 新创建的面试：先调用 getCurrentQuestion 获取第一题
-      console.log('[Session] new session - fetching first question...')
       isLoadingNextQuestion.value = true
       try {
         const firstQuestion = await getCurrentQuestion(pageId.value)
-        console.log('[Session] first question fetched:', firstQuestion)
 
         // 保存总题数和当前问题
         if (firstQuestion.questionIndex !== undefined) {
@@ -206,7 +200,6 @@ const initInterview = async () => {
           createdByPerspectiveName: firstQuestion.createdByPerspectiveName
         }]
       } catch (questionErr) {
-        console.error('获取第一题失败:', questionErr)
         uni.showToast({
           title: '获取面试问题失败',
           icon: 'none'
@@ -223,9 +216,7 @@ const initInterview = async () => {
       setupSSEConnection()
     } else {
       // 恢复已有面试：获取会话进度（包括历史记录和当前问题）
-      console.log('[Session] restoring existing session - fetching progress...')
       const progress = await getSessionProgress(pageId.value)
-      console.log('[Session] progress fetched:', progress)
 
       // 保存总题数（如果有有效的总题数则更新，否则保留 URL 中的值）
       if (progress.totalQuestions > 0) {
@@ -235,12 +226,10 @@ const initInterview = async () => {
       // 检查面试是否已完成
       if (progress.currentQuestionIndex >= progress.totalQuestions) {
         interviewStatus.value = 'completed'
-        console.log('[Session] interview completed')
         return
       }
 
       // 恢复历史消息
-      console.log('[Session] restoring history messages...')
       messages.value = []
       for (const historyItem of progress.history) {
         // 添加问题消息
@@ -291,16 +280,12 @@ const initInterview = async () => {
       }
 
       // 开始面试状态
-      console.log('[Session] starting interview with restored session...')
       interviewStatus.value = 'answering'
 
       // 建立 SSE 连接
       setupSSEConnection()
     }
-
-    console.log('[Session] initInterview done')
   } catch (error) {
-    console.error('初始化面试失败:', error)
     uni.showToast({
       title: '加载失败',
       icon: 'none'
@@ -319,18 +304,15 @@ const setupSSEConnection = () => {
   // 建立 SSE 连接
   sseCleanup.value = connectInterviewStream(pageId.value, {
     onConnected: () => {
-      console.log('[SSE] connected')
       interviewStatus.value = 'connected'
     },
     onProgress: (stage: string) => {
-      console.log('[SSE] received progress stage:', stage)
       progressStage.value = stage
       if (stage === 'QUESTION_GENERATING') {
         isLoadingNextQuestion.value = true
       }
     },
     onQuestion: (question) => {
-      console.log('[SSE] received question:', question)
       // 清空进度阶段状态
       progressStage.value = null
       // 更新当前问题
@@ -362,11 +344,9 @@ const setupSSEConnection = () => {
       scrollToBottom()
     },
     onEvaluation: (evaluation) => {
-      console.log('[SSE] received evaluation:', evaluation)
       // 评估结果可以用于更新显示，但不阻塞流程
     },
     onComplete: (data) => {
-      console.log('[SSE] interview complete:', data)
       interviewStatus.value = 'completed'
       progressStage.value = null
       addSystemMessage('面试已完成')
@@ -376,7 +356,6 @@ const setupSSEConnection = () => {
       })
     },
     onError: (errorMsg) => {
-      console.error('[SSE] error:', errorMsg)
       progressStage.value = null
       uni.showToast({
         title: errorMsg || '连接错误',
@@ -526,7 +505,6 @@ const submitAnswer = async () => {
     await submitAnswerAdaptive(pageId.value, questionIndex, submittedAnswer)
     // 等待 SSE 事件来更新 UI（nextQuestion 或 complete）
   } catch (error) {
-    console.error('提交答案失败:', error)
     interviewStatus.value = 'answering'
     isLoadingNextQuestion.value = false
     isSubmitting.value = false
@@ -644,7 +622,6 @@ const finishInterviewAndWaitForResult = async () => {
 
     setTimeout(pollResult, 2000)
   } catch (error) {
-    console.error('结束面试失败:', error)
     showReportLoading.value = false
     uni.showToast({
       title: '结束面试失败',

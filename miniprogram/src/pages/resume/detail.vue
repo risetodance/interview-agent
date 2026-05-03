@@ -114,7 +114,6 @@ const loadResumeDetail = async () => {
   try {
     const result = await getResumeDetail(resumeId.value)
     resumeDetail.value = result
-    console.log('[ResumeDetail] loadResumeDetail result.analysis:', result.analysis)
 
     // 如果状态是 PENDING 或 PROCESSING，自动开始轮询
     if (result.parseStatus === 'PENDING' || result.parseStatus === 'PROCESSING') {
@@ -126,7 +125,6 @@ const loadResumeDetail = async () => {
       setTimeout(() => drawRadarChart(), 100)
     }
   } catch (error) {
-    console.error('加载简历详情失败:', error)
     uni.showToast({
       title: '加载失败',
       icon: 'none'
@@ -138,21 +136,11 @@ const loadResumeDetail = async () => {
 
 // 绘制雷达图
 const drawRadarChart = () => {
-  console.log('[ResumeDetail] drawRadarChart called')
-  console.log('[ResumeDetail] resumeDetail.value:', resumeDetail.value)
-  console.log('[ResumeDetail] analysis:', resumeDetail.value?.analysis)
-
   if (!resumeDetail.value?.analysis) {
-    console.log('[ResumeDetail] analysis 不存在，跳过')
     return
   }
 
   const analysis = resumeDetail.value.analysis
-  console.log('[ResumeDetail] expressionScore:', analysis.expressionScore)
-  console.log('[ResumeDetail] skillMatchScore:', analysis.skillMatchScore)
-  console.log('[ResumeDetail] contentScore:', analysis.contentScore)
-  console.log('[ResumeDetail] structureScore:', analysis.structureScore)
-  console.log('[ResumeDetail] projectScore:', analysis.projectScore)
 
   // 雷达图数据 - 5个维度（包含满分用于归一化）
   const data = [
@@ -162,38 +150,27 @@ const drawRadarChart = () => {
     { name: '结构清晰度', score: analysis.structureScore || 0, fullMark: 15 },
     { name: '项目经验', score: analysis.projectScore || 0, fullMark: 40 }
   ]
-  console.log('[ResumeDetail] radar data:', data)
 
   // 检查是否有有效数据
   if (data.every(item => item.score === 0)) {
-    console.log('[ResumeDetail] 雷达图数据全为0，跳过绘制')
     return
   }
 
   // 使用原生 HTML5 Canvas API
-  console.log('[ResumeDetail] 尝试获取Canvas元素')
   let canvas = document.querySelector('#resumeRadarCanvas canvas') as HTMLCanvasElement
-  console.log('[ResumeDetail] querySelector result:', canvas)
   if (!canvas) {
     canvas = document.getElementById('resumeRadarCanvas') as HTMLCanvasElement
-    console.log('[ResumeDetail] getElementById result:', canvas)
   }
   if (!canvas) {
-    console.error('[ResumeDetail] Canvas元素获取失败')
     return
   }
-
-  console.log('[ResumeDetail] Canvas元素获取成功:', canvas)
 
   const ctx = canvas.getContext('2d')
   if (!ctx) {
-    console.error('[ResumeDetail] Canvas 2D上下文获取失败')
     return
   }
 
-  console.log('[ResumeDetail] 开始绘制雷达图')
   drawResumeRadarChart(ctx, data)
-  console.log('[ResumeDetail] 雷达图绘制完成')
 }
 
 function drawResumeRadarChart(ctx: any, data: any[]) {
@@ -323,7 +300,6 @@ const handleReanalyze = async () => {
           // 轮询等待分析完成
           await pollAnalysisStatus()
         } catch (error) {
-          console.error('重新分析失败:', error)
           uni.showToast({
             title: '分析失败',
             icon: 'none'
@@ -361,7 +337,6 @@ const pollAnalysisStatus = async () => {
       resumeDetail.value = result
 
       const parseStatus = result.parseStatus
-      console.log('轮询检测状态:', parseStatus, '尝试次数:', attempt)
 
       // COMPLETED 或 FAILED 表示分析完成
       if (parseStatus === 'COMPLETED' || parseStatus === 'FAILED') {
@@ -381,7 +356,6 @@ const pollAnalysisStatus = async () => {
         })
       }
     } catch (error) {
-      console.error('检查分析状态失败:', error)
     }
   }
 
@@ -430,7 +404,6 @@ const handleDownload = async () => {
           },
           fail: (err) => {
             uni.hideLoading()
-            console.error('打开文件失败:', err)
             uni.showToast({
               title: '打开文件失败',
               icon: 'none'
@@ -447,7 +420,6 @@ const handleDownload = async () => {
     }
   } catch (error) {
     uni.hideLoading()
-    console.error('下载简历失败:', error)
     uni.showToast({
       title: '导出失败',
       icon: 'none'
@@ -493,7 +465,6 @@ const handleReupload = () => {
       }
     },
     fail: (error) => {
-      console.error('选择文件失败:', error)
     }
   })
   // #endif

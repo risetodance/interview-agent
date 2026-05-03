@@ -141,7 +141,6 @@ export const useUserStore = defineStore('user', () => {
       setUserInfo(info)
       return info
     } catch (error) {
-      console.error('Fetch user info error:', error)
       throw error
     }
   }

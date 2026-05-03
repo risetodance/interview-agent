@@ -98,7 +98,6 @@ const chooseAvatar = async () => {
       })
     }
   } catch (error: any) {
-    console.error('选择头像失败:', error)
     if (error.errMsg && !error.errMsg.includes('cancel')) {
       uni.showToast({
         title: error.message || '上传失败',

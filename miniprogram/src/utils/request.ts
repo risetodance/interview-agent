@@ -90,8 +90,6 @@ const responseInterceptors = (response: UniApp.RequestSuccessCallbackResult): an
 
 // 处理请求错误
 const handleRequestError = (error: any): void => {
-  console.error('Request Error:', error)
-
   let message = '网络请求失败，请稍后重试'
 
   if (error.errMsg) {
@@ -138,7 +136,6 @@ export const request = <T = any>(options: RequestOptions): Promise<T> => {
   }
 
   return new Promise((resolve, reject) => {
-    console.log('[Request] Sending:', processedOptions.method, baseURL + processedOptions.url, processedOptions.data)
     uni.request({
       url: baseURL + processedOptions.url,
       method: processedOptions.method,
@@ -146,7 +143,6 @@ export const request = <T = any>(options: RequestOptions): Promise<T> => {
       header: processedOptions.header,
       timeout: processedOptions.timeout,
       success: (res) => {
-        console.log('[Request] Response:', res)
         if (showLoading) {
           uni.hideLoading()
         }
@@ -159,7 +155,6 @@ export const request = <T = any>(options: RequestOptions): Promise<T> => {
         }
       },
       fail: (error) => {
-        console.log('[Request] Error:', error)
         if (showLoading) {
           uni.hideLoading()
         }

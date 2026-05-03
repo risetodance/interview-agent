@@ -49,7 +49,6 @@ const loadKnowledgebaseList = async (refresh = false) => {
     total.value = result.total
     listParams.value.page++
   } catch (error) {
-    console.error('加载知识库列表失败:', error)
   } finally {
     loading.value = false
     refreshing.value = false
@@ -136,7 +135,6 @@ const confirmCreate = async () => {
     // 刷新列表
     loadKnowledgebaseList(true)
   } catch (error: any) {
-    console.error('创建知识库失败:', error)
     uni.showToast({ title: error.message || '创建失败', icon: 'none' })
   } finally {
     createLoading.value = false
@@ -167,7 +165,6 @@ const handleDelete = (id: number, index: number) => {
           })
           knowledgebaseList.value.splice(index, 1)
         } catch (error) {
-          console.error('删除知识库失败:', error)
         }
       }
     }

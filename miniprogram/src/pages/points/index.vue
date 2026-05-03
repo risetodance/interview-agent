@@ -59,7 +59,6 @@ const loadPointsInfo = async () => {
     const info = await getPointsInfo()
     pointsInfo.value = info
   } catch (error) {
-    console.error('获取积分信息失败:', error)
   } finally {
     isLoading.value = false
   }
@@ -85,7 +84,6 @@ const loadPointsRecords = async (loadMore = false) => {
     hasMoreRecords.value = result.list.length >= pageSize
     page.value++
   } catch (error) {
-    console.error('获取积分记录失败:', error)
   } finally {
     isLoadingRecords.value = false
   }
@@ -146,7 +144,6 @@ const loadPointsTasks = async () => {
       todayCheckInPoints.value = signInPoints
     }
   } catch (error) {
-    console.error('获取积分任务失败:', error)
   } finally {
     isLoadingTasks.value = false
   }
@@ -207,7 +204,6 @@ const handleCheckIn = async () => {
       icon: 'success'
     })
   } catch (error: any) {
-    console.error('签到失败:', error)
     uni.showToast({
       title: error.message || '签到失败，请重试',
       icon: 'none'
@@ -244,7 +240,6 @@ const handleClaimReward = async (task: PointsTask) => {
       icon: 'success'
     })
   } catch (error: any) {
-    console.error('领取奖励失败:', error)
     uni.showToast({
       title: error.message || '领取失败，请重试',
       icon: 'none'

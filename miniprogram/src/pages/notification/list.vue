@@ -72,7 +72,6 @@ const loadNotifications = async (loadMore = false) => {
     }
     total.value = res.total
   } catch (error) {
-    console.error('加载通知列表失败:', error)
     if (!loadMore) {
       uni.showToast({
         title: '加载失败，请稍后重试',
@@ -109,7 +108,6 @@ const handleMarkAsRead = async (item: Notification) => {
       notifications.value[index].isRead = true
     }
   } catch (error) {
-    console.error('标记已读失败:', error)
   }
 }
 

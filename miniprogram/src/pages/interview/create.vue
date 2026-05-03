@@ -12,7 +12,6 @@ const loadResumeList = async () => {
     const result = await getResumeList({ page: 1, pageSize: 50 })
     resumeList.value = result.list || []
   } catch (error) {
-    console.error('加载简历列表失败:', error)
   }
 }
 

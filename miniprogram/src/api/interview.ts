@@ -205,13 +205,6 @@ export const getInterviewHistory = () => {
 }
 
 /**
- * 获取面试报告
- */
-export const getInterviewReport = (sessionId: string | number) => {
-  return get(`/api/interview/sessions/${sessionId}/report`)
-}
-
-/**
  * 导出面试报告
  */
 export const exportInterviewReport = (sessionId: string | number) => {
@@ -239,7 +232,6 @@ export const getRecommendedPositions = async () => {
     }
     return []
   } catch (error) {
-    console.error('获取推荐岗位失败:', error)
     return []
   }
 }
@@ -619,7 +611,7 @@ export const connectInterviewStream = (
       const data = JSON.parse(event.data) as StreamCurrentQuestionDTO
       callbacks.onQuestion?.(data)
     } catch (e) {
-      console.error('解析问题数据失败:', e)
+      // ignore parse error
     }
   })
 
@@ -629,7 +621,7 @@ export const connectInterviewStream = (
       const data = JSON.parse(event.data)
       callbacks.onEvaluation?.(data)
     } catch (e) {
-      console.error('解析评估数据失败:', e)
+      // ignore parse error
     }
   })
 
@@ -639,7 +631,7 @@ export const connectInterviewStream = (
       const data = JSON.parse(event.data)
       callbacks.onComplete?.(data)
     } catch (e) {
-      console.error('解析完成数据失败:', e)
+      // ignore parse error
     } finally {
       eventSource.close()
     }

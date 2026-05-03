@@ -38,7 +38,7 @@ const handleWechatLogin = async () => {
         const profileRes = await uni.getUserProfile({ desc: '用于完善用户资料' })
         userInfo = profileRes.userInfo
       } catch (profileError) {
-        console.warn('获取用户信息失败:', profileError)
+        // ignore profile error
       }
     }
 
@@ -68,7 +68,6 @@ const handleWechatLogin = async () => {
       uni.navigateTo({ url: '/pages/index/index' })
     }, 500)
   } catch (error: any) {
-    console.error('微信登录失败:', error)
     uni.showToast({ title: error.message || '登录失败，请重试', icon: 'none' })
   } finally {
     isLoading.value = false
@@ -158,7 +157,6 @@ const handlePhoneLogin = async () => {
       uni.navigateTo({ url: '/pages/index/index' })
     }, 500)
   } catch (error: any) {
-    console.error('手机号登录失败:', error)
     uni.showToast({ title: error.message || '登录失败', icon: 'none' })
   } finally {
     isLoading.value = false

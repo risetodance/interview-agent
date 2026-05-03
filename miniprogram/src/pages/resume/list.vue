@@ -49,7 +49,6 @@ const loadResumeList = async (refresh = false) => {
     total.value = result.total
     listParams.value.page++
   } catch (error) {
-    console.error('加载简历列表失败:', error)
   } finally {
     loading.value = false
     refreshing.value = false
@@ -107,7 +106,6 @@ const handleDelete = (id: number, index: number) => {
           })
           resumeList.value.splice(index, 1)
         } catch (error) {
-          console.error('删除简历失败:', error)
         }
       }
     }

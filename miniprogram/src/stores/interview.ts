@@ -324,7 +324,6 @@ export const useInterviewStore = defineStore('interview', () => {
       statistics.value = stats
       return stats
     } catch (error) {
-      console.error('Fetch statistics error:', error)
     }
   }
 

@@ -43,7 +43,6 @@ const loadQuestions = async (refresh = false) => {
     const page = refresh ? 0 : pagination.value.page
     await questionBankStore.fetchQuestions(bankId.value, page, selectedDifficulty.value, searchKeyword.value)
   } catch (error) {
-    console.error('加载题目列表失败:', error)
   } finally {
     loading.value = false
     refreshing.value = false
@@ -111,7 +110,6 @@ const handleDelete = (question: QuestionDTO) => {
           // 刷新列表
           loadQuestions(true)
         } catch (error) {
-          console.error('删除题目失败:', error)
         }
       }
     }

@@ -36,7 +36,6 @@ const chooseFile = () => {
       handleFileSelected(res.tempFiles[0])
     },
     fail: (error) => {
-      console.error('选择文件失败:', error)
       uni.showToast({
         title: '选择文件失败',
         icon: 'none'

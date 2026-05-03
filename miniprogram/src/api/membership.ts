@@ -93,7 +93,6 @@ export const getPointsInfo = async () => {
         historyPoints = earnedPoints > 0 ? earnedPoints : currentPoints
       }
     } catch (e) {
-      console.error('获取积分历史失败:', e)
       // 使用当前积分作为历史积分
     }
 
@@ -105,7 +104,6 @@ export const getPointsInfo = async () => {
       rank: null
     }
   } catch (error) {
-    console.error('获取积分信息失败:', error)
     return {
       totalPoints: 0,
       availablePoints: 0,
@@ -123,7 +121,6 @@ export const getSignInStatus = async () => {
   try {
     return await get<any>('/api/points/signin/status')
   } catch (e) {
-    console.error('获取签到状态失败:', e)
     return { signedIn: false, consecutiveDays: 0, pointsCanEarn: 10 }
   }
 }

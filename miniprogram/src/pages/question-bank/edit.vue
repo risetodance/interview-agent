@@ -101,7 +101,6 @@ const handleSave = async () => {
       uni.navigateBack()
     }, 1500)
   } catch (error) {
-    console.error('保存题目失败:', error)
   } finally {
     saving.value = false
   }
@@ -118,7 +117,6 @@ const loadQuestionDetail = async (id: number) => {
     formData.value.difficulty = question.difficulty || 'ADVANCED'
     formData.value.tags = question.tags?.join('、') || ''
   } catch (error) {
-    console.error('加载题目详情失败:', error)
   } finally {
     loading.value = false
   }

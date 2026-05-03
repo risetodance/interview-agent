@@ -41,7 +41,6 @@ export const wechatLogin = async (data: WechatLoginParams) => {
   try {
     return await post<LoginResult>('/api/auth/wechat/login', data)
   } catch (error) {
-    console.error('[Auth] 微信登录失败:', error)
     throw error
   }
 }

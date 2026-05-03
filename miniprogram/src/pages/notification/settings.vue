@@ -77,7 +77,6 @@ const loadSettings = async () => {
     const res = await getNotificationSettings()
     settings.value = res
   } catch (error) {
-    console.error('加载通知设置失败:', error)
   } finally {
     isLoading.value = false
   }
@@ -102,7 +101,6 @@ const handleToggle = async (key: keyof NotificationSettings) => {
       icon: 'success'
     })
   } catch (error) {
-    console.error('更新设置失败:', error)
     // 失败时恢复原状态
     settings.value[key] = !newValue
     uni.showToast({
@@ -160,7 +158,6 @@ const handleSubscribe = async () => {
     })
     // #endif
   } catch (error) {
-    console.error('订阅消息失败:', error)
     uni.showToast({
       title: '订阅失败，请重试',
       icon: 'none'

@@ -73,7 +73,6 @@ const loadResumeDetail = async () => {
     resumeText.value = result.resumeText || ''
     resumePreview.value = resumeText.value.length > 500 ? resumeText.value.substring(0, 500) + '...' : resumeText.value
   } catch (error) {
-    console.error('加载简历详情失败:', error)
     resumeName.value = '简历详情'
     resumePreview.value = '简历内容加载失败'
   } finally {
@@ -105,7 +104,6 @@ const loadPerspectives = async () => {
       })
     }
   } catch (error) {
-    console.error('加载视角列表失败:', error)
     // 使用默认视角
     perspectives.value = [
       { id: 1, roleName: '技术面试官', roleCode: 'TECH_INTERVIEWER', weight: 0.4, description: '重点考察技术能力和项目经验', status: true, icon: 'code' },
@@ -233,7 +231,6 @@ const startInterview = async () => {
       url: `/pages/interview/session?id=${session.sessionId}&total=${session.totalQuestions}`
     })
   } catch (error) {
-    console.error('创建面试失败:', error)
     uni.showToast({
       title: '创建面试失败，请重试',
       icon: 'none'

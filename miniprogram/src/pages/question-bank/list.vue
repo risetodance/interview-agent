@@ -46,7 +46,6 @@ const loadBanks = async (refresh = false) => {
   try {
     await questionBankStore.fetchAllBanks()
   } catch (error) {
-    console.error('加载题库列表失败:', error)
   } finally {
     loading.value = false
     refreshing.value = false
@@ -93,7 +92,6 @@ const handleDelete = (bank: QuestionBankDTO) => {
             icon: 'success'
           })
         } catch (error) {
-          console.error('删除题库失败:', error)
         }
       }
     }

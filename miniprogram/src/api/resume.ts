@@ -187,13 +187,8 @@ export const getResumeList = (params?: ResumeListParams) => {
  */
 export const getResumeDetail = (id: number) => {
   return get<any>(`/api/resumes/${id}/detail`).then(data => {
-    // 打印后端返回的完整数据，用于调试雷达图字段
-    console.log('[ResumeDetail] 后端返回完整数据:', JSON.stringify(data, null, 2))
-    console.log('[ResumeDetail] analyses 数组:', data.analyses)
-
     // 从 analyses 获取最新的分析结果
     const latestAnalysis = data.analyses?.[0]
-    console.log('[ResumeDetail] latestAnalysis:', latestAnalysis)
 
     // 处理 strengths 和 suggestions（可能是字符串 JSON 或数组）
     const parseJsonField = (field: any): string[] => {
@@ -354,7 +349,6 @@ export const downloadResume = (id: number): Promise<{ tempFilePath?: string; url
         return { url }
       })
       .catch(err => {
-        console.error('下载失败:', err)
         throw err
       })
   }

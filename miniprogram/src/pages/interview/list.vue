@@ -61,7 +61,6 @@ const loadInterviewList = async (refresh = false) => {
     total.value = interviewList.value.length
     listParams.value.page++
   } catch (error) {
-    console.error('加载面试列表失败:', error)
   } finally {
     loading.value = false
     refreshing.value = false
@@ -127,7 +126,6 @@ const handleDelete = (item: Interview, index: number) => {
           // 删除成功后刷新列表
           loadInterviewList()
         } catch (error) {
-          console.error('删除面试失败:', error)
         }
       }
     }
