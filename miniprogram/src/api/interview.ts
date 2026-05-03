@@ -360,6 +360,7 @@ export interface ComprehensiveReportDTO {
   perspectives?: {
     perspectiveId: number
     perspectiveName: string
+    perspectiveIcon?: string
     weight: number
     score: number | null
     questionCount?: number

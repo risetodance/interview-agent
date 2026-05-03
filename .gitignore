@@ -18,3 +18,4 @@ package-lock.json
 /app/CLAUDE.md
 *.md
 /sql/
+/miniprogram/pnpm-lock.yaml

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { getInterviewDetail, getAbilityProfile, getComprehensiveReport, getSessionPerspectives, getPerspectiveDetail, type ComprehensiveReportDTO, type PerspectiveScoreDTO, type PerspectiveDetailDTO } from '../../api/interview'
+import { marked } from '../../utils/marked'
 
 // 路由参数
 const pageId = ref<string>('')
@@ -12,25 +13,26 @@ const perspectives = ref<PerspectiveScoreDTO[]>([])
 const currentPerspectiveDetail = ref<PerspectiveDetailDTO | null>(null)
 const loading = ref(true)
 const abilityLoading = ref(true)
-const expandedQuestions = ref<Set<number>>(new Set())
 
 // Tab 相关
 const currentTabIndex = ref(0)
 const tabs = ref<string[]>(['综合报告'])
 const perspectiveTabs = ref<{ id: number; name: string }[]>([])
 
-// 计算分数颜色
+// 计算分数颜色 - 与Web端一致
 const getScoreColor = (score: number) => {
-  if (score >= 90) return '#67C23A'
-  if (score >= 70) return '#409EFF'
-  if (score >= 60) return '#E6A23C'
-  return '#F56C6C'
+  if (score >= 80) return '#16a34a'  // green-600
+  if (score >= 60) return '#d97706'  // amber-600
+  return '#dc2626'  // red-600
 }
 
 // 切换 Tab
 const switchTab = (index: number) => {
   currentTabIndex.value = index
 }
+
+// 轮询定时器
+let pollingTimer: ReturnType<typeof setInterval> | null = null
 
 // 页面参数
 onMounted(() => {
@@ -43,6 +45,12 @@ onMounted(() => {
   }
 })
 
+onUnmounted(() => {
+  if (pollingTimer) {
+    clearInterval(pollingTimer)
+  }
+})
+
 // 加载报告数据
 const loadReportData = async () => {
   loading.value = true
@@ -51,13 +59,6 @@ const loadReportData = async () => {
     // 加载基本信息
     const detailRes = await getInterviewDetail(pageId.value)
     interview.value = detailRes
-
-    // 从详情数据中获取answers
-    if (detailRes.answers && detailRes.answers.length > 0) {
-      detailRes.answers.forEach((_: any, idx: number) => {
-        expandedQuestions.value.add(idx)
-      })
-    }
 
     // 加载综合报告
     try {
@@ -77,6 +78,7 @@ const loadReportData = async () => {
         })
       }
     } catch (e) {
+      console.error('加载综合报告失败:', e)
     }
 
     // 加载视角评分列表
@@ -84,6 +86,7 @@ const loadReportData = async () => {
       const perspectivesRes: any = await getSessionPerspectives(pageId.value)
       perspectives.value = Array.isArray(perspectivesRes) ? perspectivesRes : ((perspectivesRes as any).list || [])
     } catch (e) {
+      console.error('加载视角评分列表失败:', e)
     }
 
     // 加载能力画像数据
@@ -94,10 +97,64 @@ const loadReportData = async () => {
       abilityLoading.value = false
     }
   } catch (error) {
+    console.error('加载报告数据失败:', error)
   } finally {
     loading.value = false
   }
 }
+
+// 轮询检查状态（Web端逻辑）
+const startPolling = () => {
+  if (pollingTimer) return
+
+  pollingTimer = setInterval(() => {
+    const hasProcessing = perspectives.value.some(p => p.status === 'PROCESSING' || p.status === 'PENDING')
+    if (!hasProcessing || loading.value) return
+
+    loadPerspectives()
+    if (comprehensiveReport.value === null) {
+      loadComprehensiveReport()
+    }
+  }, 5000)
+}
+
+// 停止轮询
+const stopPolling = () => {
+  if (pollingTimer) {
+    clearInterval(pollingTimer)
+    pollingTimer = null
+  }
+}
+
+// 加载视角概览
+const loadPerspectives = async () => {
+  try {
+    const data = await getSessionPerspectives(pageId.value)
+    perspectives.value = Array.isArray(data) ? data : ((data as any).list || [])
+  } catch (err) {
+    console.error('加载视角概览失败:', err)
+  }
+}
+
+// 加载综合报告
+const loadComprehensiveReport = async () => {
+  try {
+    const data = await getComprehensiveReport(pageId.value)
+    comprehensiveReport.value = data
+  } catch (err) {
+    console.error('加载综合报告失败:', err)
+  }
+}
+
+// 监听状态变化，决定是否轮询
+watch(() => perspectives.value, (newPerspectives) => {
+  const hasProcessing = newPerspectives.some(p => p.status === 'PROCESSING' || p.status === 'PENDING')
+  if (hasProcessing && !loading.value) {
+    startPolling()
+  } else {
+    stopPolling()
+  }
+}, { deep: true })
 
 // 加载指定视角详情
 const loadPerspectiveDetail = async (perspectiveId: number) => {
@@ -105,6 +162,7 @@ const loadPerspectiveDetail = async (perspectiveId: number) => {
     const detail = await getPerspectiveDetail(pageId.value, perspectiveId)
     currentPerspectiveDetail.value = detail
   } catch (e) {
+    console.error('加载视角详情失败:', e)
   }
 }
 
@@ -123,31 +181,18 @@ const onTabChange = (index: number) => {
   }
 }
 
-// 格式化日期
-const formatDate = (dateStr: string) => {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
-// 获取答案列表（从interview中获取）
-const answers = computed(() => interview.value?.answers || [])
-
 // 圆形进度相关计算
-const circumference = 2 * Math.PI * 48
+const circumference = 2 * Math.PI * 36
 const progressOffset = computed(() => {
   const score = comprehensiveReport.value?.overallScore || interview.value?.overallScore || 0
   const progress = score / 100
   return circumference * (1 - progress)
 })
 
-// 切换问题展开状态
-const toggleQuestion = (index: number) => {
-  if (expandedQuestions.value.has(index)) {
-    expandedQuestions.value.delete(index)
-  } else {
-    expandedQuestions.value.add(index)
-  }
+// 各视角得分进度条宽度计算
+const getProgressWidth = (score: number | null | undefined) => {
+  if (score === null || score === undefined) return '0%'
+  return `${score}%`
 }
 
 // 视角图标映射
@@ -169,21 +214,65 @@ const getPerspectiveIcon = (nameOrIcon: string) => {
 const formatWeight = (weight: number) => {
   return `${Math.round(weight * 100)}%`
 }
+
+// 获取状态颜色
+const getStatusColor = (status: string) => {
+  const colors: Record<string, string> = {
+    'PENDING': 'bg-slate-100 text-slate-600',
+    'PROCESSING': 'bg-blue-100 text-blue-600',
+    'COMPLETED': 'bg-green-100 text-green-600',
+    'FAILED': 'bg-red-100 text-red-600'
+  }
+  return colors[status] || 'bg-slate-100 text-slate-600'
+}
+
+// 获取状态文本
+const getStatusText = (perspective: PerspectiveScoreDTO) => {
+  if (perspective.status === 'PROCESSING') return '评估中'
+  if (perspective.status === 'COMPLETED' && perspective.score !== null) return `${perspective.score}分`
+  if (perspective.status === 'PENDING') return '等待中'
+  return ''
+}
+
+// 渲染 Markdown
+const renderMarkdown = (text: string | null | undefined) => {
+  if (!text) return ''
+  try {
+    return marked(text)
+  } catch (e) {
+    return text
+  }
+}
 </script>
 
 <template>
   <view class="report-page">
-    <view v-if="loading" class="loading">
-      <text>加载中...</text>
+    <!-- 加载状态 -->
+    <view v-if="loading" class="loading-container">
+      <view class="loading-spinner"></view>
+      <text class="loading-text">加载中...</text>
     </view>
 
-    <view v-else-if="interview" class="report-content">
-      <!-- 基本信息 -->
-      <view class="info-bar">
-        <text class="interview-date">{{ formatDate(interview.completedAt || interview.createdAt) }}</text>
+    <!-- 错误状态 -->
+    <view v-else-if="!interview" class="error-container">
+      <text class="error-icon">!</text>
+      <text class="error-text">加载报告失败</text>
+    </view>
+
+    <!-- 报告内容 -->
+    <view v-else class="report-content">
+      <!-- 页面标题 -->
+      <view class="page-header">
+        <view class="header-left">
+          <view class="header-icon">📊</view>
+          <view class="header-info">
+            <text class="header-title">面试报告</text>
+            <text class="header-subtitle">多视角评估综合报告</text>
+          </view>
+        </view>
       </view>
 
-      <!-- Tab 切换 -->
+      <!-- Tab 导航 -->
       <view class="tabs-container">
         <scroll-view class="tabs-scroll" scroll-x>
           <view class="tabs-wrapper">
@@ -194,7 +283,13 @@ const formatWeight = (weight: number) => {
               :class="{ active: currentTabIndex === index }"
               @click="switchTab(index); onTabChange(index)"
             >
+              <text class="tab-icon">{{ index === 0 ? '📊' : (perspectives[index - 1]?.perspectiveIcon || '👤') }}</text>
               <text class="tab-text">{{ tab }}</text>
+              <!-- 视角状态标签 -->
+              <view v-if="index > 0" class="tab-status" :class="getStatusColor(perspectives[index - 1]?.status || 'PENDING')">
+                <view v-if="perspectives[index - 1]?.status === 'PROCESSING'" class="status-spinner"></view>
+                <text class="status-text">{{ getStatusText(perspectives[index - 1]) }}</text>
+              </view>
             </view>
           </view>
         </scroll-view>
@@ -202,153 +297,133 @@ const formatWeight = (weight: number) => {
 
       <!-- 综合报告 Tab -->
       <view v-if="currentTabIndex === 0" class="tab-content">
-        <!-- 评分卡片 -->
-        <view class="score-card">
-          <view class="score-center">
-            <view class="circle-progress">
-              <svg class="progress-ring" width="120" height="120" viewBox="0 0 120 120">
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="48"
-                  fill="none"
-                  stroke="rgba(255,255,255,0.2)"
-                  stroke-width="8"
-                />
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="48"
-                  fill="none"
-                  stroke="#fff"
-                  stroke-width="8"
-                  stroke-linecap="round"
-                  :stroke-dasharray="circumference"
-                  :stroke-dashoffset="progressOffset"
-                  transform="rotate(-90 60 60)"
-                />
-              </svg>
-              <view class="circle-inner">
-                <text class="score-number">{{ comprehensiveReport?.overallScore || interview.overallScore || 0 }}</text>
-              </view>
+        <!-- 综合得分卡片 -->
+        <view class="comprehensive-score-card">
+          <view class="score-main">
+            <text class="score-label">综合得分</text>
+            <text class="score-value">{{ comprehensiveReport?.overallScore || interview.overallScore || 0 }}</text>
+            <text class="score-unit">加权平均分</text>
+          </view>
+        </view>
+
+        <!-- 各视角得分 + 评估统计 -->
+        <view class="grid-2col">
+          <!-- 各视角得分 -->
+          <view class="card perspectives-card">
+            <view class="card-header">
+              <text class="card-icon">📈</text>
+              <text class="card-title">各视角得分</text>
             </view>
-            <view class="score-label-text">综合评分</view>
-          </view>
-          <view class="score-feedback" v-if="comprehensiveReport?.comprehensiveFeedback || interview.overallFeedback">
-            <text class="feedback-text">{{ comprehensiveReport?.comprehensiveFeedback || interview.overallFeedback }}</text>
-          </view>
-        </view>
-
-        <!-- 综合评价 -->
-        <view v-if="comprehensiveReport?.evaluation" class="section-card evaluation">
-          <view class="section-header">
-            <text class="section-icon">📝</text>
-            <text class="section-title">综合评价</text>
-          </view>
-          <text class="evaluation-content">{{ comprehensiveReport.evaluation }}</text>
-        </view>
-
-        <!-- 发展建议 -->
-        <view v-if="comprehensiveReport?.developmentSuggestions" class="section-card suggestions">
-          <view class="section-header">
-            <text class="section-icon">💡</text>
-            <text class="section-title">发展建议</text>
-          </view>
-          <text class="suggestions-content">{{ comprehensiveReport.developmentSuggestions }}</text>
-        </view>
-
-        <!-- 各视角得分汇总 -->
-        <view v-if="comprehensiveReport?.perspectives?.length" class="section-card perspectives-summary">
-          <view class="section-header">
-            <text class="section-icon">📊</text>
-            <text class="section-title">各视角得分</text>
-          </view>
-          <view class="perspectives-list">
-            <view
-              v-for="p in comprehensiveReport.perspectives"
-              :key="p.perspectiveId"
-              class="perspective-item"
-            >
-              <text class="perspective-icon">{{ getPerspectiveIcon(p.perspectiveName) }}</text>
-              <text class="perspective-name">{{ p.perspectiveName }}</text>
-              <text class="perspective-weight">权重 {{ formatWeight(p.weight) }}</text>
-              <view class="perspective-score" :style="{ color: getScoreColor(p.score || 0) }">
-                {{ p.score || '--' }}分
+            <view class="perspectives-list">
+              <view
+                v-for="p in (comprehensiveReport?.perspectives || [])"
+                :key="p.perspectiveId"
+                class="perspective-item"
+              >
+                <view class="perspective-info">
+                  <text class="perspective-icon">{{ p.perspectiveIcon || getPerspectiveIcon(p.perspectiveName) }}</text>
+                  <text class="perspective-name">{{ p.perspectiveName }}</text>
+                  <text v-if="p.weight !== undefined" class="perspective-weight">权重 {{ formatWeight(p.weight) }}</text>
+                </view>
+                <view class="perspective-bar-container">
+                  <view class="perspective-bar">
+                    <view
+                      class="perspective-bar-fill"
+                      :style="{ width: getProgressWidth(p.score) }"
+                    ></view>
+                  </view>
+                </view>
+                <text class="perspective-score" :style="{ color: getScoreColor(p.score || 0) }">
+                  {{ p.score !== null && p.score !== undefined ? `${p.score}分` : '-' }}
+                </text>
+              </view>
+              <!-- 无视角数据时显示空状态 -->
+              <view v-if="!comprehensiveReport?.perspectives?.length" class="empty-perspectives">
+                <text>暂无视角数据</text>
               </view>
             </view>
           </view>
+
+          <!-- 评估统计 -->
+          <view class="card stats-card">
+            <view class="card-header">
+              <text class="card-icon">📋</text>
+              <text class="card-title">评估统计</text>
+            </view>
+            <view class="stats-list">
+              <view class="stat-item">
+                <view class="stat-icon good">✓</view>
+                <view class="stat-info">
+                  <text class="stat-label">优势数量</text>
+                  <text class="stat-value">{{ comprehensiveReport?.strengths?.length || 0 }}</text>
+                </view>
+              </view>
+              <view class="stat-item">
+                <view class="stat-icon warn">!</view>
+                <view class="stat-info">
+                  <text class="stat-label">改进建议</text>
+                  <text class="stat-value">{{ comprehensiveReport?.improvements?.length || 0 }}</text>
+                </view>
+              </view>
+              <view class="stat-item">
+                <view class="stat-icon info">💬</view>
+                <view class="stat-info">
+                  <text class="stat-label">视角数量</text>
+                  <text class="stat-value">{{ comprehensiveReport?.perspectives?.length || 0 }}</text>
+                </view>
+              </view>
+            </view>
+          </view>
         </view>
 
-        <!-- 表现优势 -->
-        <view v-if="comprehensiveReport?.strengths?.length" class="section-card strengths">
-          <view class="section-header">
-            <text class="section-icon">✓</text>
-            <text class="section-title">综合优势</text>
+        <!-- 综合评价（父容器） -->
+        <view v-if="comprehensiveReport?.evaluation || comprehensiveReport?.developmentSuggestions" class="card">
+          <view class="card-header">
+            <text class="card-icon">💬</text>
+            <text class="card-title">综合评价</text>
           </view>
-          <view class="section-content">
+          <view class="evaluation-content">
+            <view v-if="comprehensiveReport?.evaluation" class="eval-section">
+              <view class="eval-subheader">
+                <text class="eval-subicon">📝</text>
+                <text class="eval-subtitle">评价</text>
+              </view>
+              <text class="eval-text">{{ comprehensiveReport.evaluation }}</text>
+            </view>
+            <view v-if="comprehensiveReport?.developmentSuggestions" class="eval-section">
+              <view class="eval-subheader">
+                <text class="eval-subicon">💡</text>
+                <text class="eval-subtitle">发展建议</text>
+              </view>
+              <text class="eval-text">{{ comprehensiveReport.developmentSuggestions }}</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 综合优势 -->
+        <view v-if="comprehensiveReport?.strengths?.length" class="card strengths-card">
+          <view class="card-header">
+            <text class="card-icon good">✓</text>
+            <text class="card-title">综合优势</text>
+          </view>
+          <view class="list-content">
             <view v-for="(item, idx) in comprehensiveReport.strengths" :key="idx" class="list-item">
-              <text class="bullet-point">•</text>
+              <view class="bullet good"></view>
               <text class="item-text">{{ item }}</text>
             </view>
           </view>
         </view>
 
-        <!-- 改进建议 -->
-        <view v-if="comprehensiveReport?.improvements?.length" class="section-card improvements">
-          <view class="section-header">
-            <text class="section-icon">!</text>
-            <text class="section-title">改进建议</text>
+        <!-- 综合改进建议 -->
+        <view v-if="comprehensiveReport?.improvements?.length" class="card improvements-card">
+          <view class="card-header">
+            <text class="card-icon warn">!</text>
+            <text class="card-title">改进建议</text>
           </view>
-          <view class="section-content">
+          <view class="list-content">
             <view v-for="(item, idx) in comprehensiveReport.improvements" :key="idx" class="list-item">
-              <text class="bullet-point">•</text>
+              <view class="bullet warn"></view>
               <text class="item-text">{{ item }}</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 问答记录 -->
-        <view class="section-card questions">
-          <view class="section-header">
-            <text class="section-icon">&#xe606;</text>
-            <text class="section-title">问答记录</text>
-          </view>
-          <view class="questions-list">
-            <view
-              v-for="(answer, idx) in answers"
-              :key="idx"
-              class="question-item"
-            >
-              <view class="question-header" @click="toggleQuestion(idx)">
-                <view class="question-info">
-                  <text class="question-index">题目 {{ idx + 1 }}</text>
-                  <text class="question-category">{{ answer.category }}</text>
-                  <text v-if="(answer as any).perspectiveName" class="question-perspective">[{{ (answer as any).perspectiveName }}]</text>
-                </view>
-                <view class="question-score" :style="{ color: getScoreColor(answer.score) }">
-                  {{ answer.score }}分
-                </view>
-                <text class="expand-icon">{{ expandedQuestions.has(idx) ? '&#xe601;' : '&#xe600;' }}</text>
-              </view>
-
-              <view v-if="expandedQuestions.has(idx)" class="question-detail">
-                <view class="detail-block">
-                  <text class="detail-label">面试题</text>
-                  <text class="detail-text">{{ answer.question }}</text>
-                </view>
-                <view class="detail-block">
-                  <text class="detail-label">你的回答</text>
-                  <text class="detail-text answer-text">{{ answer.userAnswer }}</text>
-                </view>
-                <view class="detail-block">
-                  <text class="detail-label">AI 评价</text>
-                  <text class="detail-text feedback-text">{{ answer.feedback }}</text>
-                </view>
-                <view v-if="answer.referenceAnswer" class="detail-block">
-                  <text class="detail-label">参考答案</text>
-                  <text class="detail-text reference-text">{{ answer.referenceAnswer }}</text>
-                </view>
-              </view>
             </view>
           </view>
         </view>
@@ -357,68 +432,69 @@ const formatWeight = (weight: number) => {
       <!-- 各视角 Tab -->
       <view v-else class="tab-content">
         <view class="perspective-detail" v-if="currentPerspectiveDetail">
-          <!-- 视角评分卡片 -->
+          <!-- 视角信息卡片 -->
           <view class="perspective-score-card">
             <view class="perspective-header-info">
               <text class="perspective-icon-large">{{ getPerspectiveIcon(currentPerspectiveDetail.perspectiveIcon || currentPerspectiveDetail.roleName) }}</text>
               <view class="perspective-info">
                 <text class="perspective-name">{{ currentPerspectiveDetail.roleName }}</text>
-                <text class="perspective-meta">
-                  共 {{ currentPerspectiveDetail.questionCount }} 题 ·
-                  已评 {{ currentPerspectiveDetail.answeredCount }} 题
-                </text>
+                <view class="perspective-meta">
+                  <text class="meta-item">共 {{ currentPerspectiveDetail.questionCount || currentPerspectiveDetail.questionScores?.length || 0 }} 题</text>
+                  <text class="meta-sep">·</text>
+                  <text class="meta-item">已评 {{ currentPerspectiveDetail.answeredCount || currentPerspectiveDetail.questionScores?.filter(q => q.score !== null).length || 0 }} 题</text>
+                </view>
               </view>
             </view>
             <view class="perspective-score-display">
               <text class="score-value" :style="{ color: getScoreColor(currentPerspectiveDetail.score || 0) }">
-                {{ currentPerspectiveDetail.score || '--' }}
+                {{ currentPerspectiveDetail.score !== null && currentPerspectiveDetail.score !== undefined ? currentPerspectiveDetail.score : '--' }}
               </text>
               <text class="score-unit">分</text>
             </view>
           </view>
 
           <!-- 综合评价 -->
-          <view v-if="currentPerspectiveDetail.feedback" class="section-card perspective-feedback">
-            <view class="section-header">
-              <text class="section-icon">💬</text>
-              <text class="section-title">综合评价</text>
+          <view v-if="currentPerspectiveDetail.feedback" class="card perspective-feedback">
+            <view class="card-header">
+              <text class="card-icon">💬</text>
+              <text class="card-title">综合评价</text>
             </view>
             <text class="feedback-content">{{ currentPerspectiveDetail.feedback }}</text>
           </view>
 
           <!-- 优势 -->
-          <view v-if="currentPerspectiveDetail.strengths?.length" class="section-card strengths">
-            <view class="section-header">
-              <text class="section-icon">✓</text>
-              <text class="section-title">优势</text>
+          <view v-if="currentPerspectiveDetail.strengths?.length" class="card strengths-card">
+            <view class="card-header">
+              <text class="card-icon good">✓</text>
+              <text class="card-title">优势</text>
             </view>
-            <view class="section-content">
+            <view class="list-content">
               <view v-for="(item, idx) in currentPerspectiveDetail.strengths" :key="idx" class="list-item">
-                <text class="bullet-point">•</text>
+                <view class="bullet good"></view>
                 <text class="item-text">{{ item }}</text>
               </view>
             </view>
           </view>
 
           <!-- 改进建议 -->
-          <view v-if="currentPerspectiveDetail.improvements?.length" class="section-card improvements">
-            <view class="section-header">
-              <text class="section-icon">!</text>
-              <text class="section-title">改进建议</text>
+          <view v-if="currentPerspectiveDetail.improvements?.length" class="card improvements-card">
+            <view class="card-header">
+              <text class="card-icon warn">!</text>
+              <text class="card-title">改进建议</text>
             </view>
-            <view class="section-content">
+            <view class="list-content">
               <view v-for="(item, idx) in currentPerspectiveDetail.improvements" :key="idx" class="list-item">
-                <text class="bullet-point">•</text>
+                <view class="bullet warn"></view>
                 <text class="item-text">{{ item }}</text>
               </view>
             </view>
           </view>
 
           <!-- 该视角的问答记录 -->
-          <view v-if="currentPerspectiveDetail.questionScores?.length" class="section-card questions">
-            <view class="section-header">
-              <text class="section-icon">&#xe606;</text>
-              <text class="section-title">问答记录</text>
+          <view v-if="currentPerspectiveDetail.questionScores?.length" class="card questions-card">
+            <view class="card-header">
+              <text class="card-icon">❓</text>
+              <text class="card-title">问题详情</text>
             </view>
             <view class="questions-list">
               <view
@@ -426,20 +502,20 @@ const formatWeight = (weight: number) => {
                 :key="idx"
                 class="question-item"
               >
-                <view class="question-header" @click="toggleQuestion(idx)">
+                <view class="question-header">
                   <view class="question-info">
                     <text class="question-index">第 {{ idx + 1 }} 题</text>
                     <text class="question-category">{{ answer.category }}</text>
-                    <text class="question-difficulty" :class="'diff-' + answer.difficulty.toLowerCase()">
-                      {{ answer.difficulty }}
+                    <text class="question-difficulty" :class="'diff-' + (answer.difficulty?.toLowerCase() || 'basic')">
+                      {{ answer.difficulty || '基础' }}
                     </text>
                   </view>
                   <view class="question-score" :style="{ color: getScoreColor(answer.score || 0) }">
-                    {{ answer.score || '--' }}分
+                    {{ answer.score !== null && answer.score !== undefined ? `${answer.score}分` : '--' }}
                   </view>
                 </view>
 
-                <view v-if="expandedQuestions.has(idx)" class="question-detail">
+                <view class="question-detail">
                   <view class="detail-block">
                     <text class="detail-label">面试题</text>
                     <text class="detail-text">{{ answer.question }}</text>
@@ -454,7 +530,7 @@ const formatWeight = (weight: number) => {
                   </view>
                   <view v-if="answer.referenceAnswer" class="detail-block">
                     <text class="detail-label">参考答案</text>
-                    <text class="detail-text reference-text">{{ answer.referenceAnswer }}</text>
+                    <rich-text class="detail-text reference-text" :nodes="renderMarkdown(answer.referenceAnswer)"></rich-text>
                   </view>
                   <view v-if="answer.keyPoints?.length" class="detail-block">
                     <text class="detail-label">关键要点</text>
@@ -470,13 +546,10 @@ const formatWeight = (weight: number) => {
 
         <!-- 视角详情加载中 -->
         <view v-else class="loading-perspective">
-          <text>加载视角详情...</text>
+          <view class="loading-spinner"></view>
+          <text class="loading-text">加载中...</text>
         </view>
       </view>
-    </view>
-
-    <view v-else class="empty">
-      <text>暂无数据</text>
     </view>
   </view>
 </template>
@@ -484,52 +557,130 @@ const formatWeight = (weight: number) => {
 <style lang="scss">
 @import '../../styles/variables.scss';
 
-$success: #67C23A;
-$warning: #E6A23C;
-$danger: #F56C6C;
-$text-primary: #303133;
-$text-regular: #606266;
-$text-secondary: #909399;
+// 使用 Web 端一致的配色
+$success: #22c55e;  // green-500
+$success-dark: #16a34a;  // green-600
+$warning: #f59e0b;  // amber-500
+$danger: #ef4444;  // red-500
+$text-primary: #1e293b;  // slate-800
+$text-regular: #475569;  // slate-600
+$text-secondary: #64748b;  // slate-500
 
 .report-page {
   min-height: 100vh;
-  background: #f5f7fa;
+  background: $bg;
   overflow-x: hidden;
 }
 
-.loading, .empty {
-  padding: 100rpx;
-  text-align: center;
-  color: $text-secondary;
+// 加载容器
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 200rpx 0;
 }
 
-.loading-perspective {
-  padding: 100rpx;
-  text-align: center;
+.loading-spinner {
+  width: 64rpx;
+  height: 64rpx;
+  border: 4rpx solid #e2e8f0;
+  border-top-color: $primary;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  margin-top: 20rpx;
   color: $text-secondary;
+  font-size: 28rpx;
+}
+
+// 错误容器
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 200rpx 0;
+}
+
+.error-icon {
+  width: 80rpx;
+  height: 80rpx;
+  background: $danger;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40rpx;
+  font-weight: bold;
+}
+
+.error-text {
+  margin-top: 20rpx;
+  color: $danger;
+  font-size: 28rpx;
 }
 
 .report-content {
-  padding: 20rpx;
+  padding: 24rpx;
 }
 
-.info-bar {
-  padding: 20rpx;
-  margin-bottom: 20rpx;
-  text-align: center;
+// 页面头部
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32rpx;
 
-  .interview-date {
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16rpx;
+  }
+
+  .header-icon {
+    width: 80rpx;
+    height: 80rpx;
+    background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
+    border-radius: 20rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40rpx;
+  }
+
+  .header-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .header-title {
+    font-size: 40rpx;
+    font-weight: 700;
+    color: $text-primary;
+  }
+
+  .header-subtitle {
+    font-size: 24rpx;
     color: $text-secondary;
-    font-size: 26rpx;
+    margin-top: 4rpx;
   }
 }
 
 // Tab 样式
 .tabs-container {
   background-color: #fff;
-  margin-bottom: 20rpx;
-  border-radius: 16rpx;
+  border-radius: 20rpx;
   overflow: hidden;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 
 .tabs-scroll {
@@ -538,20 +689,23 @@ $text-secondary: #909399;
 
 .tabs-wrapper {
   display: flex;
-  padding: 0 10rpx;
 }
 
 .tab-item {
-  display: inline-block;
-  padding: 24rpx 30rpx;
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 28rpx 32rpx;
   font-size: 28rpx;
   color: $text-secondary;
   position: relative;
   flex-shrink: 0;
+  transition: all 0.2s;
 
   &.active {
     color: $primary;
     font-weight: 600;
+    background: rgba($primary, 0.05);
 
     &::after {
       content: '';
@@ -559,405 +713,487 @@ $text-secondary: #909399;
       bottom: 0;
       left: 50%;
       transform: translateX(-50%);
-      width: 60%;
+      width: 80%;
       height: 4rpx;
       background-color: $primary;
       border-radius: 2rpx;
     }
   }
+
+  .tab-icon {
+    font-size: 28rpx;
+  }
 }
 
-.tab-content {
-  // Content styles
+.tab-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 4rpx 12rpx;
+  border-radius: 20rpx;
+  font-size: 20rpx;
+  margin-left: 8rpx;
+
+  &.bg-slate-100 {
+    background: #f1f5f9;
+  }
+  &.text-slate-600 {
+    color: #64748b;
+  }
+  &.bg-blue-100 {
+    background: #dbeafe;
+  }
+  &.text-blue-600 {
+    color: #2563eb;
+  }
+  &.bg-green-100 {
+    background: #dcfce7;
+  }
+  &.text-green-600 {
+    color: #16a34a;
+  }
+  &.bg-red-100 {
+    background: #fee2e2;
+  }
+  &.text-red-600 {
+    color: #dc2626;
+  }
 }
 
-.score-card {
+.status-spinner {
+  width: 16rpx;
+  height: 16rpx;
+  border: 2rpx solid #93c5fd;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 4rpx;
+}
+
+.status-text {
+  white-space: nowrap;
+}
+
+// 综合得分卡片
+.comprehensive-score-card {
   background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
   border-radius: 24rpx;
-  padding: 40rpx;
+  padding: 48rpx;
   display: flex;
   align-items: center;
-  gap: 40rpx;
-  margin-bottom: 20rpx;
+  justify-content: space-between;
+  margin-bottom: 24rpx;
 
-  .score-center {
-    flex-shrink: 0;
+  .score-main {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
   }
 
-  .circle-progress {
-    width: 140rpx;
-    height: 140rpx;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
+  .score-label {
+    font-size: 28rpx;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 12rpx;
   }
 
-  .progress-ring {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 140rpx;
-    height: 140rpx;
+  .score-value {
+    font-size: 96rpx;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
   }
 
-  .circle-inner {
+  .score-unit {
+    font-size: 28rpx;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 12rpx;
+  }
+
+  .score-circle {
     width: 100rpx;
     height: 100rpx;
     border-radius: 50%;
-    background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
+    border: 8rpx solid rgba(255, 255, 255, 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1;
-    position: relative;
-  }
 
-  .score-number {
-    font-size: 56rpx;
-    font-weight: 700;
-    color: #fff;
-  }
-
-  .score-label-text {
-    font-size: 24rpx;
-    color: rgba(255, 255, 255, 0.9);
-    margin-top: 8rpx;
-  }
-
-  .score-feedback {
-    flex: 1;
-    min-width: 0;
-
-    .feedback-text {
-      font-size: 26rpx;
-      color: #fff;
-      line-height: 1.6;
-      word-break: break-all;
+    .circle-icon {
+      font-size: 40rpx;
     }
   }
 }
 
-.section-card {
+// 两列网格布局
+.grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24rpx;
+  margin-bottom: 24rpx;
+}
+
+// 卡片通用样式
+.card {
   background: #fff;
   border-radius: 20rpx;
   padding: 30rpx;
-  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 
-  .section-header {
+  .card-header {
     display: flex;
     align-items: center;
     margin-bottom: 24rpx;
   }
 
-  .section-icon {
+  .card-icon {
     font-size: 32rpx;
-    font-weight: 600;
     margin-right: 12rpx;
+
+    &.good { color: $success; }
+    &.warn { color: $warning; }
+    &.info { color: $primary; }
   }
 
-  .section-title {
+  .card-title {
     font-size: 30rpx;
     font-weight: 600;
     color: $text-primary;
   }
-
-  .section-content {
-    display: flex;
-    flex-direction: column;
-    gap: 16rpx;
-  }
 }
 
-// 视角汇总样式
-.perspectives-summary {
+// 视角列表
+.perspectives-card {
   .perspectives-list {
     display: flex;
     flex-direction: column;
-    gap: 16rpx;
+    gap: 20rpx;
   }
 
   .perspective-item {
     display: flex;
     align-items: center;
-    padding: 20rpx;
-    background-color: #f9fafb;
-    border-radius: 12rpx;
+    gap: 12rpx;
+  }
+
+  .perspective-info {
+    display: flex;
+    align-items: center;
+    gap: 8rpx;
+    min-width: 160rpx;
 
     .perspective-icon {
-      font-size: 32rpx;
-      margin-right: 16rpx;
+      font-size: 28rpx;
     }
 
     .perspective-name {
-      font-size: 28rpx;
-      font-weight: 600;
+      font-size: 26rpx;
       color: $text-primary;
-      margin-right: 16rpx;
+      font-weight: 500;
     }
 
     .perspective-weight {
-      font-size: 24rpx;
+      font-size: 20rpx;
       color: $text-secondary;
-      flex: 1;
     }
+  }
 
-    .perspective-score {
-      font-size: 32rpx;
-      font-weight: 700;
-    }
+  .perspective-bar-container {
+    flex: 1;
+    height: 12rpx;
+    background: #f0f0f0;
+    border-radius: 6rpx;
+    overflow: hidden;
+  }
+
+  .perspective-bar {
+    width: 100%;
+    height: 100%;
+  }
+
+  .perspective-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, $primary 0%, $primary-light 100%);
+    border-radius: 6rpx;
+    transition: width 0.5s ease;
+  }
+
+  .perspective-score {
+    font-size: 26rpx;
+    font-weight: 600;
+    min-width: 48rpx;
+    text-align: right;
+  }
+
+  .empty-perspectives {
+    text-align: center;
+    padding: 40rpx 0;
+    color: $text-secondary;
+    font-size: 26rpx;
   }
 }
 
-// 分类得分样式
-.category-scores {
-  .category-list {
+// 统计卡片
+.stats-card {
+  .stats-list {
     display: flex;
     flex-direction: column;
-    gap: 20rpx;
+    gap: 24rpx;
   }
 
-  .category-item {
+  .stat-item {
     display: flex;
     align-items: center;
     gap: 16rpx;
 
-    .category-info {
+    .stat-icon {
+      width: 64rpx;
+      height: 64rpx;
+      border-radius: 16rpx;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28rpx;
+
+      &.good {
+        background: rgba($success, 0.1);
+        color: $success;
+      }
+
+      &.warn {
+        background: rgba($warning, 0.1);
+        color: $warning;
+      }
+
+      &.info {
+        background: rgba($primary, 0.1);
+        color: $primary;
+      }
+    }
+
+    .stat-info {
       display: flex;
       flex-direction: column;
-      min-width: 120rpx;
-
-      .category-name {
-        font-size: 26rpx;
-        color: $text-primary;
-        font-weight: 500;
-      }
-
-      .category-count {
-        font-size: 22rpx;
-        color: $text-secondary;
-      }
     }
 
-    .category-score-bar {
-      flex: 1;
-      height: 12rpx;
-      background-color: #f0f0f0;
-      border-radius: 6rpx;
-      overflow: hidden;
-
-      .bar-fill {
-        height: 100%;
-        border-radius: 6rpx;
-        transition: width 0.3s;
-      }
+    .stat-label {
+      font-size: 24rpx;
+      color: $text-secondary;
     }
 
-    .category-score {
-      font-size: 26rpx;
-      font-weight: 600;
-      min-width: 80rpx;
-      text-align: right;
+    .stat-value {
+      font-size: 32rpx;
+      font-weight: 700;
+      color: $text-primary;
     }
   }
 }
 
-.strengths {
-  .section-icon {
-    color: $success;
-  }
+// 评价内容
+.evaluation-content {
+  .eval-section {
+    margin-bottom: 24rpx;
 
-  .bullet-point {
-    color: $primary;
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    .eval-subheader {
+      display: flex;
+      align-items: center;
+      gap: 8rpx;
+      margin-bottom: 12rpx;
+    }
+
+    .eval-subicon {
+      font-size: 24rpx;
+    }
+
+    .eval-subtitle {
+      font-size: 28rpx;
+      font-weight: 500;
+      color: $text-primary;
+    }
+
+    .eval-text {
+      font-size: 28rpx;
+      color: $text-regular;
+      line-height: 1.8;
+      white-space: pre-wrap;
+    }
   }
 }
 
-.improvements {
-  .section-icon {
-    color: $warning;
-  }
-
-  .bullet-point {
-    color: $warning;
-  }
+// 优势/改进建议列表
+.list-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
 }
 
 .list-item {
   display: flex;
   align-items: flex-start;
+  gap: 12rpx;
 
-  .bullet-point {
-    margin-right: 12rpx;
-    font-size: 28rpx;
+  .bullet {
+    width: 12rpx;
+    height: 12rpx;
+    border-radius: 50%;
+    margin-top: 8rpx;
+    flex-shrink: 0;
+
+    &.good { background: $success; }
+    &.warn { background: $warning; }
   }
 
   .item-text {
-    font-size: 26rpx;
+    font-size: 28rpx;
     color: $text-regular;
-    line-height: 1.5;
+    line-height: 1.6;
     flex: 1;
   }
 }
 
-.questions {
-  .questions-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16rpx;
-  }
+// 问答列表
+.questions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
 
-  .question-item {
-    border: 1rpx solid #eee;
-    border-radius: 12rpx;
-    overflow: hidden;
-  }
+.question-item {
+  border: 1rpx solid #eee;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
 
-  .question-header {
+.question-header {
+  display: flex;
+  align-items: center;
+  padding: 24rpx;
+  background: #fafafa;
+  flex-wrap: wrap;
+  gap: 12rpx;
+
+  .question-info {
+    flex: 1;
     display: flex;
     align-items: center;
-    padding: 24rpx;
-    background: #fafafa;
+    gap: 16rpx;
+    min-width: 0;
     flex-wrap: wrap;
-    gap: 12rpx;
+  }
 
-    .question-info {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      gap: 16rpx;
-      min-width: 0;
-      flex-wrap: wrap;
+  .question-index {
+    font-size: 28rpx;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  .question-category {
+    font-size: 22rpx;
+    color: $primary;
+    background: rgba($primary, 0.1);
+    padding: 4rpx 12rpx;
+    border-radius: 8rpx;
+  }
+
+  .question-perspective {
+    font-size: 22rpx;
+    color: $primary;
+    background: rgba($primary, 0.15);
+    padding: 4rpx 12rpx;
+    border-radius: 8rpx;
+    font-weight: 600;
+  }
+
+  .question-difficulty {
+    font-size: 22rpx;
+    padding: 4rpx 12rpx;
+    border-radius: 8rpx;
+
+    &.diff-basic, &.diff-easy {
+      color: #059669;
+      background: #d1fae5;
     }
 
-    .question-index {
-      font-size: 26rpx;
-      font-weight: 600;
-      color: $text-primary;
+    &.diff-medium, &.diff-intermediate {
+      color: #2563eb;
+      background: #dbeafe;
     }
 
-    .question-category {
-      font-size: 22rpx;
-      color: $primary;
-      background: rgba(99, 102, 241, 0.1);
-      padding: 4rpx 12rpx;
-      border-radius: 6rpx;
-    }
-
-    .question-perspective {
-      font-size: 22rpx;
-      color: $primary;
-      background: rgba(99, 102, 241, 0.15);
-      padding: 4rpx 12rpx;
-      border-radius: 6rpx;
-      font-weight: 600;
-    }
-
-    .question-difficulty {
-      font-size: 22rpx;
-      padding: 4rpx 12rpx;
-      border-radius: 6rpx;
-
-      &.diff-basic {
-        color: #059669;
-        background: #d1fae5;
-      }
-
-      &.diff-advanced {
-        color: #d97706;
-        background: #fef3c7;
-      }
-
-      &.diff-expert {
-        color: #dc2626;
-        background: #fee2e2;
-      }
-    }
-
-    .question-score {
-      font-size: 28rpx;
-      font-weight: 600;
-      margin-left: auto;
-    }
-
-    .expand-icon {
-      font-size: 24rpx;
-      color: $text-secondary;
-      margin-left: 12rpx;
+    &.diff-advanced, &.diff-hard, &.diff-expert {
+      color: #d97706;
+      background: #fef3c7;
     }
   }
 
-  .question-detail {
-    padding: 24rpx;
-    display: flex;
-    flex-direction: column;
-    gap: 20rpx;
-  }
-
-  .detail-block {
-    word-break: break-all;
-
-    .detail-label {
-      font-size: 24rpx;
-      color: $text-secondary;
-      margin-bottom: 8rpx;
-      display: block;
-    }
-
-    .detail-text {
-      font-size: 26rpx;
-      color: $text-regular;
-      line-height: 1.6;
-    }
-
-    .answer-text {
-      color: $text-primary;
-    }
-
-    .feedback-text {
-      color: $primary;
-    }
-
-    .reference-text {
-      color: $success;
-      background: rgba(103, 194, 58, 0.1);
-      padding: 16rpx;
-      border-radius: 8rpx;
-      display: block;
-    }
-  }
-
-  .key-points-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12rpx;
-    margin-top: 8rpx;
-
-    .key-point-tag {
-      font-size: 22rpx;
-      color: $primary;
-      background: rgba(99, 102, 241, 0.1);
-      padding: 6rpx 16rpx;
-      border-radius: 20rpx;
-      border: 1rpx solid rgba(99, 102, 241, 0.2);
-    }
+  .question-score {
+    font-size: 28rpx;
+    font-weight: 600;
   }
 }
 
-// 视角详情页样式
-.perspective-detail {
-  // ...
+.question-detail {
+  padding: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
 }
 
+.detail-block {
+  word-break: break-all;
+
+  .detail-label {
+    font-size: 24rpx;
+    color: $text-secondary;
+    margin-bottom: 8rpx;
+    display: block;
+  }
+
+  .detail-text {
+    font-size: 28rpx;
+    color: $text-regular;
+    line-height: 1.6;
+  }
+
+  .answer-text {
+    color: $text-primary;
+  }
+
+  .feedback-text {
+    color: $primary;
+  }
+
+  .reference-text {
+    color: $success;
+    background: rgba($success, 0.1);
+    padding: 16rpx;
+    border-radius: 12rpx;
+    display: block;
+  }
+}
+
+.key-points-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 8rpx;
+
+  .key-point-tag {
+    font-size: 22rpx;
+    color: $warning;
+    background: rgba($warning, 0.1);
+    padding: 6rpx 16rpx;
+    border-radius: 20rpx;
+    border: 1rpx solid rgba($warning, 0.2);
+  }
+}
+
+// 视角详情页
 .perspective-score-card {
   background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
   border-radius: 24rpx;
   padding: 40rpx;
-  margin-bottom: 20rpx;
+  margin-bottom: 24rpx;
 
   .perspective-header-info {
     display: flex;
@@ -965,15 +1201,15 @@ $text-secondary: #909399;
     margin-bottom: 30rpx;
 
     .perspective-icon-large {
-      font-size: 56rpx;
-      margin-right: 20rpx;
+      font-size: 72rpx;
+      margin-right: 24rpx;
     }
 
     .perspective-info {
       flex: 1;
 
       .perspective-name {
-        font-size: 36rpx;
+        font-size: 40rpx;
         font-weight: 700;
         color: #fff;
         display: block;
@@ -981,8 +1217,18 @@ $text-secondary: #909399;
       }
 
       .perspective-meta {
-        font-size: 24rpx;
-        color: rgba(255, 255, 255, 0.8);
+        display: flex;
+        align-items: center;
+        gap: 8rpx;
+
+        .meta-item {
+          font-size: 24rpx;
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        .meta-sep {
+          color: rgba(255, 255, 255, 0.5);
+        }
       }
     }
   }
@@ -1009,30 +1255,43 @@ $text-secondary: #909399;
     font-size: 28rpx;
     color: $text-regular;
     line-height: 1.6;
+    white-space: pre-wrap;
   }
 }
 
-.evaluation {
-  .section-icon {
-    color: $primary;
-  }
-
-  .evaluation-content {
-    font-size: 28rpx;
-    color: $text-regular;
-    line-height: 1.8;
-  }
+// 加载中
+.loading-perspective {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 200rpx 0;
 }
 
-.suggestions {
-  .section-icon {
-    color: $warning;
-  }
+// 空状态
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 200rpx 0;
+  color: $text-secondary;
+  font-size: 28rpx;
+}
 
-  .suggestions-content {
-    font-size: 28rpx;
-    color: $text-regular;
-    line-height: 1.8;
+// Tab content
+.tab-content {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>
