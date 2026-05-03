@@ -252,7 +252,10 @@ onLoad((options: any) => {
         <view class="detail-header">
           <text class="detail-title">题目详情</text>
           <view class="close-btn" @click="closeDetail">
-            <text class="close-icon">&#xe614;</text>
+            <svg class="close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
           </view>
         </view>
 
@@ -299,14 +302,8 @@ onLoad((options: any) => {
 
         <!-- 操作按钮 -->
         <view class="detail-footer">
-          <view class="action-btn edit" @click="goToEdit(selectedQuestion)">
-            <text class="action-icon">&#xe613;</text>
-            <text>编辑</text>
-          </view>
-          <view class="action-btn delete" @click="handleDelete(selectedQuestion)">
-            <text class="action-icon">&#xe614;</text>
-            <text>删除</text>
-          </view>
+          <view class="action-btn edit" @click="goToEdit(selectedQuestion)">编辑</view>
+          <view class="action-btn delete" @click="handleDelete(selectedQuestion)">删除</view>
         </view>
       </view>
     </view>
@@ -530,7 +527,8 @@ onLoad((options: any) => {
 }
 
 .close-icon {
-  font-size: 28rpx;
+  width: 28rpx;
+  height: 28rpx;
   color: $text-secondary;
 }
 
@@ -611,7 +609,8 @@ onLoad((options: any) => {
   }
 }
 
-.action-icon {
-  font-size: 28rpx;
+.action-icon-svg {
+  width: 32rpx;
+  height: 32rpx;
 }
 </style>

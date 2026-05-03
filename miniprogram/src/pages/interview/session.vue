@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useInterviewStore } from '../../stores/interview'
-import { getSessionProgress, connectInterviewStream, SSE_EVENT_TYPES, PROGRESS_LABELS, submitAnswerAdaptive, endInterview } from '../../api/interview'
+import { getCurrentQuestion, getSessionProgress, connectInterviewStream, SSE_EVENT_TYPES, PROGRESS_LABELS, submitAnswerAdaptive, endInterview } from '../../api/interview'
 
 // 路由参数
 const pageId = ref<string>('')
 const pageMode = ref<'interview' | 'result'>('interview')
+// 页面选项（用于判断是新面试还是恢复面试）
+const pageOptions = ref<Record<string, any>>({})
 
 // Store
 const interviewStore = useInterviewStore()
@@ -136,6 +138,7 @@ onMounted(() => {
 
   pageId.value = options.id || ''
   pageMode.value = options.mode === 'result' ? 'result' : 'interview'
+  pageOptions.value = options
 
   // 如果 URL 中有 total 参数（新面试），设置总题数
   if (options.total) {
@@ -163,80 +166,137 @@ const initInterview = async () => {
       return
     }
 
-    // 获取会话进度（包括历史记录和当前问题）
-    console.log('[Session] fetching session progress...')
-    const progress = await getSessionProgress(pageId.value)
-    console.log('[Session] progress fetched:', progress)
+    // 判断是否是新创建的面试（有 total 参数）还是恢复已有面试（只有 id）
+    const isNewSession = !!pageOptions.value.total
 
-    // 保存总题数（如果有有效的总题数则更新，否则保留 URL 中的值）
-    if (progress.totalQuestions > 0) {
-      sessionTotalQuestions.value = progress.totalQuestions
-    }
+    if (isNewSession) {
+      // 新创建的面试：先调用 getCurrentQuestion 获取第一题
+      console.log('[Session] new session - fetching first question...')
+      isLoadingNextQuestion.value = true
+      try {
+        const firstQuestion = await getCurrentQuestion(pageId.value)
+        console.log('[Session] first question fetched:', firstQuestion)
 
-    // 检查面试是否已完成
-    if (progress.currentQuestionIndex >= progress.totalQuestions) {
-      interviewStatus.value = 'completed'
-      console.log('[Session] interview completed')
-      return
-    }
+        // 保存总题数和当前问题
+        if (firstQuestion.questionIndex !== undefined) {
+          sessionTotalQuestions.value = sessionTotalQuestions.value || 0
+        }
 
-    // 恢复历史消息
-    console.log('[Session] restoring history messages...')
-    messages.value = []
-    for (const historyItem of progress.history) {
-      // 添加问题消息
-      messages.value.push({
-        id: Date.now() + Math.random(),
-        type: 'interviewer',
-        content: historyItem.question,
-        category: historyItem.category,
-        questionIndex: historyItem.questionIndex,
-        difficulty: historyItem.difficulty,
-        timestamp: Date.now(),
-        createdByPerspectiveId: historyItem.createdByPerspectiveId,
-        createdByPerspectiveName: historyItem.createdByPerspectiveName
-      })
-      // 添加用户回答
-      messages.value.push({
-        id: Date.now() + Math.random(),
-        type: 'user',
-        content: historyItem.userAnswer,
-        timestamp: Date.now()
-      })
-    }
+        restoredCurrentQuestion.value = {
+          questionIndex: firstQuestion.questionIndex,
+          question: firstQuestion.question,
+          category: firstQuestion.category,
+          difficulty: firstQuestion.difficulty,
+          knowledgeBaseName: firstQuestion.knowledgeBaseName,
+          createdByPerspectiveId: firstQuestion.createdByPerspectiveId,
+          createdByPerspectiveName: firstQuestion.createdByPerspectiveName
+        }
 
-    // 保存当前问题
-    if (progress.currentQuestion) {
-      restoredCurrentQuestion.value = {
-        questionIndex: progress.currentQuestion.questionIndex,
-        question: progress.currentQuestion.question,
-        category: progress.currentQuestion.category,
-        difficulty: progress.currentQuestion.difficulty,
-        knowledgeBaseName: progress.currentQuestion.knowledgeBaseName,
-        createdByPerspectiveId: progress.currentQuestion.createdByPerspectiveId,
-        createdByPerspectiveName: progress.currentQuestion.createdByPerspectiveName
+        // 添加第一题到消息列表
+        messages.value = [{
+          id: Date.now() + Math.random(),
+          type: 'interviewer',
+          content: firstQuestion.question,
+          category: firstQuestion.category,
+          questionIndex: firstQuestion.questionIndex,
+          difficulty: firstQuestion.difficulty,
+          knowledgeBaseName: firstQuestion.knowledgeBaseName,
+          timestamp: Date.now(),
+          createdByPerspectiveId: firstQuestion.createdByPerspectiveId,
+          createdByPerspectiveName: firstQuestion.createdByPerspectiveName
+        }]
+      } catch (questionErr) {
+        console.error('获取第一题失败:', questionErr)
+        uni.showToast({
+          title: '获取面试问题失败',
+          icon: 'none'
+        })
+        return
+      } finally {
+        isLoadingNextQuestion.value = false
       }
-      // 添加当前问题到消息列表
-      messages.value.push({
-        id: Date.now() + Math.random(),
-        type: 'interviewer',
-        content: progress.currentQuestion.question,
-        category: progress.currentQuestion.category,
-        questionIndex: progress.currentQuestion.questionIndex,
-        difficulty: progress.currentQuestion.difficulty,
-        knowledgeBaseName: progress.currentQuestion.knowledgeBaseName,
-        timestamp: Date.now(),
-        createdByPerspectiveId: progress.currentQuestion.createdByPerspectiveId,
-        createdByPerspectiveName: progress.currentQuestion.createdByPerspectiveName
-      })
+
+      // 开始面试状态
+      interviewStatus.value = 'answering'
+
+      // 建立 SSE 连接
+      setupSSEConnection()
+    } else {
+      // 恢复已有面试：获取会话进度（包括历史记录和当前问题）
+      console.log('[Session] restoring existing session - fetching progress...')
+      const progress = await getSessionProgress(pageId.value)
+      console.log('[Session] progress fetched:', progress)
+
+      // 保存总题数（如果有有效的总题数则更新，否则保留 URL 中的值）
+      if (progress.totalQuestions > 0) {
+        sessionTotalQuestions.value = progress.totalQuestions
+      }
+
+      // 检查面试是否已完成
+      if (progress.currentQuestionIndex >= progress.totalQuestions) {
+        interviewStatus.value = 'completed'
+        console.log('[Session] interview completed')
+        return
+      }
+
+      // 恢复历史消息
+      console.log('[Session] restoring history messages...')
+      messages.value = []
+      for (const historyItem of progress.history) {
+        // 添加问题消息
+        messages.value.push({
+          id: Date.now() + Math.random(),
+          type: 'interviewer',
+          content: historyItem.question,
+          category: historyItem.category,
+          questionIndex: historyItem.questionIndex,
+          difficulty: historyItem.difficulty,
+          timestamp: Date.now(),
+          createdByPerspectiveId: historyItem.createdByPerspectiveId,
+          createdByPerspectiveName: historyItem.createdByPerspectiveName
+        })
+        // 添加用户回答
+        messages.value.push({
+          id: Date.now() + Math.random(),
+          type: 'user',
+          content: historyItem.userAnswer,
+          timestamp: Date.now()
+        })
+      }
+
+      // 保存当前问题
+      if (progress.currentQuestion) {
+        restoredCurrentQuestion.value = {
+          questionIndex: progress.currentQuestion.questionIndex,
+          question: progress.currentQuestion.question,
+          category: progress.currentQuestion.category,
+          difficulty: progress.currentQuestion.difficulty,
+          knowledgeBaseName: progress.currentQuestion.knowledgeBaseName,
+          createdByPerspectiveId: progress.currentQuestion.createdByPerspectiveId,
+          createdByPerspectiveName: progress.currentQuestion.createdByPerspectiveName
+        }
+        // 添加当前问题到消息列表
+        messages.value.push({
+          id: Date.now() + Math.random(),
+          type: 'interviewer',
+          content: progress.currentQuestion.question,
+          category: progress.currentQuestion.category,
+          questionIndex: progress.currentQuestion.questionIndex,
+          difficulty: progress.currentQuestion.difficulty,
+          knowledgeBaseName: progress.currentQuestion.knowledgeBaseName,
+          timestamp: Date.now(),
+          createdByPerspectiveId: progress.currentQuestion.createdByPerspectiveId,
+          createdByPerspectiveName: progress.currentQuestion.createdByPerspectiveName
+        })
+      }
+
+      // 开始面试状态
+      console.log('[Session] starting interview with restored session...')
+      interviewStatus.value = 'answering'
+
+      // 建立 SSE 连接
+      setupSSEConnection()
     }
-
-    // 开始面试状态
-    console.log('[Session] starting interview with restored session...')
-    interviewStatus.value = 'answering'
-
-    // 建立 SSE 连接
-    setupSSEConnection()
 
     console.log('[Session] initInterview done')
   } catch (error) {

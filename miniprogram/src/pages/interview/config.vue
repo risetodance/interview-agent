@@ -456,6 +456,8 @@ onMounted(() => {
   background-color: #fff;
   border-radius: 20rpx;
   padding: 30rpx;
+  position: relative;
+  z-index: 1;
 
   .section-title {
     font-size: 32rpx;
@@ -753,6 +755,7 @@ onMounted(() => {
   background-color: #fff;
   border-top: 1rpx solid #f0f0f0;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  z-index: 100;
 }
 
 .btn {

@@ -2,7 +2,6 @@
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useInterviewStore, type Interview } from '../../stores/interview'
-import { getRecommendedPositions } from '../../api/interview'
 
 // 状态筛选
 const statusTabs = [
@@ -24,7 +23,6 @@ const listParams = ref({
   pageSize: 20
 })
 const total = ref(0)
-const recommendedPositions = ref<string[]>([])
 
 // 面试列表
 const interviewList = computed(() => interviewStore.interviewList)
@@ -152,27 +150,8 @@ const getStatusStyle = (status: string) => {
   }
 }
 
-// 加载推荐岗位
-const loadRecommendedPositions = async () => {
-  try {
-    const positions = await getRecommendedPositions()
-    recommendedPositions.value = positions || []
-  } catch (error) {
-    console.error('获取推荐岗位失败:', error)
-    // 使用默认岗位
-    recommendedPositions.value = [
-      '前端开发工程师',
-      '后端开发工程师',
-      '全栈开发工程师',
-      '移动端开发工程师',
-      '算法工程师'
-    ]
-  }
-}
-
 onShow(() => {
   loadInterviewList()
-  loadRecommendedPositions()
 })
 </script>
 

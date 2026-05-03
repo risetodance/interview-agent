@@ -234,8 +234,8 @@ export const getRecommendedPositions = async () => {
     const banks = await getQuestionCategories()
     if (banks && banks.length > 0) {
       const bankIds = banks.slice(0, 3).map((b: any) => b.id)
-      // 从题库随机获取题目
-      return get<any[]>('/api/question-banks/random', { bankIds, limit: 5 })
+      // 从题库随机获取题目（与Web端一致）
+      return get<any[]>(`/api/questions/banks/random?bankIds=${bankIds.join(',')}&limit=5`)
     }
     return []
   } catch (error) {

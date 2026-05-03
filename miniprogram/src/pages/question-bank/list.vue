@@ -225,12 +225,8 @@ onShow(() => {
               <text v-if="bank.description" class="card-desc">{{ bank.description }}</text>
             </view>
             <view class="card-actions" @click.stop>
-              <view class="action-btn" @click.stop="goToEdit(bank)">
-                <text class="action-icon">&#xe613;</text>
-              </view>
-              <view class="action-btn delete" @click.stop="handleDelete(bank)">
-                <text class="action-icon">&#xe614;</text>
-              </view>
+              <view class="action-btn" @click.stop="goToEdit(bank)">编辑</view>
+              <view class="action-btn delete" @click.stop="handleDelete(bank)">删除</view>
             </view>
           </view>
 
@@ -515,26 +511,26 @@ onShow(() => {
 }
 
 .action-btn {
-  width: 56rpx;
-  height: 56rpx;
+  padding: 12rpx 24rpx;
   border-radius: 16rpx;
   background: #f5f5f5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 26rpx;
+  color: $text-secondary;
 
   &.delete {
     background: #fef0f0;
+    color: $danger;
   }
 }
 
 .action-icon {
-  font-size: 28rpx;
+  width: 28rpx;
+  height: 28rpx;
   color: $text-secondary;
+}
 
-  &.delete {
-    color: $danger;
-  }
+.action-btn.delete .action-icon {
+  color: $danger;
 }
 
 .card-content {
