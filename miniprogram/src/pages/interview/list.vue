@@ -3,24 +3,6 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useInterviewStore, type Interview } from '../../stores/interview'
 
-// 判断面试是否正在评估中
-const isEvaluating = (item: Interview): boolean => {
-  return item.evaluateStatus === 'PENDING' || item.evaluateStatus === 'PROCESSING'
-}
-
-// 判断是否有面试正在评估
-const hasEvaluatingInterview = computed(() => {
-  return interviewList.value.some(item => isEvaluating(item))
-})
-
-// 状态筛选
-const statusTabs = [
-  { value: '', label: '全部' },
-  { value: 'pending', label: '待开始' },
-  { value: 'in_progress', label: '进行中' },
-  { value: 'completed', label: '已完成' }
-]
-
 // Store
 const interviewStore = useInterviewStore()
 
@@ -36,6 +18,24 @@ const total = ref(0)
 
 // 面试列表
 const interviewList = computed(() => interviewStore.interviewList)
+
+// 状态筛选
+const statusTabs = [
+  { value: '', label: '全部' },
+  { value: 'pending', label: '待开始' },
+  { value: 'in_progress', label: '进行中' },
+  { value: 'completed', label: '已完成' }
+]
+
+// 判断面试是否正在评估中
+const isEvaluating = (item: Interview): boolean => {
+  return item.evaluateStatus === 'PENDING' || item.evaluateStatus === 'PROCESSING'
+}
+
+// 判断是否有面试正在评估
+const hasEvaluatingInterview = computed(() => {
+  return interviewList.value.some(item => isEvaluating(item))
+})
 
 // 轮询定时器
 let pollTimer: ReturnType<typeof setInterval> | null = null

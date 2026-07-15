@@ -290,6 +290,15 @@ export const uploadFile = <T = any>(
  * @returns Promise<string> 文件临时路径
  */
 export const downloadFile = (url: string, showLoading = false): Promise<string> => {
+  const userStore = useUserStore()
+  const { token } = storeToRefs(userStore)
+
+  // 注入鉴权头，与 request/uploadFile 保持一致（后端 downloadKnowledgeBase 依赖 @CurrentUser）
+  const header: Record<string, string> = {}
+  if (token.value) {
+    header['Authorization'] = `Bearer ${token.value}`
+  }
+
   if (showLoading) {
     uni.showLoading({
       title: '下载中...',
@@ -300,6 +309,7 @@ export const downloadFile = (url: string, showLoading = false): Promise<string> 
   return new Promise((resolve, reject) => {
     uni.downloadFile({
       url: baseURL + url,
+      header,
       success: (res) => {
         if (showLoading) {
           uni.hideLoading()

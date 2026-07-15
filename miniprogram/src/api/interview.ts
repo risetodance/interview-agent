@@ -599,7 +599,7 @@ export const connectSSE = (
 
   // #ifndef H5
   // 小程序环境使用 uni.request
-  return connectSSE_Uni(url, callbacks, undefined)
+  return connectSSE_Uni(url, callbacks)
   // #endif
 }
 
@@ -654,8 +654,7 @@ const connectSSE_H5 = (
  */
 const connectSSE_Uni = (
   url: string,
-  callbacks: SSEMessageCallbacks,
-  _platform: unknown
+  callbacks: SSEMessageCallbacks
 ): (() => void) => {
   // SSE 数据缓冲区
   let buffer = ''

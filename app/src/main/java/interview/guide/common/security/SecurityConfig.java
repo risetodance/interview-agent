@@ -93,6 +93,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/interview/sessions/*/stream").permitAll()
                         // RAG chat 流式接口（permitAll，在接口内通过 @CurrentUser 校验用户）
                         .requestMatchers("/api/rag-chat/sessions/*/messages/stream").permitAll()
+                        // RAG chat 会话列表和详情接口（permitAll，在接口内通过 @CurrentUser 校验用户）
+                        .requestMatchers("/api/rag-chat/sessions").permitAll()
+                        .requestMatchers("/api/rag-chat/sessions/**").permitAll()
                         // 管理后台接口白名单（不需要 ADMIN 权限）
                         .requestMatchers(adminWhitelist.toArray(new String[0])).permitAll()
                         // 管理后台接口需要管理员角色
