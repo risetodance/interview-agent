@@ -237,7 +237,7 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .notification-container {
   min-height: 100vh;

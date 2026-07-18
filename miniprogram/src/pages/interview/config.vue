@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { getResumeDetail } from '../../api/resume'
-import { createSession, getPerspectives, type InterviewerRoleDTO } from '../../api/interview'
+import { createSession, getPerspectives, findUnfinishedSession, type InterviewerRoleDTO } from '../../api/interview'
 
 // 题目数量选项
 const questionCountOptions = [
@@ -27,8 +27,8 @@ const selectedPerspectiveIds = ref<number[]>([])
 const perspectivesLoading = ref(false)
 const MAX_PERSPECTIVES = 3
 
-// 各视角权重配置，key 为视角ID，value 为权重值
-const perspectiveWeights = ref<Record<string, number>>({})
+// 各视角权重配置，key 为视角ID，value 为权重值（N12: 与后端 Map<Long,Double> / Web 端契约一致，使用 number key）
+const perspectiveWeights = ref<Record<number, number>>({})
 
 // 视角图标映射
 const perspectiveIcons: Record<string, string> = {
@@ -42,10 +42,49 @@ const selectedPerspectivesDetail = computed(() => {
   return perspectives.value.filter(p => selectedPerspectiveIds.value.includes(p.id))
 })
 
+// 把单个权重（0~1 小数）量化到 5 的倍数的百分比（最小 5%），返回 0~1 小数
+// 用于 toggle 选中新视角时的初始值，保证单值始终是 5 的倍数
+const snapToFivePercent = (weight: number): number => {
+  const percent = Math.round(weight * 100)
+  const snapped = Math.max(5, Math.round(percent / 5) * 5)
+  return snapped / 100
+}
+
+// 按各视角默认权重的比例，初始化一组"每个都是 5 的倍数、总和恰为 100%"的权重
+// 算法：按比例算原始百分比 → 量化到 5 的倍数 → 把与 100 的误差补给最大权重项
+// （因量化值与 100 均为 5 的倍数，误差必为 5 的倍数，修正后各项仍为 5 的倍数）
+const initWeightsFromDefaults = (ids: number[]): Record<number, number> => {
+  const result: Record<number, number> = {}
+  if (ids.length === 0) return result
+  if (ids.length === 1) {
+    result[ids[0]] = 1
+    return result
+  }
+  const defaults = ids.map(id => {
+    const p = perspectives.value.find(x => x.id === id)
+    return p?.weight ?? 1 / ids.length
+  })
+  const sum = defaults.reduce((a, b) => a + b, 0)
+  const rawPercents = defaults.map(w => (sum > 0 ? (w / sum) * 100 : 100 / ids.length))
+  const quantized = rawPercents.map(p => Math.max(5, Math.round(p / 5) * 5))
+  const diff = 100 - quantized.reduce((a, b) => a + b, 0)
+  if (diff !== 0) {
+    let maxIdx = 0
+    for (let i = 1; i < quantized.length; i++) {
+      if (quantized[i] > quantized[maxIdx]) maxIdx = i
+    }
+    quantized[maxIdx] += diff
+  }
+  ids.forEach((id, i) => {
+    result[id] = quantized[i] / 100
+  })
+  return result
+}
+
 // 计算总权重（基于用户配置的权重）
 const totalWeight = computed(() => {
   return selectedPerspectivesDetail.value.reduce((sum, p) => {
-    const weight = perspectiveWeights.value[String(p.id)] ?? p.weight
+    const weight = perspectiveWeights.value[p.id] ?? p.weight
     return sum + weight
   }, 0)
 })
@@ -74,6 +113,7 @@ const loadResumeDetail = async () => {
     resumePreview.value = resumeText.value.length > 500 ? resumeText.value.substring(0, 500) + '...' : resumeText.value
   } catch (error) {
     resumeName.value = '简历详情'
+    console.error("[loadResumeDetail] 加载失败:", error)
     resumePreview.value = '简历内容加载失败'
   } finally {
     loading.value = false
@@ -94,25 +134,21 @@ const loadPerspectives = async () => {
     const defaultRoleIds = enabledRoles.slice(0, MAX_PERSPECTIVES).map(p => p.id)
     selectedPerspectiveIds.value = defaultRoleIds
 
-    // 初始化权重：按比例归一化，使总和为1
+    // 初始化权重：按默认权重比例分配，每个量化为 5 的倍数且总和恰为 100%（避免出现 31/37 这种非 5 倍数）
     if (defaultRoleIds.length > 0) {
-      const totalDefaultWeight = enabledRoles.reduce((sum, r) => sum + r.weight, 0)
-      enabledRoles.forEach(role => {
-        perspectiveWeights.value[String(role.id)] = totalDefaultWeight > 0
-          ? role.weight / totalDefaultWeight
-          : 1 / defaultRoleIds.length
-      })
+      perspectiveWeights.value = initWeightsFromDefaults(defaultRoleIds)
     }
   } catch (error) {
+    console.error("[loadPerspectives] 加载失败，使用默认视角:", error)
     // 使用默认视角
     perspectives.value = [
       { id: 1, roleName: '技术面试官', roleCode: 'TECH_INTERVIEWER', weight: 0.4, description: '重点考察技术能力和项目经验', status: true, icon: 'code' },
       { id: 2, roleName: 'HR面试官', roleCode: 'HR_INTERVIEWER', weight: 0.3, description: '重点考察综合素质和沟通能力', status: true, icon: 'user' },
       { id: 3, roleName: '技术总监', roleCode: 'TECH_DIRECTOR', weight: 0.3, description: '重点考察架构思维和团队协作', status: true, icon: 'admin' }
     ]
-    // 默认选中所有视角，并归一化权重
+    // 默认选中所有视角，并初始化为 5 的倍数权重
     selectedPerspectiveIds.value = [1, 2, 3]
-    perspectiveWeights.value = { '1': 0.4, '2': 0.3, '3': 0.3 }
+    perspectiveWeights.value = initWeightsFromDefaults([1, 2, 3])
   } finally {
     perspectivesLoading.value = false
   }
@@ -125,14 +161,15 @@ const togglePerspective = (id: number) => {
     // 取消选择，不调整其他视角的权重（与前端行为一致）
     selectedPerspectiveIds.value.splice(index, 1)
     // 清理已移除视角的权重
-    delete perspectiveWeights.value[String(id)]
+    delete perspectiveWeights.value[id]
   } else {
     // 选中（最多3个）
     if (selectedPerspectiveIds.value.length < MAX_PERSPECTIVES) {
       const perspective = perspectives.value.find(p => p.id === id)
       const defaultWeight = perspective ? perspective.weight : 0
       selectedPerspectiveIds.value.push(id)
-      perspectiveWeights.value[String(id)] = defaultWeight
+      // 新视角初始权重量化到 5 的倍数（最小 5%），避免出现 31/37 这种非 5 倍数
+      perspectiveWeights.value[id] = snapToFivePercent(defaultWeight)
     } else {
       uni.showToast({
         title: `最多只能选择${MAX_PERSPECTIVES}个视角`,
@@ -173,8 +210,38 @@ const validateAndAdjustWeights = () => {
 // 调整视角权重
 const onWeightChange = (id: number, newWeight: number) => {
   // 只更新当前视角的权重，不自动调整其他视角
-  perspectiveWeights.value[String(id)] = newWeight
+  perspectiveWeights.value[id] = newWeight
   validateAndAdjustWeights()
+}
+
+// 实际创建会话（N5 抽取，forceCreate 控制是否强制新建，跳过未完成会话检测）
+const doCreateSession = async (weights: Record<number, number>, forceCreate: boolean) => {
+  if (isCreating.value) return
+  isCreating.value = true
+  try {
+    // 调用创建会话接口，传递选中的视角和权重配置
+    const session = await createSession({
+      resumeText: resumeText.value,
+      questionCount: selectedQuestionCount.value,
+      resumeId: resumeId.value,
+      selectedPerspectives: selectedPerspectiveIds.value,
+      perspectiveWeights: weights,
+      forceCreate
+    })
+
+    // 创建成功，跳转到会话页面
+    uni.redirectTo({
+      url: `/pages/interview/session?id=${session.sessionId}&total=${session.totalQuestions}`
+    })
+  } catch (error) {
+    console.error('[doCreateSession] 创建会话失败:', error)
+    uni.showToast({
+      title: '创建面试失败，请重试',
+      icon: 'none'
+    })
+  } finally {
+    isCreating.value = false
+  }
 }
 
 // 开始面试
@@ -209,34 +276,42 @@ const startInterview = async () => {
     return
   }
 
-  isCreating.value = true
+  // 构建 perspectiveWeights 参数（只传选中的视角权重，N12: number key）
+  const weights: Record<number, number> = {}
+  selectedPerspectiveIds.value.forEach(id => {
+    weights[id] = perspectiveWeights.value[id] ?? 0
+  })
+
+  // N5: 创建前检查该简历是否存在未完成的面试会话（与 Web 端一致）
   try {
-    // 构建 perspectiveWeights 参数（只传选中的视角权重）
-    const weights: Record<string, number> = {}
-    selectedPerspectiveIds.value.forEach(id => {
-      weights[String(id)] = perspectiveWeights.value[String(id)] ?? 0
-    })
-
-    // 调用创建会话接口，传递选中的视角和权重配置
-    const session = await createSession({
-      resumeText: resumeText.value,
-      questionCount: selectedQuestionCount.value,
-      resumeId: resumeId.value,
-      selectedPerspectives: selectedPerspectiveIds.value,
-      perspectiveWeights: weights
-    })
-
-    // 创建成功，跳转到会话页面
-    uni.redirectTo({
-      url: `/pages/interview/session?id=${session.sessionId}&total=${session.totalQuestions}`
-    })
+    const unfinished = resumeId.value ? await findUnfinishedSession(resumeId.value) : null
+    if (unfinished) {
+      // 命中未完成会话：让用户选择"继续"或"新建"（取消 actionSheet 不创建，避免误建）
+      uni.showActionSheet({
+        itemList: [`继续未完成的面试（已答 ${unfinished.answeredCount ?? 0}/${unfinished.totalQuestions ?? 0} 题）`, '创建新面试'],
+        success: (res) => {
+          if (res.tapIndex === 0) {
+            // 继续未完成会话
+            uni.redirectTo({
+              url: `/pages/interview/session?id=${unfinished.sessionId}`
+            })
+          } else if (res.tapIndex === 1) {
+            // 强制创建新会话
+            doCreateSession(weights, true)
+          }
+        }
+      })
+      return
+    }
+    // 无未完成会话，直接创建
+    await doCreateSession(weights, false)
   } catch (error) {
+    // 区分 findUnfinishedSession 失败 vs 其它错误（B15 补 console.error）
+    console.error('[startInterview]', error)
     uni.showToast({
       title: '创建面试失败，请重试',
       icon: 'none'
     })
-  } finally {
-    isCreating.value = false
   }
 }
 
@@ -305,14 +380,14 @@ onMounted(() => {
             </view>
           </view>
           <text class="perspective-name">{{ perspective.roleName }}</text>
-          <text class="perspective-weight">权重: {{ formatWeight(isPerspectiveSelected(perspective.id) ? (perspectiveWeights[String(perspective.id)] || perspective.weight) : perspective.weight) }}</text>
+          <text class="perspective-weight">权重: {{ formatWeight(isPerspectiveSelected(perspective.id) ? (perspectiveWeights[perspective.id] || perspective.weight) : perspective.weight) }}</text>
           <text class="perspective-desc">{{ perspective.description }}</text>
           <!-- 权重滑块（选中时显示） -->
           <view v-if="isPerspectiveSelected(perspective.id)" class="weight-slider-wrapper" @click.stop>
             <text class="weight-slider-label">调整权重：</text>
             <slider
               class="weight-slider"
-              :value="Math.round((perspectiveWeights[String(perspective.id)] || perspective.weight) * 100)"
+              :value="Math.round((perspectiveWeights[perspective.id] || perspective.weight) * 100)"
               :min="5"
               :max="90"
               :step="5"
@@ -321,7 +396,7 @@ onMounted(() => {
               block-size="18"
               @change="(e: any) => onWeightChange(perspective.id, e.detail.value / 100)"
             />
-            <text class="weight-value">{{ formatWeight(perspectiveWeights[String(perspective.id)] || perspective.weight) }}</text>
+            <text class="weight-value">{{ formatWeight(perspectiveWeights[perspective.id] || perspective.weight) }}</text>
           </view>
         </view>
       </view>
@@ -403,7 +478,7 @@ onMounted(() => {
 </template>
 
 <style lang="scss">
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .config-container {
   min-height: 100vh;

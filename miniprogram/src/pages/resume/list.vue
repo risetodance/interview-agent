@@ -47,8 +47,9 @@ const loadResumeList = async (refresh = false) => {
       resumeList.value = [...resumeList.value, ...result.list]
     }
     total.value = result.total
-    listParams.value.page++
+    listParams.value.page = (listParams.value.page ?? 1) + 1
   } catch (error) {
+    console.error('加载简历列表失败:', error)
   } finally {
     loading.value = false
     refreshing.value = false
@@ -106,6 +107,7 @@ const handleDelete = (id: number, index: number) => {
           })
           resumeList.value.splice(index, 1)
         } catch (error) {
+          console.error('删除简历失败:', error)
         }
       }
     }
@@ -113,7 +115,9 @@ const handleDelete = (id: number, index: number) => {
 }
 
 // 格式化文件大小
-const formatFileSize = (size: number): string => {
+const formatFileSize = (size: number | null | undefined): string => {
+  // N21：后端可能不返回 fileSize，为 null/undefined 时给占位
+  if (size == null) return '-'
   if (size < 1024) {
     return size + ' B'
   } else if (size < 1024 * 1024) {
@@ -169,13 +173,9 @@ const formatDate = (date: string): string => {
       >
         <view class="resume-header">
           <view class="resume-avatar">
-            <image
-              v-if="item.basicInfo?.avatar"
-              :src="item.basicInfo.avatar"
-              mode="aspectFill"
-            />
-            <text v-else class="avatar-placeholder">
-              {{ item.name?.charAt(0) || '简历' }}
+            <!-- B13: 后端 ResumeListItemDTO 从不返回 avatar，统一用简历名称首字母占位 -->
+            <text class="avatar-placeholder">
+              {{ item.name?.charAt(0) || item.fileName?.charAt(0) || '简' }}
             </text>
           </view>
           <view class="resume-info">
@@ -243,7 +243,7 @@ const formatDate = (date: string): string => {
 </template>
 
 <style lang="scss">
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .resume-list-container {
   display: flex;

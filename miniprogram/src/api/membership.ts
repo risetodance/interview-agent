@@ -2,11 +2,17 @@ import { get, post } from '../utils/request'
 
 // ========== 会员相关类型 ==========
 
-// 会员状态
+// 会员状态（对齐后端 MembershipDTO，B7）
 export interface MembershipStatus {
+  membership: string        // MembershipType 枚举：FREE / PREMIUM
+  points: number
+  resumeQuota: number
+  interviewQuota: number
+  aiCallQuota: number
+  vipExpiryDate?: string | null
+  // 派生便捷字段（供 UI 直接消费）
   isVip: boolean
   vipLevel: number
-  vipExpireTime?: string
 }
 
 // VIP 套餐
@@ -43,12 +49,11 @@ export interface PointsInfo {
   totalUsers?: number
 }
 
-// 积分记录
+// 积分记录（对齐后端 PointsRecordDTO，N11：移除后端不存在的 balance 字段）
 export interface PointsRecord {
   id: number
   type: 'earn' | 'spend'
   amount: number
-  balance: number
   description: string
   source: string
   sourceId?: string
@@ -94,22 +99,21 @@ export const getPointsInfo = async () => {
       }
     } catch (e) {
       // 使用当前积分作为历史积分
+      console.error('[getPointsInfo] 获取积分信息失败:', e)
     }
 
     return {
       totalPoints: currentPoints,
       availablePoints: currentPoints,
       frozenPoints: 0,
-      historyPoints: historyPoints,
-      rank: null
+      historyPoints: historyPoints
     }
   } catch (error) {
     return {
       totalPoints: 0,
       availablePoints: 0,
       frozenPoints: 0,
-      historyPoints: 0,
-      rank: null
+      historyPoints: 0
     }
   }
 }
@@ -125,28 +129,46 @@ export const getSignInStatus = async () => {
   }
 }
 
+// 积分类型标签（对应后端 PointsType 枚举，N11）
+const POINTS_TYPE_LABELS: Record<string, string> = {
+  SIGN_IN: '每日签到',
+  COMPLETE_INTERVIEW: '完成面试',
+  SHARE_KB: '知识库分享',
+  EXCHANGE: '积分兑换'
+}
+
 /**
  * 获取积分记录
- * @param page 页码
+ * 后端 PointsRecordDTO 字段：id / points(带符号) / type(PointsType) / description / createdAt（无 balance）。
+ * @param page 页码（后端当前不分页，全量返回）
  * @param pageSize 每页数量
- * @param type 类型筛选：earn/spend
+ * @param type 类型筛选：earn/spend（后端不处理，前端过滤）
  */
 export const getPointsRecords = (page = 1, pageSize = 20, type?: 'earn' | 'spend') => {
   return get<any[]>('/api/points/history', {
     page,
     pageSize,
     type
-  }).then(data => ({
-    list: (data || []).map((record: any) => ({
-      id: record.id,
-      type: record.type === 'SIGN_IN' || record.type === 'INTERVIEW_COMPLETE' ? 'earn' : 'spend',
-      amount: Math.abs(record.points || 0),
-      balance: record.points,  // 积分变化值
-      source: record.description || '',
-      createTime: record.createdAt
-    })),
-    total: data?.length || 0
-  }))
+  }).then(data => {
+    // N11: 按积分正负判定 earn/spend（比枚举白名单更稳健，覆盖所有 PointsType）；
+    // source 用后端枚举映射为中文标签；不再伪造 balance 字段。
+    const list = (data || []).map((record: any) => {
+      const points = Number(record.points) || 0
+      return {
+        id: record.id,
+        type: (points >= 0 ? 'earn' : 'spend') as 'earn' | 'spend',
+        amount: Math.abs(points),
+        description: record.description || '',
+        source: POINTS_TYPE_LABELS[record.type] || record.type || '',
+        createTime: record.createdAt
+      } as PointsRecord
+    })
+    const filtered = type ? list.filter(r => r.type === type) : list
+    return {
+      list: filtered,
+      total: filtered.length
+    }
+  })
 }
 
 /**
@@ -223,11 +245,29 @@ export const claimTaskReward = (taskId: string) => {
 
 // ========== 会员 API ==========
 
+// TODO: 待会员中心页接入后启用（当前无调用方）
 /**
- * 获取会员状态
+ * 获取会员状态（B7：对齐后端 MembershipDTO 结构并派生 isVip/vipLevel）
  */
 export const getMembershipStatus = () => {
-  return get<MembershipStatus>('/api/membership')
+  return get<any>('/api/membership').then((data: any) => {
+    const membership: string = data?.membership || 'FREE'
+    const vipExpiryDate = data?.vipExpiryDate ?? null
+    // 派生：MembershipType 只有 FREE / PREMIUM；过期则视为非 VIP
+    const notExpired = vipExpiryDate ? new Date(vipExpiryDate).getTime() > Date.now() : true
+    const isVip = membership !== 'FREE' && notExpired
+    const vipLevel = membership === 'PREMIUM' ? 1 : 0
+    return {
+      membership,
+      points: data?.points ?? 0,
+      resumeQuota: data?.resumeQuota ?? 0,
+      interviewQuota: data?.interviewQuota ?? 0,
+      aiCallQuota: data?.aiCallQuota ?? 0,
+      vipExpiryDate,
+      isVip,
+      vipLevel
+    } as MembershipStatus
+  })
 }
 
 /**

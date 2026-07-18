@@ -1,8 +1,10 @@
 import { useUserStore } from '../stores/user'
 import { storeToRefs } from 'pinia'
+import { apiBaseUrl } from './env'
 
-// 环境配置
-const baseURL = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://api.interview-guide.com'
+// N7：401 竞态去重标记。并发请求同时收到 401 时，只允许第一个触发 logout + reLaunch，
+// 后续 401 直接 reject，避免重复 toast / 多次 reLaunch / 多次调登出接口。
+let isLoggingOut = false
 
 // 请求配置类型
 interface RequestOptions {
@@ -50,38 +52,96 @@ const requestInterceptors = (options: RequestOptions): RequestOptions => {
 }
 
 // 创建响应拦截器
-const responseInterceptors = (response: UniApp.RequestSuccessCallbackResult): any => {
-  const data = response.data as ResponseData
+// showError: 是否弹出错误 toast（业务调用可传 false 静默处理，如 findUnfinishedSession）
+const responseInterceptors = (
+  response: UniApp.RequestSuccessCallbackResult,
+  showError = true
+): any => {
+  const statusCode = response.statusCode || 200
+
+  // HTTP 401：鉴权失败（含后端非 Result 包装的空体 401，如 InterviewStreamController/Security 默认 401）→ 登出（B4）
+  // N7：并发 401 去重——首个 401 触发登出+跳转，后续 401 直接 reject 不重复处理
+  if (statusCode === 401) {
+    if (!isLoggingOut) {
+      isLoggingOut = true
+      const userStore = useUserStore()
+      // logout 完成后（无论成功失败）释放守卫，允许下次登录态失效再触发
+      userStore.logout().finally(() => { isLoggingOut = false })
+
+      if (showError) {
+        uni.showToast({
+          title: '登录已过期，请重新登录',
+          icon: 'none'
+        })
+      }
+
+      // 跳转到登录页
+      uni.reLaunch({
+        url: '/pages/auth/login'
+      })
+    }
+
+    return Promise.reject(new Error('登录已过期'))
+  }
+
+  // 其它 HTTP >=400：优先按 HTTP 状态码判断，避免非 Result 格式响应穿透（B4）
+  if (statusCode >= 400) {
+    const errData = response.data as any
+    const message = (errData && typeof errData === 'object' && errData.message)
+      ? errData.message
+      : `请求失败(${statusCode})`
+    if (showError) {
+      uni.showToast({ title: message, icon: 'none' })
+    }
+    return Promise.reject(new Error(message))
+  }
+
+  // HTTP 200：data 可能是非对象（纯文本/HTML/空），兜底
+  const data = (response.data && typeof response.data === 'object')
+    ? response.data as ResponseData
+    : null
+  if (!data) {
+    // 非标准 Result 响应，直接返回原始 data
+    return response.data
+  }
 
   // 根据业务状态码处理
   if (data.code === 200 || data.code === 0) {
     return data.data
   }
 
-  // 处理未授权情况
+  // 业务码 401（个别接口在 HTTP 200 内返回业务 401）
+  // N7：同样走 isLoggingOut 守卫，避免与 HTTP 401 分支重复登出
   if (data.code === 401) {
-    const userStore = useUserStore()
-    userStore.logout()
+    if (!isLoggingOut) {
+      isLoggingOut = true
+      const userStore = useUserStore()
+      userStore.logout().finally(() => { isLoggingOut = false })
 
-    uni.showToast({
-      title: '登录已过期，请重新登录',
-      icon: 'none'
-    })
+      if (showError) {
+        uni.showToast({
+          title: '登录已过期，请重新登录',
+          icon: 'none'
+        })
+      }
 
-    // 跳转到登录页
-    uni.reLaunch({
-      url: '/pages/auth/login'
-    })
+      // 跳转到登录页
+      uni.reLaunch({
+        url: '/pages/auth/login'
+      })
+    }
 
     return Promise.reject(new Error(data.message || '登录已过期'))
   }
 
-  // 其他错误
+  // 其他业务错误
   if (data.code >= 400) {
-    uni.showToast({
-      title: data.message || '请求失败',
-      icon: 'none'
-    })
+    if (showError) {
+      uni.showToast({
+        title: data.message || '请求失败',
+        icon: 'none'
+      })
+    }
     return Promise.reject(new Error(data.message || '请求失败'))
   }
 
@@ -137,7 +197,7 @@ export const request = <T = any>(options: RequestOptions): Promise<T> => {
 
   return new Promise((resolve, reject) => {
     uni.request({
-      url: baseURL + processedOptions.url,
+      url: apiBaseUrl + processedOptions.url,
       method: processedOptions.method,
       data: processedOptions.data,
       header: processedOptions.header,
@@ -148,7 +208,7 @@ export const request = <T = any>(options: RequestOptions): Promise<T> => {
         }
 
         try {
-          const result = responseInterceptors(res)
+          const result = responseInterceptors(res, showError)
           resolve(result)
         } catch (error: any) {
           reject(error)
@@ -247,7 +307,7 @@ export const uploadFile = <T = any>(
 
   return new Promise((resolve, reject) => {
     uni.uploadFile({
-      url: baseURL + options.url,
+      url: apiBaseUrl + options.url,
       filePath,
       name: options.name || 'file',
       formData: options.formData || {},
@@ -308,7 +368,7 @@ export const downloadFile = (url: string, showLoading = false): Promise<string> 
 
   return new Promise((resolve, reject) => {
     uni.downloadFile({
-      url: baseURL + url,
+      url: apiBaseUrl + url,
       header,
       success: (res) => {
         if (showLoading) {

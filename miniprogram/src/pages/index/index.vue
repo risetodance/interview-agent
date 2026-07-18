@@ -154,7 +154,7 @@ const goToProfile = () => {
 </template>
 
 <style lang="scss" scoped>
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .index-container {
   min-height: 100vh;

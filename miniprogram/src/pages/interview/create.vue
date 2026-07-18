@@ -118,7 +118,7 @@ onMounted(() => {
 </template>
 
 <style lang="scss">
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .create-interview-container {
   display: flex;

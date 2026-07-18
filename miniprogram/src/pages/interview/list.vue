@@ -10,11 +10,7 @@ const interviewStore = useInterviewStore()
 const loading = ref(false)
 const refreshing = ref(false)
 const currentStatus = ref('')
-const listParams = ref({
-  page: 1,
-  pageSize: 20
-})
-const total = ref(0)
+// 后端全量返回，无分页（B8 去分页死代码）
 
 // 面试列表
 const interviewList = computed(() => interviewStore.interviewList)
@@ -75,26 +71,17 @@ const typeMap: Record<string, { text: string; color: string }> = {
   real: { text: '真实', color: '#409EFF' }
 }
 
-// 加载面试列表
+// 加载面试列表（后端全量返回，无分页）
 const loadInterviewList = async (refresh = false) => {
   if (loading.value) return
 
   loading.value = true
   refreshing.value = refresh
 
-  if (refresh) {
-    listParams.value.page = 1
-  }
-
   try {
-    const params = {
-      ...listParams.value,
-      status: currentStatus.value || undefined
-    }
-    await interviewStore.fetchInterviewList(params)
-    total.value = interviewList.value.length
-    listParams.value.page++
+    await interviewStore.fetchInterviewList(currentStatus.value || undefined)
   } catch (error) {
+    console.error('[loadInterviewList] 加载面试列表失败:', error)
   } finally {
     loading.value = false
     refreshing.value = false
@@ -104,13 +91,6 @@ const loadInterviewList = async (refresh = false) => {
 // 下拉刷新
 const onRefresh = () => {
   loadInterviewList(true)
-}
-
-// 上拉加载更多
-const onLoadMore = () => {
-  if (interviewList.value.length < total.value) {
-    loadInterviewList()
-  }
 }
 
 // 切换状态筛选
@@ -160,6 +140,7 @@ const handleDelete = (item: Interview, index: number) => {
           // 删除成功后刷新列表
           loadInterviewList()
         } catch (error) {
+          console.error('[handleDelete] 删除面试失败:', error)
         }
       }
     }
@@ -231,7 +212,6 @@ onUnmounted(() => {
       :refresher-enabled="true"
       :refresher-triggered="refreshing"
       @refresherrefresh="onRefresh"
-      @scrolltolower="onLoadMore"
     >
       <view v-if="interviewList.length === 0 && !loading" class="empty">
         <text class="empty-icon">&#xe60c;</text>
@@ -249,8 +229,8 @@ onUnmounted(() => {
           <view class="card-info">
             <view class="card-title-row">
               <text class="card-title">{{ item.title || '未命名面试' }}</text>
-              <view class="type-tag" :style="{ color: typeMap[item.type]?.color }">
-                {{ typeMap[item.type]?.text || '练习' }}
+              <view class="type-tag" :style="{ color: typeMap[item.type ?? 'practice']?.color }">
+                {{ typeMap[item.type ?? 'practice']?.text || '练习' }}
               </view>
             </view>
             <view class="card-meta">
@@ -267,7 +247,7 @@ onUnmounted(() => {
         <view class="card-content">
           <view class="content-item">
             <text class="content-label">面试时间</text>
-            <text class="content-value">{{ formatDate(item.createdAt) }}</text>
+            <text class="content-value">{{ formatDate(item.createdAt ?? '') }}</text>
           </view>
           <view class="content-item">
             <text class="content-label">题目数量</text>
@@ -311,16 +291,16 @@ onUnmounted(() => {
         </view>
       </view>
 
-      <!-- 加载状态 -->
+      <!-- 加载状态（后端全量返回，无分页加载更多） -->
       <view v-if="loading" class="loading-more">
-        <text>{{ interviewList.length < total ? '加载中...' : '没有更多了' }}</text>
+        <text>加载中...</text>
       </view>
     </scroll-view>
   </view>
 </template>
 
 <style lang="scss">
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .interview-list-container {
   display: flex;

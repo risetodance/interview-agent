@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import Icon from '../../components/common/Icon.vue'
-import { marked } from '../../utils/marked'
+import { renderMarkdown } from '../../utils/marked'
 import {
   connectRagChatStream,
   getRagSessions,
@@ -71,7 +71,9 @@ interface ThinkBlock {
 }
 
 // 展开的 think 状态集合
-const expandedThinks = ref<Set<string>>(new Set())
+// 注意：用对象而非 Set。Vue 的 ref 对 Set 内部 add/delete 不触发响应式更新，
+// 导致 toggleThink 后图标/内容不变（看起来"点不动"）。改用普通对象整体替换保证响应式。
+const expandedThinks = ref<Record<string, boolean>>({})
 
 // 解析 think 标签（支持流式传输）
 // 返回: main=主内容, thinks=完成的 think 块, streamingThink=未完成的 think 内容
@@ -118,18 +120,21 @@ const parseThinkBlocks = (content: string): { main: string; thinks: ThinkBlock[]
 // 切换 think 展开状态
 const toggleThink = (msgIndex: number, thinkIndex: number) => {
   const key = `${msgIndex}-${thinkIndex}`
-  if (expandedThinks.value.has(key)) {
-    expandedThinks.value.delete(key)
-  } else {
-    expandedThinks.value.add(key)
-  }
+  // 用展开运算符整体替换对象，确保 Vue 检测到变更触发响应式更新
+  expandedThinks.value = { ...expandedThinks.value, [key]: !expandedThinks.value[key] }
 }
 
 // 检查 think 是否展开（isLastMessage 用于新消息默认展开）
 const isThinkExpanded = (msgIndex: number, thinkIndex: number, isLastMessage: boolean): boolean => {
   const key = `${msgIndex}-${thinkIndex}`
-  // 新消息的 think 默认展开
-  return isLastMessage || expandedThinks.value.has(key)
+  // "最后一条消息" 仅作为初始默认展开值，用户一旦手动点过收缩/展开，
+  // 就以 expandedThinks 中的显式状态为准——否则最后一条永远展开展不开，与"可收缩"需求冲突。
+  // key in expandedThinks 表示用户已操作过：取存储值（true 展开 / false 收起）
+  if (key in expandedThinks.value) {
+    return expandedThinks.value[key]
+  }
+  // 未被用户操作过：最后一条消息默认展开，其余默认收起
+  return isLastMessage
 }
 
 // 获取 think 块的快捷方法（供模板使用）
@@ -188,67 +193,6 @@ onMounted(() => {
   loadSessions()
 })
 
-// 初始化会话
-const initSession = async () => {
-  if (knowledgebaseIds.value.length === 0) return
-
-  try {
-    // 先检查是否有该知识库的已有会话
-    const sessionList = await getRagSessions() || []
-    // sessionList 中的项目有 knowledgeBaseNames 字段
-    const existingSession = sessionList.find((s: any) =>
-      s.knowledgeBaseNames?.some((name: string) => knowledgebaseNames.value.includes(name))
-    )
-
-    if (existingSession) {
-      // 复用已有会话
-      currentSessionId.value = existingSession.id
-      console.log('复用已有会话, sessionId:', currentSessionId.value)
-
-      // 加载会话消息历史
-      await loadSessionMessages(existingSession.id)
-    } else {
-      // 创建新会话，关联到当前知识库
-      const session = await createRagSession(knowledgebaseIds.value)
-      currentSessionId.value = session.id
-      console.log('创建新会话, sessionId:', currentSessionId.value)
-    }
-  } catch (error) {
-    console.error('初始化会话失败:', error)
-    // 出错时创建新会话
-    try {
-      const session = await createRagSession(knowledgebaseIds.value)
-      currentSessionId.value = session.id
-      console.log('出错后创建新会话, sessionId:', currentSessionId.value)
-    } catch (createError) {
-      console.error('创建会话也失败:', createError)
-    }
-  }
-}
-
-// 加载会话消息历史
-const loadSessionMessages = async (sessionId: number) => {
-  try {
-    const data = await getRagMessages(sessionId) as any
-    // data 是 SessionDetailDTO，包含 messages 数组
-    if (data && data.messages && data.messages.length > 0) {
-      // 转换为前端格式，并解析 Markdown
-      messages.value = data.messages.map((m: any) => ({
-        id: m.id || Date.now() + Math.random(),
-        type: m.type === 'user' ? 'question' : 'answer',
-        content: parseContent(m.content || ''),
-        timestamp: m.createdAt || new Date().toISOString()
-      }))
-    } else {
-      // 没有历史消息，添加欢迎消息
-      addWelcomeMessage()
-    }
-  } catch (error) {
-    console.error('加载会话消息失败:', error)
-    addWelcomeMessage()
-  }
-}
-
 // 加载会话列表
 const loadSessions = async () => {
   loadingSessions.value = true
@@ -268,7 +212,8 @@ const addWelcomeMessage = () => {
   messages.value = [{
     id: Date.now(),
     type: 'answer',
-    content: parseContent(welcomeContent),
+    // 存原始 markdown 文本，解析收敛到模板一处，避免二次解析（见 msg.content 渲染）
+    content: welcomeContent,
     timestamp: new Date().toISOString()
   }]
 }
@@ -290,25 +235,10 @@ const sendMessage = async () => {
   // 如果没有会话，先创建
   if (!currentSessionId.value) {
     try {
-      // 检查是否有该知识库的已有会话（新建会话模式下跳过）
-      if (!isNewSessionMode.value) {
-        const sessionList = await getRagSessions() || []
-        const existingSession = sessionList.find((s: any) =>
-          s.knowledgeBaseNames?.some((name: string) => knowledgebaseNames.value.includes(name))
-        )
-
-        if (existingSession) {
-          currentSessionId.value = existingSession.id
-          console.log('复用已有会话, sessionId:', currentSessionId.value)
-          // 加载已有会话的消息历史
-          await loadSessionMessages(existingSession.id)
-          // 重置新建会话模式标志
-          isNewSessionMode.value = false
-          return
-        }
-      }
-
-      // 创建新会话，关联到当前知识库
+      // 创建新会话，关联到当前知识库。
+      // 注意：不应在此处"复用同知识库旧会话"——旧会话的历史（含曾测试时发的"测试"等残留）
+      // 会被 loadSessionMessages 加载出来，且当前消息被吞（return），表现为"多发了一条测试消息"。
+      // 复用历史会话请走右上角"会话历史"侧边栏显式选择。
       const session = await createRagSession(knowledgebaseIds.value)
       currentSessionId.value = session.id
       console.log('创建新会话, sessionId:', currentSessionId.value)
@@ -355,7 +285,9 @@ const sendToAI = async (question: string) => {
 
   // 添加思考中状态
   const thinkingIndex = messages.value.length - 1
-  messages.value[thinkingIndex].content = '正在思考中...'
+  // 不预设"正在思考中..."文字：它会残留在气泡里（首个 chunk 为空 / 被 think 块吃掉时）。
+  // 思考状态由底部 loading-indicator（isLoading）统一呈现，气泡在首个 chunk 到达前保持空白。
+  messages.value[thinkingIndex].content = ''
 
   // 保存当前的回复内容（原始markdown）
   let fullContent = ''
@@ -369,9 +301,11 @@ const sendToAI = async (question: string) => {
         console.log('SSE 连接成功')
       },
       onMessage: (content: string) => {
+        // 首个 chunk 到达即关闭"思考中"指示器：内容已在流式输出，不应再显示 loading
+        if (isLoading.value) isLoading.value = false
         fullContent += content
-        // 实时更新消息内容 - 解析 Markdown 后显示
-        messages.value[thinkingIndex].content = parseContent(fullContent) || '正在思考中...'
+        // 存原始 markdown（含 <think> 标签），由模板 parseContent + getThinkBlocks 统一解析渲染
+        messages.value[thinkingIndex].content = fullContent
         scrollToBottom()
       },
       onComplete: () => {
@@ -381,7 +315,7 @@ const sendToAI = async (question: string) => {
           messages.value[loadingIndex] = {
             id: loadingId,
             type: 'answer',
-            content: parseContent(fullContent) || '抱歉，未收到有效回复。',
+            content: fullContent || '抱歉，未收到有效回复。',
             timestamp: new Date().toISOString()
           }
         }
@@ -415,7 +349,23 @@ const sendToAI = async (question: string) => {
 // 滚动到底部
 const scrollToBottom = () => {
   nextTick(() => {
-    scrollTop.value = 99999
+    // 用 selectorQuery 取实际内容高度替代魔法数 99999：流式输出时反复赋同一值，
+    // Vue 认为没变化不触发 scroll-view 滚动，导致内容增长却不保持在底部。
+    const query = uni.createSelectorQuery()
+    query.select('.message-list').boundingClientRect()
+    query.selectAll('.message-item').boundingClientRect()
+    query.exec((res) => {
+      const container = res[0] as { height: number } | null
+      const items = res[1] as Array<{ height: number }> | undefined
+      if (container && items && items.length) {
+        const contentHeight = items.reduce((sum, it) => sum + (it.height || 0), 0)
+        const target = contentHeight > 0 ? contentHeight : container.height
+        // scroll-top 相同值不触发滚动，故同值时 +1 强制刷新
+        scrollTop.value = scrollTop.value >= target ? target + 1 : target
+      } else {
+        scrollTop.value = scrollTop.value + 1
+      }
+    })
   })
 }
 
@@ -442,13 +392,9 @@ const formatTimeAgo = (dateStr: string): string => {
   return formatTime(date.toISOString())
 }
 
-// 解析 Markdown 内容
-const parseContent = (content: string) => {
-  try {
-    return marked(content)
-  } catch {
-    return content
-  }
+// 解析 Markdown 内容（N14：经 utils/marked 的 renderMarkdown 统一净化 + 解析，自带空值兜底）
+const parseContent = (content: string | null | undefined) => {
+  return renderMarkdown(content)
 }
 
 // 返回列表
@@ -479,7 +425,8 @@ const handleSelectSession = async (session: { id: number }) => {
       messages.value = data.messages.map((m: any) => ({
         id: m.id || Date.now() + Math.random(),
         type: m.type === 'user' ? 'question' : 'answer',
-        content: parseContent(m.content || ''),
+        // 后端存的是原始 markdown，前端存原文，由模板统一 parseContent（避免二次解析出 <p> 字面文本）
+        content: m.content || '',
         timestamp: m.createdAt || new Date().toISOString()
       }))
     } else {
@@ -742,7 +689,7 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss">
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .chat-container {
   display: flex;
@@ -850,11 +797,21 @@ onUnmounted(() => {
 }
 
 .answer-bubble {
+  // 撑满稳定的 .message-item（display:flex 撑满 message-list，宽度固定），
+  // 这样 .bubble-content 的 width:70% 基于稳定基准，展开/收起 think 时气泡宽度不再跳变。
+  // 之前 .answer-bubble 没固定宽度（flex 子项按内容收缩），导致 70% 相对一个变化的基准 → 循环跳变。
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+
   .bubble-content {
     background-color: #fff;
     border-radius: 24rpx;
     padding: 24rpx;
     box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+    // 固定 70%（基于稳定的 .answer-bubble = message-item 宽度），而非 max-width 按内容收缩
+    width: 70%;
+    box-sizing: border-box;
   }
 
   .bubble-text {

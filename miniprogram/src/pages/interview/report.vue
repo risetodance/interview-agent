@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
-import { getInterviewDetail, getAbilityProfile, getComprehensiveReport, getSessionPerspectives, getPerspectiveDetail, type ComprehensiveReportDTO, type PerspectiveScoreDTO, type PerspectiveDetailDTO } from '../../api/interview'
-import { marked } from '../../utils/marked'
+import { getInterviewDetail, getAbilityProfile, getComprehensiveReport, getSessionPerspectives, getPerspectiveDetail, type ComprehensiveReportDTO, type PerspectiveScoreDTO, type PerspectiveDetailDTO, type AbilityProfile, type CategoryScore } from '../../api/interview'
+import { renderMarkdown } from '../../utils/marked'
 
 // 路由参数
 const pageId = ref<string>('')
@@ -13,6 +13,8 @@ const perspectives = ref<PerspectiveScoreDTO[]>([])
 const currentPerspectiveDetail = ref<PerspectiveDetailDTO | null>(null)
 const loading = ref(true)
 const abilityLoading = ref(true)
+// 能力画像（N1：原 getAbilityProfile 返回值被丢弃，现绑定渲染）
+const abilityProfile = ref<AbilityProfile | null>(null)
 
 // Tab 相关
 const currentTabIndex = ref(0)
@@ -89,11 +91,13 @@ const loadReportData = async () => {
       console.error('加载视角评分列表失败:', e)
     }
 
-    // 加载能力画像数据
+    // 加载能力画像数据（N1：绑定到 abilityProfile 以供模板渲染）
     try {
       const profileRes = await getAbilityProfile(pageId.value)
+      abilityProfile.value = profileRes ?? null
       abilityLoading.value = false
     } catch (e) {
+      abilityProfile.value = null
       abilityLoading.value = false
     }
   } catch (error) {
@@ -195,6 +199,13 @@ const getProgressWidth = (score: number | null | undefined) => {
   return `${score}%`
 }
 
+// 能力画像各维度（categoryScores 是 Record，扁平化为数组渲染，N1）
+const abilityCategoryList = computed<CategoryScore[]>(() => {
+  const cs = abilityProfile.value?.categoryScores
+  if (!cs) return []
+  return Object.values(cs)
+})
+
 // 视角图标映射
 const perspectiveIcons: Record<string, string> = {
   '技术面试官': '💻',
@@ -232,16 +243,6 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
   if (perspective.status === 'COMPLETED' && perspective.score !== null) return `${perspective.score}分`
   if (perspective.status === 'PENDING') return '等待中'
   return ''
-}
-
-// 渲染 Markdown
-const renderMarkdown = (text: string | null | undefined) => {
-  if (!text) return ''
-  try {
-    return marked(text)
-  } catch (e) {
-    return text
-  }
 }
 </script>
 
@@ -427,6 +428,42 @@ const renderMarkdown = (text: string | null | undefined) => {
             </view>
           </view>
         </view>
+
+        <!-- 能力画像（N1：原 getAbilityProfile 返回值被丢弃，现绑定渲染） -->
+        <view v-if="abilityProfile" class="card ability-profile-card">
+          <view class="card-header">
+            <text class="card-icon info">🎯</text>
+            <text class="card-title">能力画像</text>
+          </view>
+          <view class="ability-overall">
+            <text class="ability-label">综合均分</text>
+            <text class="ability-score" :style="{ color: getScoreColor(abilityProfile.overallScore || 0) }">{{ abilityProfile.overallScore ?? 0 }}</text>
+          </view>
+          <view v-if="abilityCategoryList.length" class="ability-categories">
+            <view v-for="cat in abilityCategoryList" :key="cat.category" class="ability-cat-item">
+              <view class="ability-cat-info">
+                <text class="ability-cat-name">{{ cat.category }}</text>
+                <text class="ability-cat-meta">{{ cat.count ?? 0 }} 题</text>
+              </view>
+              <view class="ability-cat-bar">
+                <view class="ability-cat-bar-fill" :style="{ width: getProgressWidth(cat.avgScore) }"></view>
+              </view>
+              <text class="ability-cat-score">{{ cat.avgScore ?? 0 }}</text>
+            </view>
+          </view>
+          <view v-if="abilityProfile.strengths?.length" class="ability-sub">
+            <text class="ability-sub-title good">优势</text>
+            <view class="ability-tags">
+              <text v-for="(s, i) in abilityProfile.strengths" :key="'s'+i" class="ability-tag good">{{ s }}</text>
+            </view>
+          </view>
+          <view v-if="abilityProfile.weaknesses?.length" class="ability-sub">
+            <text class="ability-sub-title warn">待加强</text>
+            <view class="ability-tags">
+              <text v-for="(w, i) in abilityProfile.weaknesses" :key="'w'+i" class="ability-tag warn">{{ w }}</text>
+            </view>
+          </view>
+        </view>
       </view>
 
       <!-- 各视角 Tab -->
@@ -555,7 +592,7 @@ const renderMarkdown = (text: string | null | undefined) => {
 </template>
 
 <style lang="scss">
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 // 使用 Web 端一致的配色
 $success: #22c55e;  // green-500
@@ -927,6 +964,115 @@ $text-secondary: #64748b;  // slate-500
     padding: 40rpx 0;
     color: $text-secondary;
     font-size: 26rpx;
+  }
+}
+
+// 能力画像卡片（N1）
+.ability-profile-card {
+  .ability-overall {
+    display: flex;
+    align-items: baseline;
+    gap: 16rpx;
+    margin-bottom: 24rpx;
+    padding-bottom: 20rpx;
+    border-bottom: 1rpx solid #f0f0f0;
+
+    .ability-label {
+      font-size: 26rpx;
+      color: $text-secondary;
+    }
+
+    .ability-score {
+      font-size: 48rpx;
+      font-weight: 700;
+    }
+  }
+
+  .ability-categories {
+    display: flex;
+    flex-direction: column;
+    gap: 20rpx;
+    margin-bottom: 24rpx;
+  }
+
+  .ability-cat-item {
+    display: flex;
+    align-items: center;
+    gap: 12rpx;
+  }
+
+  .ability-cat-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 140rpx;
+
+    .ability-cat-name {
+      font-size: 26rpx;
+      color: $text-primary;
+      font-weight: 500;
+    }
+
+    .ability-cat-meta {
+      font-size: 20rpx;
+      color: $text-secondary;
+    }
+  }
+
+  .ability-cat-bar {
+    flex: 1;
+    height: 12rpx;
+    background: #f0f0f0;
+    border-radius: 6rpx;
+    overflow: hidden;
+  }
+
+  .ability-cat-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, $primary 0%, $primary-light 100%);
+    border-radius: 6rpx;
+  }
+
+  .ability-cat-score {
+    font-size: 26rpx;
+    font-weight: 600;
+    min-width: 48rpx;
+    text-align: right;
+  }
+
+  .ability-sub {
+    margin-top: 16rpx;
+
+    .ability-sub-title {
+      font-size: 26rpx;
+      font-weight: 600;
+      margin-bottom: 12rpx;
+      display: block;
+
+      &.good { color: $success; }
+      &.warn { color: $warning; }
+    }
+
+    .ability-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12rpx;
+    }
+
+    .ability-tag {
+      padding: 6rpx 16rpx;
+      border-radius: 20rpx;
+      font-size: 22rpx;
+
+      &.good {
+        background: rgba($success, 0.1);
+        color: $success;
+      }
+
+      &.warn {
+        background: rgba($warning, 0.1);
+        color: $warning;
+      }
+    }
   }
 }
 

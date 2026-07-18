@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, toRef, onMounted, onUnmounted, nextTick } from 'vue'
-import { useInterviewStore, InterviewQuestion } from '../../stores/interview'
-import { getCurrentQuestion, getSessionProgress, connectInterviewStream, SSE_EVENT_TYPES, PROGRESS_LABELS, submitAnswerAdaptive, endInterview } from '../../api/interview'
+import { onUnload, onHide } from '@dcloudio/uni-app'
+import { useInterviewStore } from '../../stores/interview'
+import { getCurrentQuestion, getSessionProgress, connectInterviewStream, SSE_EVENT_TYPES, PROGRESS_LABELS, submitAnswerAdaptive, endInterview, type StreamCurrentQuestionDTO } from '../../api/interview'
 
 // 路由参数
 const pageId = ref<string>('')
@@ -23,12 +24,10 @@ const isLoading = computed(() => interviewStore.isLoading)
 const isSubmitting = toRef(interviewStore, 'isSubmitting')
 
 // UI状态
-const showEvaluation = ref(false)
 const answerText = ref('')
 const isRecording = ref(false)
 const recordingTime = ref(0)
 const recordingTimer = ref<number | null>(null)
-const pollTimer = ref<number | null>(null)
 
 // 滚动相关
 const scrollTop = ref(0)
@@ -42,8 +41,17 @@ const showReportLoading = ref(false)
 const sseCleanup = ref<(() => void) | null>(null)
 // 是否正在加载下一题（显示遮罩）
 const isLoadingNextQuestion = ref(false)
+// SSE 重连：H5 的 EventSource / 小程序 chunked request 在弱网或后端 broken pipe 后会断开，
+// 不自动重连会导致后续提交答案收不到实时事件、只能反复走 healFromServer。这里在非提交态延迟重连。
+const sseReconnectTimer = ref<number | null>(null)
+const SSE_RECONNECT_DELAY = 2000
+const SSE_RECONNECT_MAX = 5
+let sseReconnectAttempts = 0
 // 进度阶段状态（用于显示不同的加载提示）
 const progressStage = ref<string | null>(null)
+
+// 已渲染过的题目 questionIndex 集合：submitAnswer 返回值与 SSE onQuestion 去重（NC1）
+const renderedQuestionIndices = ref<Set<number>>(new Set())
 
 // 恢复的当前问题（用于会话进度恢复）
 const restoredCurrentQuestion = ref<{
@@ -121,6 +129,14 @@ const getDifficultyLabel = (difficulty?: string) => {
   return labels[difficulty || ''] || difficulty || ''
 }
 
+// 评分颜色（B14 实时评分气泡）
+const getScoreColor = (score?: number | null) => {
+  if (score === undefined || score === null) return '#64748b'
+  if (score >= 80) return '#16a34a'
+  if (score >= 60) return '#d97706'
+  return '#dc2626'
+}
+
 // 面试结果
 const interviewResult = ref<{
   score: number
@@ -186,6 +202,7 @@ const initInterview = async () => {
           createdByPerspectiveId: firstQuestion.createdByPerspectiveId,
           createdByPerspectiveName: firstQuestion.createdByPerspectiveName
         }
+        renderedQuestionIndices.value.add(firstQuestion.questionIndex)
 
         // 添加第一题到消息列表
         messages.value = [{
@@ -265,6 +282,7 @@ const initInterview = async () => {
           createdByPerspectiveId: progress.currentQuestion.createdByPerspectiveId,
           createdByPerspectiveName: progress.currentQuestion.createdByPerspectiveName
         }
+        renderedQuestionIndices.value.add(progress.currentQuestion.questionIndex)
         // 添加当前问题到消息列表
         messages.value.push({
           id: Date.now() + Math.random(),
@@ -294,6 +312,144 @@ const initInterview = async () => {
   }
 }
 
+// 应用下一题到 UI（NC1：submitAnswer 返回值与 SSE onQuestion 共用，按 questionIndex 去重）
+const applyNextQuestion = (question: StreamCurrentQuestionDTO) => {
+  // 去重：同一 questionIndex 不重复渲染（返回值与 SSE 双触发时只生效一次）
+  if (renderedQuestionIndices.value.has(question.questionIndex)) {
+    isLoadingNextQuestion.value = false
+    progressStage.value = null
+    interviewStatus.value = 'answering'
+    isSubmitting.value = false
+    return
+  }
+  renderedQuestionIndices.value.add(question.questionIndex)
+
+  progressStage.value = null
+  restoredCurrentQuestion.value = {
+    questionIndex: question.questionIndex,
+    question: question.question,
+    category: question.category,
+    difficulty: question.difficulty,
+    knowledgeBaseName: question.knowledgeBaseName,
+    createdByPerspectiveId: question.createdByPerspectiveId,
+    createdByPerspectiveName: question.createdByPerspectiveName
+  }
+  // 添加问题到消息列表
+  messages.value.push({
+    id: Date.now() + Math.random(),
+    type: 'interviewer',
+    content: question.question,
+    category: question.category,
+    questionIndex: question.questionIndex,
+    difficulty: question.difficulty,
+    knowledgeBaseName: question.knowledgeBaseName,
+    timestamp: Date.now(),
+    createdByPerspectiveId: question.createdByPerspectiveId,
+    createdByPerspectiveName: question.createdByPerspectiveName
+  })
+  // 隐藏加载遮罩 + 释放提交锁（原代码成功路径未重置 isSubmitting，此处一并修复）
+  isLoadingNextQuestion.value = false
+  isSubmitting.value = false
+  interviewStatus.value = 'answering'
+  scrollToBottom()
+}
+
+// 面试完成（NC1：submitAnswer 返回 hasNextQuestion=false 时进入）
+const handleComplete = () => {
+  interviewStatus.value = 'completed'
+  progressStage.value = null
+  isLoadingNextQuestion.value = false
+  isSubmitting.value = false
+  // 跳转到面试列表页，等待评估完成后再查看报告
+  uni.redirectTo({
+    url: '/pages/interview/list'
+  })
+}
+
+// NC1 兜底：后端 submitAnswerAdaptive 硬编码返回 hasNextQuestion=true / nextQuestion=null（注释"SSE 推送下一题"），
+// 会话推进实际依赖 SSE。而 SSE 在小程序端可能因弱网 / 后台回收失效，导致"提交后等不到下一题"永久卡死。
+// 故在 SSE 之外加一道兜底：超时或 SSE 报错时，用 getSessionProgress 拉后端真实进度自愈推进。
+const submitGuardTimer = ref<number | null>(null)
+
+// heal 重试：后端处于 PROCESSING（已提交、尚未评分）时 currentQuestion 为 null，
+// 不能当作"已答完"，需保持遮罩并轮询，直到拿到下一题或真正完成；
+// 否则会误触发 handleComplete → redirectTo('/pages/interview/list')，即用户看到的"闪退到列表页"。
+// 间隔 3s；后端完整工作流（评分 + Decider + 检索 + 出题）实测可达 48s+，
+// 故总时长给到 120s（40 次），避免 currentIndex 推进前就放弃 → "收不到下一题"。
+const HEAL_RETRY_INTERVAL = 3000
+const HEAL_MAX_RETRIES = 40
+const healRetryCount = ref(0)
+const healRetryTimer = ref<number | null>(null)
+
+const healFromServer = async (submittedIndex: number) => {
+  // 已被 SSE 正常推进（applyNextQuestion / handleComplete 已复位 isLoadingNextQuestion）则不干预
+  if (!isLoadingNextQuestion.value) return
+  try {
+    const progress = await getSessionProgress(pageId.value)
+    const q = progress.currentQuestion
+    const isProcessing = progress.processingStatus === 'PROCESSING'
+
+    // 后端已生成下一题但 SSE 推送丢失 → 直接渲染（applyNextQuestion 内部按 questionIndex 去重）
+    if (q && q.questionIndex > submittedIndex) {
+      healRetryCount.value = 0
+      applyNextQuestion(q)
+      return
+    }
+
+    // 无当前题：必须区分"处理中"和"已答完"
+    if (!q) {
+      if (isProcessing) {
+        // 工作流仍在评分/生成下一题，currentQuestion 暂为 null——正是原 !q 误判为"已完成"导致闪退的根因
+        // 保持遮罩并有限次轮询，等下一题就绪或评分完成，绝不在此进入完成流程
+        // 仅在上一轮定时器已触发完（healRetryTimer 为空）时才启动下一轮并累加计数；
+        // 否则 submitGuardTimer / 反复 onError 并发调用会让计数涨太快、提前耗尽重试次数。
+        if (healRetryCount.value >= HEAL_MAX_RETRIES) {
+          // 超过重试上限仍无结果 → 释放锁并提示，避免永久卡 loading（用户可手动重试）
+          healRetryCount.value = 0
+          isLoadingNextQuestion.value = false
+          isSubmitting.value = false
+          interviewStatus.value = 'answering'
+          uni.showToast({ title: 'AI 处理超时，请重试', icon: 'none' })
+        } else if (!healRetryTimer.value) {
+          healRetryCount.value++
+          progressStage.value = SSE_EVENT_TYPES.PROGRESS_SCORING
+          healRetryTimer.value = setTimeout(() => {
+            healRetryTimer.value = null
+            healFromServer(submittedIndex)
+          }, HEAL_RETRY_INTERVAL) as unknown as number
+        }
+        // 已有定时器在等待：直接返回，让递归轮询的节奏保持稳定（不额外累加计数）
+      } else if (progress.currentQuestionIndex >= progress.totalQuestions) {
+        // 真正答完所有题 → 进入完成流程（保留原兜底）
+        healRetryCount.value = 0
+        handleComplete()
+      } else {
+        // 既无当前题、又非处理中、且未到末题：后端状态异常，释放锁让用户重试
+        healRetryCount.value = 0
+        isLoadingNextQuestion.value = false
+        isSubmitting.value = false
+        interviewStatus.value = 'answering'
+      }
+    }
+    // q 存在但 questionIndex <= submittedIndex：仍是当前题（恢复场景），不推进，保持现状
+  } catch (e) {
+    console.error('[NC1 兜底] 拉取会话进度失败:', e)
+    healRetryCount.value = 0
+    // 自愈也失败时释放锁，避免永久卡在 loading（用户可手动重试）
+    isLoadingNextQuestion.value = false
+    isSubmitting.value = false
+    interviewStatus.value = 'answering'
+  }
+}
+
+const startSubmitTimeoutGuard = (submittedIndex: number) => {
+  if (submitGuardTimer.value) clearTimeout(submitGuardTimer.value)
+  submitGuardTimer.value = setTimeout(() => {
+    submitGuardTimer.value = null
+    healFromServer(submittedIndex)
+  }, 30000) as unknown as number
+}
+
 // 建立 SSE 连接
 const setupSSEConnection = () => {
   // 清理之前的连接
@@ -306,104 +462,68 @@ const setupSSEConnection = () => {
   sseCleanup.value = connectInterviewStream(pageId.value, {
     onConnected: () => {
       interviewStatus.value = 'connected'
+      // 连接已通，重置重连计数
+      sseReconnectAttempts = 0
     },
     onProgress: (stage: string) => {
       progressStage.value = stage
-      if (stage === 'QUESTION_GENERATING') {
+      // B11: 修正常量大小写（原 'QUESTION_GENERATING' 不存在，永不命中）
+      if (stage === SSE_EVENT_TYPES.PROGRESS_GENERATING) {
         isLoadingNextQuestion.value = true
       }
     },
     onQuestion: (question) => {
-      // 清空进度阶段状态
-      progressStage.value = null
-      // 更新当前问题
-      restoredCurrentQuestion.value = {
-        questionIndex: question.questionIndex,
-        question: question.question,
-        category: question.category,
-        difficulty: question.difficulty,
-        knowledgeBaseName: question.knowledgeBaseName,
-        createdByPerspectiveId: question.createdByPerspectiveId,
-        createdByPerspectiveName: question.createdByPerspectiveName
-      }
-      // 添加问题到消息列表
-      messages.value.push({
-        id: Date.now() + Math.random(),
-        type: 'interviewer',
-        content: question.question,
-        category: question.category,
-        questionIndex: question.questionIndex,
-        difficulty: question.difficulty,
-        knowledgeBaseName: question.knowledgeBaseName,
-        timestamp: Date.now(),
-        createdByPerspectiveId: question.createdByPerspectiveId,
-        createdByPerspectiveName: question.createdByPerspectiveName
-      })
-      // 隐藏加载遮罩
-      isLoadingNextQuestion.value = false
-      interviewStatus.value = 'answering'
-      scrollToBottom()
+      // NC1: SSE 推送的下一题作为补充（applyNextQuestion 内部按 questionIndex 去重）
+      applyNextQuestion(question)
     },
     onEvaluation: (evaluation) => {
-      // 评估结果可以用于更新显示，但不阻塞流程
+      // B14: 实时展示本题评分反馈（与 Web 端一致）
+      if (evaluation && typeof evaluation.score === 'number') {
+        messages.value.push({
+          id: Date.now() + Math.random(),
+          type: 'evaluation',
+          content: evaluation.feedback || `本题得分：${evaluation.score} 分`,
+          questionIndex: evaluation.questionIndex,
+          evaluation: {
+            score: evaluation.score,
+            strength: [],
+            improvements: []
+          },
+          timestamp: Date.now()
+        })
+        scrollToBottom()
+      }
     },
-    onComplete: (data) => {
-      interviewStatus.value = 'completed'
-      progressStage.value = null
-      addSystemMessage('面试已完成，评估进行中...')
-      // 跳转到面试列表页，等待评估完成后再查看报告
-      uni.redirectTo({
-        url: '/pages/interview/list'
-      })
+    onComplete: () => {
+      handleComplete()
     },
     onError: (errorMsg) => {
       progressStage.value = null
-      uni.showToast({
-        title: errorMsg || '连接错误',
-        icon: 'none'
-      })
-      isLoadingNextQuestion.value = false
+      // NC1 兜底：SSE 断开时若仍在等下一题，立即用后端进度自愈，避免晾在当前题
+      if (isLoadingNextQuestion.value && restoredCurrentQuestion.value) {
+        // 提交中：靠 healFromServer 轮询自愈；H5 下 SSE 在评分窗口断开属预期，不再弹错误 toast 打扰用户
+        healFromServer(restoredCurrentQuestion.value.questionIndex)
+      } else {
+        // 非提交态：SSE 意外断开，延迟重连以恢复实时性（避免下一轮提交再次完全依赖轮询）
+        isLoadingNextQuestion.value = false
+        scheduleSseReconnect()
+      }
     }
   })
 }
 
-// 显示当前问题
-const showCurrentQuestion = () => {
-  if (restoredCurrentQuestion.value) {
-    // 使用恢复的问题
-    addQuestionMessageFromContent(restoredCurrentQuestion.value.question)
-  } else if (currentQuestion.value) {
-    addQuestionMessage(currentQuestion.value)
-  }
-}
-
-// 从内容添加问题消息（用于恢复的会话）
-const addQuestionMessageFromContent = (content: string) => {
-  messages.value.push({
-    id: Date.now() + Math.random(),
-    type: 'interviewer',
-    content: content,
-    timestamp: Date.now()
-  })
-  setTimeout(() => {
-    scrollToBottom()
-  }, 100)
-}
-
-// 添加问题消息
-const addQuestionMessage = (question: InterviewQuestion) => {
-  messages.value.push({
-    id: Date.now(),
-    type: 'interviewer',
-    content: question.question || question.content || '',
-    questionIndex: question.questionIndex,
-    timestamp: Date.now()
-  })
-
-  // 滚动到底部
-  setTimeout(() => {
-    scrollToBottom()
-  }, 100)
+// SSE 延迟重连（带指数退避 + 上限，避免 broken pipe 风暴）
+const scheduleSseReconnect = () => {
+  if (sseReconnectTimer.value) return
+  if (sseReconnectAttempts >= SSE_RECONNECT_MAX) return
+  if (interviewStatus.value === 'completed') return
+  sseReconnectAttempts++
+  sseReconnectTimer.value = setTimeout(() => {
+    sseReconnectTimer.value = null
+    if (interviewStatus.value !== 'completed' && interviewStatus.value !== 'idle') {
+      setupSSEConnection()
+    }
+  }, SSE_RECONNECT_DELAY * sseReconnectAttempts) as unknown as number
 }
 
 // 添加回答消息
@@ -419,71 +539,33 @@ const addAnswerMessage = (answer: string, questionIndex: number) => {
   scrollToBottom()
 }
 
-// 添加系统消息
-const addSystemMessage = (content: string) => {
-  messages.value.push({
-    id: Date.now(),
-    type: 'system',
-    content,
-    timestamp: Date.now()
-  })
-}
-
-// 处理评价结果
-const handleEvaluation = (data: any) => {
-  interviewStatus.value = 'evaluating'
-
-  if (data.evaluation) {
-    messages.value.push({
-      id: Date.now(),
-      type: 'evaluation',
-      content: data.evaluation.overallFeedback || '回答完毕',
-      questionIndex: data.questionIndex as number,
-      evaluation: data.evaluation,
-      timestamp: Date.now()
-    })
-
-    // 更新问题状态
-    const question = questions.value.find(q => q.id === data.questionId)
-    if (question) {
-      question.evaluation = data.evaluation
-      question.answerStatus = 'evaluated'
-    }
-  }
-
-  setTimeout(() => {
-    interviewStatus.value = 'answering'
-    scrollToBottom()
-  }, 2000)
-}
-
-// 处理面试完成
-const handleInterviewComplete = (data: any) => {
-  interviewStatus.value = 'completed'
-  addSystemMessage('面试已完成')
-
-  // 获取最终结果
-  interviewStore.fetchInterviewResult(pageId.value).then(result => {
-    interviewResult.value = result
-  })
-}
-
-// 滚动到底部
+// 滚动到底部（N16：用 selectorQuery 取实际内容高度，替代魔法数 99999）
 const scrollToBottom = () => {
-  // 使用 nextTick 后滚动
-  setTimeout(() => {
-    // 触发 scroll-view 滚动到最新消息
-    const newScrollTop = scrollTop.value + 100
-    scrollTop.value = newScrollTop > 99999 ? 0 : newScrollTop
-    // 强制触发滚动
-    nextTick(() => {
-      scrollTop.value = 99999
+  nextTick(() => {
+    const query = uni.createSelectorQuery()
+    query.select('.chat-section').boundingClientRect()
+    query.selectAll('.message-item').boundingClientRect()
+    query.exec((res) => {
+      const container = res[0] as { height: number } | null
+      const items = res[1] as Array<{ height: number }> | undefined
+      if (container && items && items.length) {
+        const contentHeight = items.reduce((sum, it) => sum + (it.height || 0), 0)
+        // scroll-top 设为内容高度；微信 scroll-view 对相同值不触发滚动，故同值时 +1 强制刷新
+        const target = contentHeight > 0 ? contentHeight : container.height
+        scrollTop.value = scrollTop.value >= target ? target + 1 : target
+      } else {
+        // 兜底（首次无数据或查询失败）：递增触发滚动
+        scrollTop.value = scrollTop.value + 1
+      }
     })
-  }, 200)
+  })
 }
 
 // 提交回答
 const submitAnswer = async () => {
+  // N9: 连点防护（提交中 / 加载下一题中直接拦截）
+  if (isSubmitting.value || isLoadingNextQuestion.value) return
+
   const answer = answerText.value.trim()
   if (!answer || !restoredCurrentQuestion.value) return
 
@@ -502,9 +584,20 @@ const submitAnswer = async () => {
   isSubmitting.value = true
 
   try {
-    // 使用 submitAnswerAdaptive API（立即返回，SSE 推送下一题）
-    await submitAnswerAdaptive(pageId.value, questionIndex, submittedAnswer)
-    // 等待 SSE 事件来更新 UI（nextQuestion 或 complete）
+    // NC1: 用 submitAnswerAdaptive 的同步返回值驱动下一题（不再丢弃返回值依赖 SSE）
+    const res = await submitAnswerAdaptive(pageId.value, questionIndex, submittedAnswer)
+    if (res?.hasNextQuestion && res.nextQuestion) {
+      // 后端同步返回了下一题 → 直接渲染
+      applyNextQuestion(res.nextQuestion)
+    } else if (res?.hasNextQuestion) {
+      // 有下一题但返回值未携带（后端异步生成，当前后端契约恒如此）→ 保留遮罩，等 SSE onQuestion 推送
+      // isLoadingNextQuestion / isSubmitting 保持 true，由 applyNextQuestion 在收到推送时释放
+      // NC1 兜底：SSE 在小程序端可能失效，启动 30s 超时自愈（拉 getSessionProgress 推进），避免永久卡死
+      startSubmitTimeoutGuard(questionIndex)
+    } else {
+      // 没有下一题 → 进入完成流程
+      handleComplete()
+    }
   } catch (error) {
     interviewStatus.value = 'answering'
     isLoadingNextQuestion.value = false
@@ -513,16 +606,6 @@ const submitAnswer = async () => {
       title: '提交失败，请重试',
       icon: 'none'
     })
-  }
-}
-
-// 跳转到下一题
-const goToNextQuestion = () => {
-  if (currentIndex.value < questions.value.length - 1) {
-    interviewStore.nextQuestion()
-    showCurrentQuestion()
-    interviewStatus.value = 'answering'
-    scrollToBottom()
   }
 }
 
@@ -566,36 +649,6 @@ const formatRecordingTime = (seconds: number): string => {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
-// 下一题
-const goNextQuestion = () => {
-  if (currentIndex.value < questions.value.length - 1) {
-    interviewStore.nextQuestion()
-    showCurrentQuestion()
-  }
-}
-
-// 上一题
-const goPrevQuestion = () => {
-  if (currentIndex.value > 0) {
-    interviewStore.prevQuestion()
-    showCurrentQuestion()
-  }
-}
-
-// 跳转到指定题目
-const goToQuestion = (index: number) => {
-  interviewStore.goToQuestion(index)
-  showCurrentQuestion()
-}
-
-// 跳转到报告页面
-const goToReport = () => {
-  showReportLoading.value = false
-  uni.redirectTo({
-    url: `/pages/interview/report?id=${pageId.value}`
-  })
-}
-
 // 结束面试并等待结果
 const finishInterviewAndWaitForResult = async () => {
   try {
@@ -636,47 +689,45 @@ const finishInterview = () => {
   })
 }
 
-// 返回列表
-const goBackToList = () => {
-  interviewStore.reset()
-  uni.navigateBack()
-}
-
-// 重新开始面试
-const restartInterview = () => {
-  pageMode.value = 'interview'
-  interviewResult.value = null
-  messages.value = []
-  interviewStatus.value = 'idle'
-
-  // 重新初始化
-  initInterview()
-}
-
-// 分享面试报告
-const shareReport = () => {
-  uni.showToast({
-    title: '分享功能开发中',
-    icon: 'none'
-  })
-}
-
-// 组件卸载时
-onUnmounted(() => {
+// 清理页面资源（N10）：兜底定时器 + 录音定时器 + SSE 连接
+const cleanupResources = () => {
+  if (submitGuardTimer.value) {
+    clearTimeout(submitGuardTimer.value)
+    submitGuardTimer.value = null
+  }
+  if (healRetryTimer.value) {
+    clearTimeout(healRetryTimer.value)
+    healRetryTimer.value = null
+  }
+  if (sseReconnectTimer.value) {
+    clearTimeout(sseReconnectTimer.value)
+    sseReconnectTimer.value = null
+  }
+  healRetryCount.value = 0
+  sseReconnectAttempts = 0
   if (recordingTimer.value) {
     clearInterval(recordingTimer.value)
+    recordingTimer.value = null
   }
-
-  // 停止轮询
-  if (pollTimer.value) {
-    clearTimeout(pollTimer.value)
-  }
-
-  // 关闭 SSE 连接
   if (sseCleanup.value) {
     sseCleanup.value()
     sseCleanup.value = null
   }
+}
+
+// N10: 小程序页面 onUnload/onHide 比 Vue onUnmounted 更可靠地触发
+onUnload(() => {
+  cleanupResources()
+})
+
+onHide(() => {
+  // 切后台：清理录音定时器与 SSE 连接，避免后台泄漏
+  cleanupResources()
+})
+
+// 组件卸载时（H5 兜底）
+onUnmounted(() => {
+  cleanupResources()
 })
 </script>
 
@@ -771,6 +822,17 @@ onUnmounted(() => {
               </svg>
             </view>
           </view>
+
+          <!-- 评价消息（实时评分，B14） -->
+          <view v-if="msg.type === 'evaluation'" class="evaluation-message">
+            <view class="eval-bubble">
+              <view class="eval-header">
+                <text class="eval-label">AI 实时评分</text>
+                <text class="eval-score" :style="{ color: getScoreColor(msg.evaluation?.score) }">{{ msg.evaluation?.score }} 分</text>
+              </view>
+              <text v-if="msg.content" class="eval-feedback">{{ msg.content }}</text>
+            </view>
+          </view>
         </view>
 
         <!-- 加载状态 -->
@@ -820,7 +882,7 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss">
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 // 主容器
 .interview-session-container {
@@ -1120,6 +1182,41 @@ onUnmounted(() => {
 
   .message-body {
     margin-right: 16rpx;
+  }
+}
+
+// 评价消息（实时评分，B14）
+.evaluation-message {
+  .eval-bubble {
+    background-color: rgba(34, 197, 94, 0.08);
+    border: 1rpx solid rgba(34, 197, 94, 0.25);
+    border-radius: 16rpx;
+    padding: 20rpx 24rpx;
+  }
+
+  .eval-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8rpx;
+  }
+
+  .eval-label {
+    font-size: 24rpx;
+    color: #64748b;
+    font-weight: 600;
+  }
+
+  .eval-score {
+    font-size: 32rpx;
+    font-weight: 700;
+  }
+
+  .eval-feedback {
+    display: block;
+    font-size: 26rpx;
+    color: #475569;
+    line-height: 1.6;
   }
 }
 

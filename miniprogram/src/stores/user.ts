@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { login, getUserProfile, updateUserProfile, logout as apiLogout } from '../api/user'
+import { getUserProfile, updateUserProfile, logout as apiLogout } from '../api/user'
 
 // 用户类型定义
 export interface UserInfo {
@@ -18,16 +18,8 @@ export interface UserInfo {
   updatedAt?: string
 }
 
-export interface LoginParams {
-  username: string
-  password: string
-}
-
-export interface WechatLoginParams {
-  code: string
-  encryptedData?: string
-  iv?: string
-}
+// 说明：LoginParams 接口已随 loginByAccount 一并移除；
+// 登录参数接口以 api/user.ts 中的同名导出为准，避免重复定义造成歧义。
 
 export const useUserStore = defineStore('user', () => {
   // ========== State ==========
@@ -98,37 +90,10 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  /**
-   * 账号密码登录
-   */
-  const loginByAccount = async (params: LoginParams) => {
-    isLoading.value = true
-    try {
-      const res = await login(params)
-      setToken(res.token, res.refreshToken)
-      // 登录成功后获取用户信息
-      await fetchUserInfo()
-      return res
-    } finally {
-      isLoading.value = false
-    }
-  }
-
-  /**
-   * 微信登录
-   */
-  const loginByWechat = async (params: WechatLoginParams) => {
-    isLoading.value = true
-    try {
-      const res = await login(params)
-      setToken(res.token, res.refreshToken)
-      // 登录成功后获取用户信息
-      await fetchUserInfo()
-      return res
-    } finally {
-      isLoading.value = false
-    }
-  }
+  // 说明：原 loginByAccount / loginByWechat 为死代码（全仓 grep 无调用方），
+  // loginByWechat 还存在 B2 bug（误传微信参数给账号密码 login 接口，触发 TS2345）。
+  // 实际登录流程在 pages/auth/login.vue 中直接调 api/auth + setToken + fetchUserInfo 完成。
+  // B2：删除这两个未使用方法及其 WechatLoginParams 接口，消除 TS2345 baseline 错误。
 
   /**
    * 获取用户信息
@@ -226,8 +191,6 @@ export const useUserStore = defineStore('user', () => {
     setToken,
     setUserInfo,
     init,
-    loginByAccount,
-    loginByWechat,
     fetchUserInfo,
     updateUser,
     updatePoints,

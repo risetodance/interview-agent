@@ -1,4 +1,17 @@
-import { get, post, put, del, uploadFile } from '../utils/request'
+import { get, post, del, uploadFile } from '../utils/request'
+import { apiBaseUrl, isH5 } from '../utils/env'
+
+/**
+ * 简历分析改进建议项（对齐后端 AnalysisHistoryDTO.suggestions 中 Suggestion 记录结构）
+ * - 后端真实结构为对象数组（category/priority/issue/recommendation）
+ * - 旧数据/兼容数据可能是字符串数组，解析时会包装为此结构（见 parseSuggestions）
+ */
+export interface ResumeSuggestion {
+  category?: string
+  priority?: string
+  issue?: string
+  recommendation?: string
+}
 
 // 简历基本信息
 export interface Resume {
@@ -42,31 +55,47 @@ export interface ResumeListResult {
   pageSize: number
 }
 
-// 简历详情
+// 简历详情（对齐后端 ResumeDetailDTO 原始结构，B13：移除自造的 basicInfo/educationList/workExperienceList/projectList/skills/certificates 等后端不提供的字段）
 export interface ResumeDetail extends Resume {
-  // 基本信息
-  basicInfo?: {
-    name: string
-    gender?: string
-    age?: number
-    phone?: string
-    email?: string
-    location?: string
-    avatar?: string
-    summary?: string
-  }
-  // 教育经历
-  educationList?: Education[]
-  // 工作经历
-  workExperienceList?: WorkExperience[]
-  // 项目经验
-  projectList?: Project[]
-  // 技能
-  skills?: Skill[]
-  // 证书
-  certificates?: Certificate[]
-  // 分析结果
+  // 后端原始字段
+  resumeText?: string
+  storageUrl?: string
+  accessCount?: number
+  analyzeStatus?: ParseStatus
+  analyzeError?: string
+  analyses?: ResumeAnalysisHistory[]
+  interviews?: ResumeInterview[]
+  // 前端派生：最新一次分析结果（取 analyses[0]，供雷达图/分析展示）
   analysis?: ResumeAnalysis
+}
+
+// 分析历史项（对应后端 AnalysisHistoryDTO）
+export interface ResumeAnalysisHistory {
+  id?: number
+  overallScore?: number
+  contentScore?: number
+  structureScore?: number
+  skillMatchScore?: number
+  expressionScore?: number
+  projectScore?: number
+  summary?: string
+  analyzedAt?: string
+  createdAt?: string
+  strengths?: any[]
+  suggestions?: any[]
+  matchedPositions?: string[]
+  scoreDetail?: { skillMatchScore?: number }
+}
+
+// 关联面试历史（对应后端 ResumeDetailDTO.interviews，结构宽松）
+export interface ResumeInterview {
+  sessionId?: string
+  status?: string
+  overallScore?: number
+  totalQuestions?: number
+  currentQuestionIndex?: number
+  answeredCount?: number
+  [key: string]: any
 }
 
 // 教育经历
@@ -118,6 +147,8 @@ export interface Certificate {
 
 // 简历分析结果
 export interface ResumeAnalysis {
+  // 核心评价（来自后端 summary）
+  summary?: string
   // 分析时间
   analyzedAt?: string
   // 技能匹配度
@@ -130,8 +161,8 @@ export interface ResumeAnalysis {
   improvements?: string[]
   // 综合评分
   overallScore?: number
-  // 分析建议
-  suggestions?: string[]
+  // 分析建议（后端实为 Suggestion 记录数组，兼容旧字符串数据，见 parseSuggestions）
+  suggestions?: ResumeSuggestion[]
   // 雷达图评分维度
   expressionScore?: number   // 表达专业性
   skillMatchScore?: number   // 技能匹配
@@ -190,7 +221,7 @@ export const getResumeDetail = (id: number) => {
     // 从 analyses 获取最新的分析结果
     const latestAnalysis = data.analyses?.[0]
 
-    // 处理 strengths 和 suggestions（可能是字符串 JSON 或数组）
+    // 处理 strengths（可能是字符串 JSON 或字符串数组）
     const parseJsonField = (field: any): string[] => {
       if (!field) return []
       if (Array.isArray(field)) return field
@@ -205,7 +236,37 @@ export const getResumeDetail = (id: number) => {
       return []
     }
 
-    // 构建前端期望的数据结构
+    // 处理 suggestions：后端实为 Suggestion 记录数组（category/priority/issue/recommendation）
+    // 兼容旧数据：若数组项是字符串，包装为 { category: '改进建议', priority: '中', issue: <字符串>, recommendation: '' }
+    // 写法对齐后端 ResumeGradingService 的兼容逻辑
+    const parseSuggestions = (field: any): ResumeSuggestion[] => {
+      let raw: any[] = []
+      if (!field) return []
+      if (Array.isArray(field)) {
+        raw = field
+      } else if (typeof field === 'string') {
+        try {
+          const parsed = JSON.parse(field)
+          if (Array.isArray(parsed)) raw = parsed
+        } catch {
+          // 字符串无法解析时按单条处理
+          raw = [field]
+        }
+      }
+      return raw.map((item: any): ResumeSuggestion => {
+        if (typeof item === 'string') {
+          return {
+            category: '改进建议',
+            priority: '中',
+            issue: item,
+            recommendation: ''
+          }
+        }
+        return item && typeof item === 'object' ? item : {}
+      })
+    }
+
+    // 构建前端期望的数据结构（B13：对齐后端 ResumeDetailDTO 原始结构，不再自造 basicInfo/educationList 等）
     return {
       id: data.id,
       name: data.filename,
@@ -217,37 +278,34 @@ export const getResumeDetail = (id: number) => {
       parseStatus: data.analyzeStatus || 'PENDING',
       createdAt: data.uploadedAt,
       updatedAt: data.uploadedAt,
+      // 后端原始字段透传
       resumeText: data.resumeText,
-      // 基本信息 - 从 resumeText 提取或使用默认值
-      basicInfo: {
-        name: data.filename?.replace(/\.[^/.]+$/, '') || '未命名简历',
-        summary: latestAnalysis?.summary || '暂无分析结果'
-      },
-      // 分析结果
+      storageUrl: data.storageUrl,
+      accessCount: data.accessCount,
+      analyzeStatus: data.analyzeStatus || 'PENDING',
+      analyzeError: data.analyzeError,
+      analyses: data.analyses || [],
+      interviews: data.interviews || [],
+      // 派生：最新一次分析结果（供雷达图/分析展示）
       analysis: latestAnalysis ? {
+        summary: latestAnalysis.summary,
         overallScore: latestAnalysis.overallScore,
-        // 分析时间
         analyzedAt: latestAnalysis.analyzedAt || latestAnalysis.createdAt,
-        // 技能匹配度上限 100%
         skillMatchRate: latestAnalysis.skillMatchScore
           ? Math.min(100, Math.round(latestAnalysis.skillMatchScore / 25 * 100))
           : latestAnalysis.scoreDetail?.skillMatchScore
             ? Math.min(100, Math.round(latestAnalysis.scoreDetail.skillMatchScore / 25 * 100))
             : 0,
-        // 匹配的岗位列表（从后端获取）
         matchedPositions: latestAnalysis.matchedPositions || [],
         strengths: parseJsonField(latestAnalysis.strengths),
         improvements: parseJsonField(latestAnalysis.suggestions),
-        suggestions: parseJsonField(latestAnalysis.suggestions),
-        // 雷达图评分维度
+        suggestions: parseSuggestions(latestAnalysis.suggestions),
         expressionScore: latestAnalysis.expressionScore,
         skillMatchScore: latestAnalysis.skillMatchScore,
         contentScore: latestAnalysis.contentScore,
         structureScore: latestAnalysis.structureScore,
         projectScore: latestAnalysis.projectScore
-      } : undefined,
-      // 分析历史
-      analyses: data.analyses || []
+      } : undefined
     } as ResumeDetail
   })
 }
@@ -290,35 +348,18 @@ export const reuploadResume = (id: number, filePath: string) => {
 }
 
 /**
- * 更新简历基本信息
- */
-export const updateResumeBasicInfo = (id: number, data: ResumeDetail['basicInfo']) => {
-  return put(`/api/resumes/${id}/basic-info`, data)
-}
-
-/**
- * 更新简历投递状态
- */
-export const updateResumeStatus = (id: number, status: ResumeStatus) => {
-  return put(`/api/resumes/${id}/status`, { status })
-}
-
-/**
  * 下载简历PDF
  * H5: 使用fetch下载并触发浏览器下载
  * 小程序: 使用uni.downloadFile
+ *
+ * D2/N6: 基础地址与 isH5 已统一收敛到 utils/env.ts，避免本地重复拼接
  */
 export const downloadResume = (id: number): Promise<{ tempFilePath?: string; url?: string }> => {
-  // 基础URL已经包含了/api，所以直接拼接
-  const baseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api').replace(/\/api$/, '')
-  const url = `${baseUrl}/api/resumes/${id}/export`
+  // apiBaseUrl 已去掉 /api 尾，各模块自带 /api 前缀
+  const url = `${apiBaseUrl}/api/resumes/${id}/export`
 
   // 获取 token
   const token = uni.getStorageSync('token')
-
-  // 优先尝试 H5 环境下的 fetch 方式（可携带自定义 header）
-  // 条件编译在 .ts 文件中不生效，使用运行时检测
-  const isH5 = typeof window !== 'undefined'
 
   if (isH5) {
     const headers: Record<string, string> = {}

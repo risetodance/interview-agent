@@ -5,8 +5,10 @@ import {
   reanalyzeResume,
   downloadResume,
   reuploadResume,
-  type ResumeDetail
+  type ResumeDetail,
+  type ResumeSuggestion
 } from '../../api/resume'
+import { isH5 } from '../../utils/env'
 
 // 简历详情数据
 const resumeDetail = ref<ResumeDetail | null>(null)
@@ -20,9 +22,9 @@ const suggestionsByPriority = computed(() => {
 
   const suggestions = resumeDetail.value.analysis.suggestions
   return {
-    high: suggestions.filter((s: any) => s.priority === '高'),
-    medium: suggestions.filter((s: any) => s.priority === '中'),
-    low: suggestions.filter((s: any) => s.priority === '低')
+    high: suggestions.filter((s: ResumeSuggestion) => s.priority === '高'),
+    medium: suggestions.filter((s: ResumeSuggestion) => s.priority === '中'),
+    low: suggestions.filter((s: ResumeSuggestion) => s.priority === '低')
   }
 })
 
@@ -379,9 +381,6 @@ const handleDownload = async () => {
   try {
     const result = await downloadResume(resumeId.value)
 
-    // 检测运行环境
-    const isH5 = typeof window !== 'undefined'
-
     if (isH5) {
       // H5: 直接下载，浏览器会处理
       uni.hideLoading()
@@ -586,7 +585,7 @@ const formatAnalysisItem = (item: any): string => {
         <view class="core-evaluation-section">
           <view class="core-evaluation-bg">
             <!-- 核心评价文字 -->
-            <text class="core-summary">{{ resumeDetail.basicInfo?.summary || '简历基础框架完整，候选人在技术领域有一定积累。' }}</text>
+            <text class="core-summary">{{ resumeDetail.analysis?.summary || '简历基础框架完整，候选人在技术领域有一定积累。' }}</text>
 
             <!-- 总分 + 分析时间 双列布局 -->
             <view class="core-stats-grid">
@@ -635,45 +634,45 @@ const formatAnalysisItem = (item: any): string => {
               <text class="score-label">项目经验</text>
               <view class="score-row">
                 <view class="score-bar">
-                  <view class="score-bar-inner project" :style="{ width: (resumeDetail.analysis.projectScore / 40 * 100) + '%' }"></view>
+                  <view class="score-bar-inner project" :style="{ width: ((resumeDetail.analysis.projectScore ?? 0) / 40 * 100) + '%' }"></view>
                 </view>
-                <text class="score-value">{{ resumeDetail.analysis.projectScore }}/40</text>
+                <text class="score-value">{{ resumeDetail.analysis.projectScore ?? 0 }}/40</text>
               </view>
             </view>
             <view class="score-item">
               <text class="score-label">技能匹配</text>
               <view class="score-row">
                 <view class="score-bar">
-                  <view class="score-bar-inner skill" :style="{ width: (resumeDetail.analysis.skillMatchScore / 20 * 100) + '%' }"></view>
+                  <view class="score-bar-inner skill" :style="{ width: ((resumeDetail.analysis.skillMatchScore ?? 0) / 20 * 100) + '%' }"></view>
                 </view>
-                <text class="score-value">{{ resumeDetail.analysis.skillMatchScore }}/20</text>
+                <text class="score-value">{{ resumeDetail.analysis.skillMatchScore ?? 0 }}/20</text>
               </view>
             </view>
             <view class="score-item">
               <text class="score-label">内容完整性</text>
               <view class="score-row">
                 <view class="score-bar">
-                  <view class="score-bar-inner content" :style="{ width: (resumeDetail.analysis.contentScore / 15 * 100) + '%' }"></view>
+                  <view class="score-bar-inner content" :style="{ width: ((resumeDetail.analysis.contentScore ?? 0) / 15 * 100) + '%' }"></view>
                 </view>
-                <text class="score-value">{{ resumeDetail.analysis.contentScore }}/15</text>
+                <text class="score-value">{{ resumeDetail.analysis.contentScore ?? 0 }}/15</text>
               </view>
             </view>
             <view class="score-item">
               <text class="score-label">结构清晰度</text>
               <view class="score-row">
                 <view class="score-bar">
-                  <view class="score-bar-inner structure" :style="{ width: (resumeDetail.analysis.structureScore / 15 * 100) + '%' }"></view>
+                  <view class="score-bar-inner structure" :style="{ width: ((resumeDetail.analysis.structureScore ?? 0) / 15 * 100) + '%' }"></view>
                 </view>
-                <text class="score-value">{{ resumeDetail.analysis.structureScore }}/15</text>
+                <text class="score-value">{{ resumeDetail.analysis.structureScore ?? 0 }}/15</text>
               </view>
             </view>
             <view class="score-item">
               <text class="score-label">表达专业性</text>
               <view class="score-row">
                 <view class="score-bar">
-                  <view class="score-bar-inner expression" :style="{ width: (resumeDetail.analysis.expressionScore / 10 * 100) + '%' }"></view>
+                  <view class="score-bar-inner expression" :style="{ width: ((resumeDetail.analysis.expressionScore ?? 0) / 10 * 100) + '%' }"></view>
                 </view>
-                <text class="score-value">{{ resumeDetail.analysis.expressionScore }}/10</text>
+                <text class="score-value">{{ resumeDetail.analysis.expressionScore ?? 0 }}/10</text>
               </view>
             </view>
           </view>
@@ -718,7 +717,7 @@ const formatAnalysisItem = (item: any): string => {
                 </view>
                 <view class="suggestion-content">
                   <text class="issue-text">{{ item.issue || '问题描述' }}</text>
-                  <text class="recommendation-text">{{ item.recommendation || item }}</text>
+                  <text class="recommendation-text">{{ item.recommendation || '暂无改进建议' }}</text>
                 </view>
               </view>
             </view>
@@ -742,7 +741,7 @@ const formatAnalysisItem = (item: any): string => {
                 </view>
                 <view class="suggestion-content">
                   <text class="issue-text">{{ item.issue || '问题描述' }}</text>
-                  <text class="recommendation-text">{{ item.recommendation || item }}</text>
+                  <text class="recommendation-text">{{ item.recommendation || '暂无改进建议' }}</text>
                 </view>
               </view>
             </view>
@@ -766,7 +765,7 @@ const formatAnalysisItem = (item: any): string => {
                 </view>
                 <view class="suggestion-content">
                   <text class="issue-text">{{ item.issue || '问题描述' }}</text>
-                  <text class="recommendation-text">{{ item.recommendation || item }}</text>
+                  <text class="recommendation-text">{{ item.recommendation || '暂无改进建议' }}</text>
                 </view>
               </view>
             </view>
@@ -774,72 +773,15 @@ const formatAnalysisItem = (item: any): string => {
         </view>
       </view>
 
-      <!-- 教育经历 -->
-      <view v-if="resumeDetail.educationList?.length" class="section">
-        <view class="section-title">教育经历</view>
-        <view v-for="edu in resumeDetail.educationList" :key="edu.id || edu.school" class="timeline-item">
-          <view class="timeline-dot"></view>
-          <view class="timeline-content">
-            <text class="school">{{ edu.school }}</text>
-            <text class="degree">{{ edu.degree }} · {{ edu.major }}</text>
-            <text class="time">{{ edu.startDate }} - {{ edu.endDate || '至今' }}</text>
-            <text v-if="edu.description" class="description">{{ edu.description }}</text>
+      <!-- 关联面试历史（B13：透传后端 ResumeDetailDTO.interviews，与 Web 端一致） -->
+      <view v-if="resumeDetail.interviews?.length" class="section">
+        <view class="section-title">关联面试</view>
+        <view v-for="(iv, idx) in resumeDetail.interviews" :key="iv.sessionId || idx" class="interview-item">
+          <view class="interview-info">
+            <text class="interview-status">{{ iv.status || '进行中' }}</text>
+            <text class="interview-progress">{{ iv.answeredCount ?? 0 }} / {{ iv.totalQuestions ?? 0 }} 题</text>
           </view>
-        </view>
-      </view>
-
-      <!-- 工作经历 -->
-      <view v-if="resumeDetail.workExperienceList?.length" class="section">
-        <view class="section-title">工作经历</view>
-        <view v-for="work in resumeDetail.workExperienceList" :key="work.id || work.company" class="timeline-item">
-          <view class="timeline-dot"></view>
-          <view class="timeline-content">
-            <view class="content-header">
-              <text class="company">{{ work.company }}</text>
-              <text class="position">{{ work.position }}</text>
-            </view>
-            <text class="time">{{ work.startDate }} - {{ work.endDate || '至今' }}</text>
-            <text v-if="work.description" class="description">{{ work.description }}</text>
-          </view>
-        </view>
-      </view>
-
-      <!-- 项目经验 -->
-      <view v-if="resumeDetail.projectList?.length" class="section">
-        <view class="section-title">项目经验</view>
-        <view v-for="project in resumeDetail.projectList" :key="project.id || project.name" class="project-item">
-          <view class="project-header">
-            <text class="project-name">{{ project.name }}</text>
-            <text v-if="project.role" class="project-role">{{ project.role }}</text>
-          </view>
-          <text v-if="project.startDate" class="project-time">
-            {{ project.startDate }} - {{ project.endDate || '至今' }}
-          </text>
-          <text v-if="project.description" class="description">{{ project.description }}</text>
-          <view v-if="project.technologies?.length" class="tech-list">
-            <text v-for="tech in project.technologies" :key="tech" class="tech-tag">{{ tech }}</text>
-          </view>
-        </view>
-      </view>
-
-      <!-- 技能 -->
-      <view v-if="resumeDetail.skills?.length" class="section">
-        <view class="section-title">专业技能</view>
-        <view class="skills-list">
-          <view v-for="skill in resumeDetail.skills" :key="skill.name" class="skill-item">
-            <text class="skill-name">{{ skill.name }}</text>
-            <text class="skill-level">{{ skill.level }}</text>
-          </view>
-        </view>
-      </view>
-
-      <!-- 证书 -->
-      <view v-if="resumeDetail.certificates?.length" class="section">
-        <view class="section-title">证书</view>
-        <view v-for="cert in resumeDetail.certificates" :key="cert.name" class="cert-item">
-          <text class="cert-name">{{ cert.name }}</text>
-          <text class="cert-issuer">{{ cert.issuer }}</text>
-          <text v-if="cert.date" class="cert-date">{{ cert.date }}</text>
+          <text v-if="iv.overallScore !== undefined && iv.overallScore !== null" class="interview-score">{{ iv.overallScore }} 分</text>
         </view>
       </view>
 
@@ -866,7 +808,7 @@ const formatAnalysisItem = (item: any): string => {
 </template>
 
 <style lang="scss">
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .resume-detail-container {
   min-height: 100vh;
@@ -1605,6 +1547,42 @@ const formatAnalysisItem = (item: any): string => {
   .cert-date {
     font-size: 24rpx;
     color: #999;
+  }
+}
+
+// 关联面试
+.interview-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f5f5f5;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  .interview-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4rpx;
+  }
+
+  .interview-status {
+    font-size: 28rpx;
+    color: #333;
+    font-weight: 500;
+  }
+
+  .interview-progress {
+    font-size: 24rpx;
+    color: #999;
+  }
+
+  .interview-score {
+    font-size: 32rpx;
+    font-weight: 700;
+    color: #0ea5e9;
   }
 }
 

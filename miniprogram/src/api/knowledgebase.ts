@@ -1,9 +1,9 @@
 import { get, post, del, put, uploadFile, downloadFile } from '../utils/request'
 import { useUserStore } from '../stores/user'
 import { storeToRefs } from 'pinia'
+import { apiBaseUrl } from '../utils/env'
 
-// 环境配置
-const baseURL = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://api.interview-guide.com'
+// D2: baseURL 统一从 env 模块取，避免多处分叉
 
 // 向量化状态
 export type VectorStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
@@ -208,7 +208,7 @@ export const connectRagChatStream = (
   const { token } = storeToRefs(userStore)
 
   // 构建 SSE URL
-  const streamUrl = `${baseURL}/api/rag-chat/sessions/${sessionId}/messages/stream`
+  const streamUrl = `${apiBaseUrl}/api/rag-chat/sessions/${sessionId}/messages/stream`
 
   // 构建请求头
   const headers: Record<string, string> = {
@@ -260,6 +260,7 @@ const connectRagChatFetch = (
       }
 
       reader = stream.getReader()
+      // B12: H5 环境下 TextDecoder 一定存在，无需降级守卫（此分支仅在 #ifdef H5 下执行）
       const decoder = new TextDecoder()
       let buffer = ''
 
@@ -329,6 +330,20 @@ const connectRagChatUni = (
   let buffer = ''
   const abortController = { aborted: false }
 
+  // 跨 chunk 复用 decoder（stream 模式避免中文乱码）；低版本基础库降级（B12）
+  const hasTextDecoder = typeof TextDecoder === 'function'
+  const decoder = hasTextDecoder ? new TextDecoder() : null
+  const decodeChunk = (data: ArrayBuffer): string => {
+    if (decoder) return decoder.decode(data, { stream: true })
+    try {
+      // @dcloudio/types 未声明 arrayBufferToString，但低版本微信基础库运行时存在（B12 降级路径）
+      return (uni as any).arrayBufferToString(data)
+    } catch (e) {
+      console.error('RAG SSE chunk decode failed:', e)
+      return ''
+    }
+  }
+
   const requestTask = uni.request({
     url,
     method: 'POST',
@@ -342,6 +357,10 @@ const connectRagChatUni = (
     // 改用 uni.request 的 success 回调作为流结束信号
     success: () => {
       if (!abortController.aborted) {
+        // flush decoder 残留字节
+        if (decoder) {
+          try { buffer += decoder.decode() } catch (e) { /* ignore */ }
+        }
         if (buffer.trim()) {
           const content = extractSSEData(buffer)
           if (content) callbacks.onMessage?.(content)
@@ -359,7 +378,7 @@ const connectRagChatUni = (
   // 监听数据块
   ;(requestTask as any).onChunkReceived((res: { data: ArrayBuffer }) => {
     try {
-      const chunkStr = new TextDecoder().decode(res.data)
+      const chunkStr = decodeChunk(res.data)
       buffer += chunkStr
 
       const messages = buffer.split('\n\n')
@@ -372,7 +391,7 @@ const connectRagChatUni = (
         }
       }
     } catch (e) {
-      // 忽略解析错误
+      console.error('RAG SSE chunk parse error:', e)
     }
   })
 

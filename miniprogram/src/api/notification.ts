@@ -1,7 +1,5 @@
 import { get, put, del, post } from '../utils/request'
-
-// 检测是否为H5环境
-const isH5 = typeof window !== 'undefined' && typeof uni !== 'undefined' && !uni.getSystemInfoSync
+import { isH5 } from '../utils/env'
 
 // 通知类型
 export interface Notification {
@@ -99,7 +97,8 @@ export const updateNotificationSettings = (settings: Partial<NotificationSetting
  * H5模式下mock
  */
 export const subscribeWechatMessage = (templateIds: string[]) => {
-  if (isH5 || (typeof uni !== 'undefined' && !uni.getSystemInfoSync?.())) {
+  // N6+B3：统一使用 utils/env.ts 的 isH5
+  if (isH5) {
     return Promise.resolve({ success: true, message: 'H5模式模拟订阅成功' })
   }
   return post<{ success: boolean }>('/api/notifications/wechat/subscribe', { templateIds })
@@ -110,7 +109,7 @@ export const subscribeWechatMessage = (templateIds: string[]) => {
  * H5模式下mock
  */
 export const sendWechatNotification = (data: { openid: string; templateId: string; data: any }) => {
-  if (isH5 || (typeof uni !== 'undefined' && !uni.getSystemInfoSync?.())) {
+  if (isH5) {
     return Promise.resolve({ success: true, message: 'H5模式模拟发送成功' })
   }
   return post<{ success: boolean }>('/api/notifications/wechat/send', data)

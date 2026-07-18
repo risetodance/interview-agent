@@ -1,4 +1,5 @@
 import { get, post, del, put, uploadFile } from '../utils/request'
+import { apiBaseUrl } from '../utils/env'
 
 // 题目分类类型
 export interface QuestionCategory {
@@ -86,7 +87,8 @@ export interface CreateSessionParams {
   // 多视角扩展字段：选中的视角ID列表
   selectedPerspectives?: number[]
   // 各视角权重配置，key 为视角ID，value 为权重值（0-1之间）
-  perspectiveWeights?: Record<string, number>
+  // N12: 与后端 Map<Long,Double> / Web 端 Record<number,number> 契约一致（JSON key 序列化后仍为字符串，Jackson 可转 Long）
+  perspectiveWeights?: Record<number, number>
 }
 
 export interface SessionResponse {
@@ -99,6 +101,38 @@ export interface SessionResponse {
 
 export const createSession = (data: CreateSessionParams) => {
   return post<SessionResponse>('/api/interview/sessions', data, { timeout: 180000 })
+}
+
+/**
+ * 未完成会话基本信息 DTO（对应后端 InterviewSessionBasicDTO）
+ * 用于创建面试前的"未完成会话检测"
+ */
+export interface InterviewSessionBasicDTO {
+  sessionId: string
+  resumeText: string
+  totalQuestions: number
+  currentQuestionIndex: number
+  status: string
+  currentDifficulty?: string
+  overallScore?: number | null
+  questionsGenerated?: number
+  answeredCount?: number
+}
+
+/**
+ * 查询某简历是否存在未完成的面试会话
+ * GET /api/interview/sessions/unfinished/{resumeId}
+ * 无未完成会话时后端抛异常，这里静默捕获返回 null（与 Web 端 findUnfinishedSession 行为一致）。
+ * @param resumeId 简历 ID
+ */
+export const findUnfinishedSession = (resumeId: number) => {
+  return get<InterviewSessionBasicDTO>(
+    `/api/interview/sessions/unfinished/${resumeId}`,
+    undefined,
+    { showError: false }
+  )
+    .then(data => (data as InterviewSessionBasicDTO) ?? null)
+    .catch(() => null)
 }
 
 /**
@@ -427,6 +461,9 @@ export interface SessionProgressDTO {
   totalQuestions: number
   currentQuestion: CurrentQuestionDTO | null
   history: AnswerHistoryDTO[]
+  // 后端处理状态（与 SessionProgressDTO.ProcessingStatus 对应）：
+  // IDLE 空闲可继续；PROCESSING 工作流正在评分/生成下一题，此时 currentQuestion 为 null
+  processingStatus: 'IDLE' | 'PROCESSING'
 }
 
 /**
@@ -651,6 +688,12 @@ const connectSSE_H5 = (
 
 /**
  * 小程序环境 SSE 连接（使用 uni.request + enableChunked）
+ *
+ * 实现要点（以 knowledgebase.ts 的 RAG SSE 为模板）：
+ * - 跨 chunk 复用同一 TextDecoder 实例并启用 stream 模式，避免中文乱码（N-SSE3）
+ * - 低版本基础库无 TextDecoder 时降级到 uni.arrayBufferToString（B12）
+ * - parseSSEMessage 在循环结束后补"尾部 flush"，使不以空行结尾的单条事件也能派发（N-SSE1）
+ * - 用 uni.request 的 success 回调作为流结束信号，处理残留 buffer（N-SSE2）
  */
 const connectSSE_Uni = (
   url: string,
@@ -658,6 +701,24 @@ const connectSSE_Uni = (
 ): (() => void) => {
   // SSE 数据缓冲区
   let buffer = ''
+
+  // 跨 chunk 复用 decoder 实例（N-SSE3）；低版本基础库降级（B12）
+  const hasTextDecoder = typeof TextDecoder === 'function'
+  const decoder = hasTextDecoder ? new TextDecoder() : null
+
+  // ArrayBuffer -> string：优先 TextDecoder(stream)，降级 uni.arrayBufferToString
+  const decodeChunk = (data: ArrayBuffer): string => {
+    if (decoder) {
+      return decoder.decode(data, { stream: true })
+    }
+    try {
+      // @dcloudio/types 未声明 arrayBufferToString，但低版本微信基础库运行时存在（B12 降级路径）
+      return (uni as any).arrayBufferToString(data)
+    } catch (e) {
+      console.error('SSE chunk decode failed:', e)
+      return ''
+    }
+  }
 
   // 解析 SSE 数据块
   const parseSSEMessage = (text: string) => {
@@ -674,15 +735,19 @@ const connectSSE_Uni = (
         data = data === null ? lineData : data + '\n' + lineData
       } else if (line === '') {
         // 空行表示消息结束，处理数据
-        if (eventType && data !== null) {
-          handleSSEEvent(eventType, data)
-        } else if (eventType && data === '') {
-          // data 为空的情况（如 connected 事件）
-          handleSSEEvent(eventType, '')
+        if (eventType) {
+          handleSSEEvent(eventType, data ?? '')
         }
         eventType = null
         data = null
       }
+    }
+
+    // ★ 尾部 flush：处理不以空行结尾的最后一条消息（N-SSE1）
+    // 调用方 buffer.split('\n\n') 后单条 message 内部已无空行，
+    // 仅靠循环内的空行判断会漏派发，故循环结束后再补一次。
+    if (eventType) {
+      handleSSEEvent(eventType, data ?? '')
     }
   }
 
@@ -712,6 +777,7 @@ const connectSSE_Uni = (
   }
 
   // 创建 SSE 请求
+  // success 回调作为流结束信号（微信 RequestTask 无 onComplete 方法，N-SSE2）
   const requestTask = uni.request({
     url,
     method: 'GET',
@@ -719,6 +785,21 @@ const connectSSE_Uni = (
       'Cache-Control': 'no-cache',
     },
     enableChunked: true,
+    success: () => {
+      if (abortController.aborted) return
+      // 流结束：flush decoder 残留字节 + 残留 buffer 中的最后一条事件
+      if (decoder) {
+        try {
+          buffer += decoder.decode()
+        } catch (e) {
+          // 忽略 flush 异常
+        }
+      }
+      if (buffer.trim()) {
+        parseSSEMessage(buffer)
+      }
+      buffer = ''
+    },
     fail: (err) => {
       if (!abortController.aborted) {
         callbacks.onError?.(err.errMsg || 'SSE 连接失败')
@@ -729,8 +810,8 @@ const connectSSE_Uni = (
   // 监听数据块（微信小程序端）
   ;(requestTask as any).onChunkReceived((res: { data: ArrayBuffer }) => {
     try {
-      // 将 ArrayBuffer 转为字符串（使用 TextDecoder 更高效）
-      const chunkStr = new TextDecoder().decode(res.data)
+      // 将 ArrayBuffer 转为字符串（跨 chunk 复用 decoder，stream 模式，N-SSE3/B12）
+      const chunkStr = decodeChunk(res.data)
 
       // 追加到缓冲区
       buffer += chunkStr
@@ -745,19 +826,8 @@ const connectSSE_Uni = (
         }
       }
     } catch (e) {
-      // 解析错误时忽略：数据块可能包含不完整的 UTF-8 序列
-      // TextDecoder 会抛出异常，但不影响接收后续完整数据
-    }
-  })
-
-  // 监听请求完成
-  ;(requestTask as any).onComplete(() => {
-    if (!abortController.aborted) {
-      // 处理缓冲区中剩余的数据
-      if (buffer.trim()) {
-        parseSSEMessage(buffer)
-      }
-      buffer = ''
+      // 解析错误时记录：数据块可能包含不完整的 UTF-8 序列
+      console.error('SSE chunk parse error:', e)
     }
   })
 
@@ -804,10 +874,7 @@ export const connectInterviewStream = (
   sessionId: string | number,
   callbacks: SSECallbacks
 ): (() => void) => {
-  // 获取环境配置的基础URL
-  const env = process.env as Record<string, string>
-  const apiBaseUrl = env.VITE_API_BASE_URL || ''
-
+  // 基础URL统一从 env 模块取（D2 收敛 baseURL 拼接，避免再次漂移）
   // 获取 token
   // 注意：小程序端存储 token 的 key 是 'token'，不是 'auth_token'
   const token = uni.getStorageSync('token') || ''

@@ -268,7 +268,7 @@ const handleMenuClick = (item: any) => {
 </template>
 
 <style lang="scss" scoped>
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 $success: #0ea5e9;
 $info: #38bdf8;

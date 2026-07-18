@@ -2,6 +2,8 @@
 import { ref, onUnmounted } from 'vue'
 import { useUserStore } from '../../stores/user'
 import { wechatLogin } from '../../api/auth'
+import { login, testLogin } from '../../api/user'
+import { isH5 } from "../../utils/env"
 
 // 用户 Store
 const userStore = useUserStore()
@@ -9,12 +11,17 @@ const userStore = useUserStore()
 // 加载状态
 const isLoading = ref(false)
 
-// 检测是否为H5环境
-const isH5 = typeof window !== 'undefined' && typeof uni !== 'undefined'
+// N8：用户协议勾选状态（原硬编码 ✓ 纯展示，登录前必须真实校验）
+const agreed = ref(false)
 
 // 微信小程序登录
 const handleWechatLogin = async () => {
   if (isLoading.value) return
+  // N8：协议未勾选禁止登录
+  if (!agreed.value) {
+    uni.showToast({ title: '请先同意用户协议和隐私政策', icon: 'none' })
+    return
+  }
   isLoading.value = true
 
   try {
@@ -53,19 +60,19 @@ const handleWechatLogin = async () => {
 
     const result = await wechatLogin(loginData)
     userStore.setToken(result.token, result.refreshToken)
-    if (result.userId) {
-      userStore.setUserInfo({
-        id: result.userId,
-        nickname: result.nickname || userInfo?.nickName || '微信用户',
-        avatar: result.avatar || userInfo?.avatarUrl || '',
-        username: `wx_${result.userId}`
-      })
+    // B9/N3: 后端 LoginResponse 仅含 token/userId/username/role（无 nickname/avatar），
+    // 统一调用 fetchUserInfo 拉取权威用户信息，确保登录态成立（isLoggedIn = !!token && !!userInfo）
+    // B9 回归修复：fetchUserInfo 失败不阻塞登录主流程（token 已存），后续 401 兜底重登
+    try {
+      await userStore.fetchUserInfo()
+    } catch (e) {
+      console.error('获取用户信息失败:', e)
     }
 
     uni.showToast({ title: '登录成功', icon: 'success' })
     setTimeout(() => {
-      // H5环境下使用navigateTo
-      uni.navigateTo({ url: '/pages/index/index' })
+      // B10: reLaunch 清空页面栈，避免返回到登录页重复登录
+      uni.reLaunch({ url: '/pages/index/index' })
     }, 500)
   } catch (error: any) {
     uni.showToast({ title: error.message || '登录失败，请重试', icon: 'none' })
@@ -89,6 +96,11 @@ let countdownTimer: ReturnType<typeof setTimeout> | null = null
 
 const handleAccountLogin = async () => {
   if (isLoading.value) return
+  // N8：协议未勾选禁止登录
+  if (!agreed.value) {
+    uni.showToast({ title: '请先同意用户协议和隐私政策', icon: 'none' })
+    return
+  }
   if (!username.value || !password.value) {
     uni.showToast({ title: '请输入用户名和密码', icon: 'none' })
     return
@@ -96,15 +108,22 @@ const handleAccountLogin = async () => {
 
   isLoading.value = true
   try {
-    // H5环境下使用testLogin接口（会自动创建用户）
-    const { testLogin } = await import('../../api/user')
-    const result = await testLogin({ username: username.value, password: password.value })
+    // N4: 小程序端走正式 login 接口（/api/auth/login）；
+    // H5 走 testLogin（自动建号，仅本地测试用），避免小程序端绕过正式鉴权
+    const result = isH5
+      ? await testLogin({ username: username.value, password: password.value })
+      : await login({ username: username.value, password: password.value })
     userStore.setToken(result.token, result.refreshToken)
-    await userStore.fetchUserInfo()
+    // B9 回归修复：fetchUserInfo 失败不阻塞登录主流程
+    try {
+      await userStore.fetchUserInfo()
+    } catch (e) {
+      console.error('获取用户信息失败:', e)
+    }
     uni.showToast({ title: '登录成功', icon: 'success' })
     setTimeout(() => {
-      // H5环境下使用navigateTo
-      uni.navigateTo({ url: '/pages/index/index' })
+      // B10: reLaunch 清空页面栈
+      uni.reLaunch({ url: '/pages/index/index' })
     }, 500)
   } catch (error: any) {
     uni.showToast({ title: error.message || '登录失败', icon: 'none' })
@@ -141,6 +160,11 @@ const handleGetCode = async () => {
 }
 
 const handlePhoneLogin = async () => {
+  // N8：协议未勾选禁止登录
+  if (!agreed.value) {
+    uni.showToast({ title: '请先同意用户协议和隐私政策', icon: 'none' })
+    return
+  }
   if (!phone.value || !code.value) {
     uni.showToast({ title: '请填写完整信息', icon: 'none' })
     return
@@ -151,10 +175,17 @@ const handlePhoneLogin = async () => {
     const { phoneLogin } = await import('../../api/auth')
     const result = await phoneLogin({ phone: phone.value, code: code.value })
     userStore.setToken(result.token, result.refreshToken)
+    // N2: 手机号登录后同样拉取完整用户信息，确保登录态成立
+    // B9 回归修复：fetchUserInfo 失败不阻塞登录主流程
+    try {
+      await userStore.fetchUserInfo()
+    } catch (e) {
+      console.error('获取用户信息失败:', e)
+    }
     uni.showToast({ title: '登录成功', icon: 'success' })
     setTimeout(() => {
-      // H5环境下使用navigateTo
-      uni.navigateTo({ url: '/pages/index/index' })
+      // B10: reLaunch 清空页面栈
+      uni.reLaunch({ url: '/pages/index/index' })
     }, 500)
   } catch (error: any) {
     uni.showToast({ title: error.message || '登录失败', icon: 'none' })
@@ -269,8 +300,12 @@ onUnmounted(() => {
 
     <!-- 用户协议 -->
     <view class="agreement">
-      <view class="agreement-check">
-        <text class="check-icon">✓</text>
+      <view
+        class="agreement-check"
+        :class="{ checked: agreed }"
+        @click="agreed = !agreed"
+      >
+        <text v-if="agreed" class="check-icon">✓</text>
       </view>
       <text class="agreement-text">
         我已阅读并同意
@@ -288,7 +323,7 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss" scoped>
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 $bg: #f0f4ff;
 
@@ -756,12 +791,22 @@ $bg: #f0f4ff;
   justify-content: center;
   flex-shrink: 0;
   margin-top: 4rpx;
+
+  // N8：选中态视觉反馈（实心 + 反白 ✓），未选中保持空圈
+  &.checked {
+    background: $primary;
+  }
 }
 
 .check-icon {
   font-size: 20rpx;
   color: $primary;
   font-weight: 700;
+}
+
+// N8：选中态背景下 ✓ 改白色，保证可见
+.agreement-check.checked .check-icon {
+  color: white;
 }
 
 .agreement-text {

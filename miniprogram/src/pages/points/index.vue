@@ -59,6 +59,8 @@ const loadPointsInfo = async () => {
     const info = await getPointsInfo()
     pointsInfo.value = info
   } catch (error) {
+    console.error('[loadPointsInfo] 加载积分信息失败:', error)
+    uni.showToast({ title: '加载失败', icon: 'none' })
   } finally {
     isLoading.value = false
   }
@@ -84,6 +86,8 @@ const loadPointsRecords = async (loadMore = false) => {
     hasMoreRecords.value = result.list.length >= pageSize
     page.value++
   } catch (error) {
+    console.error('[loadPointsRecords] 加载积分记录失败:', error)
+    uni.showToast({ title: '加载失败', icon: 'none' })
   } finally {
     isLoadingRecords.value = false
   }
@@ -144,6 +148,7 @@ const loadPointsTasks = async () => {
       todayCheckInPoints.value = signInPoints
     }
   } catch (error) {
+    console.error('[loadPointsTasks] 加载积分任务失败:', error)
   } finally {
     isLoadingTasks.value = false
   }
@@ -187,10 +192,15 @@ const handleCheckIn = async () => {
     consecutiveDays.value = result.consecutiveDays
 
     // 更新本地积分
-    pointsInfo.value = {
-      ...pointsInfo.value!,
-      availablePoints: pointsInfo.value!.availablePoints + result.points,
-      totalPoints: pointsInfo.value!.totalPoints + result.points
+    if (pointsInfo.value) {
+      pointsInfo.value = {
+        ...pointsInfo.value,
+        availablePoints: pointsInfo.value.availablePoints + result.points,
+        totalPoints: pointsInfo.value.totalPoints + result.points
+      }
+    } else {
+      // 首次加载失败兜底：重新拉取
+      await loadPointsInfo()
     }
 
     // 更新用户信息
@@ -223,10 +233,15 @@ const handleClaimReward = async (task: PointsTask) => {
     const result = await claimTaskReward(task.id)
 
     // 更新本地积分
-    pointsInfo.value = {
-      ...pointsInfo.value!,
-      availablePoints: pointsInfo.value!.availablePoints + result.points,
-      totalPoints: pointsInfo.value!.totalPoints + result.points
+    if (pointsInfo.value) {
+      pointsInfo.value = {
+        ...pointsInfo.value,
+        availablePoints: pointsInfo.value.availablePoints + result.points,
+        totalPoints: pointsInfo.value.totalPoints + result.points
+      }
+    } else {
+      // 首次加载失败兜底：重新拉取
+      await loadPointsInfo()
     }
 
     // 更新用户信息
@@ -376,7 +391,6 @@ onMounted(() => {
             <text :class="['record-amount-value', getRecordTypeClass(record.type)]">
               {{ record.type === 'earn' ? '+' : '-' }}{{ record.amount }}
             </text>
-            <text class="record-balance">余额: {{ record.balance }}</text>
           </view>
           <view class="record-time">
             <text class="record-time-text">{{ formatDate(record.createTime) }}</text>
@@ -456,7 +470,7 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .points-container {
   min-height: 100vh;

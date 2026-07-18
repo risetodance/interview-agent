@@ -231,7 +231,7 @@ onLoad((options: any) => {
 </template>
 
 <style lang="scss">
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .question-edit-container {
   display: flex;

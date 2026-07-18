@@ -1,4 +1,5 @@
 import { get, post, put, uploadFile } from '../utils/request'
+import { isH5 } from '../utils/env'
 
 // 登录请求参数
 export interface LoginParams {
@@ -12,9 +13,6 @@ export interface WechatLoginParams {
   encryptedData?: string
   iv?: string
 }
-
-// 检测是否为H5环境
-const isH5 = typeof window !== 'undefined' && typeof uni !== 'undefined' && !uni.getSystemInfoSync
 
 // 登录响应
 export interface LoginResult {
@@ -42,7 +40,9 @@ export const testLogin = (data: LoginParams) => {
  * H5模式下mock，因为无法调用微信API
  */
 export const wechatLogin = (data: WechatLoginParams) => {
-  if (isH5 || (typeof uni !== 'undefined' && !uni.getSystemInfoSync?.())) {
+  // N6+B3：本地 isH5 声明恒为 false（!uni.getSystemInfoSync 永远取反到 false），
+  // 改用 utils/env.ts 统一导出的 isH5（基于 window 判定）
+  if (isH5) {
     return Promise.resolve({
       token: 'mock_wechat_token_' + Date.now(),
       refreshToken: 'mock_refresh_token_' + Date.now(),
@@ -58,7 +58,7 @@ export const wechatLogin = (data: WechatLoginParams) => {
  * H5模式下mock
  */
 export const miniprogramLogin = (data: WechatLoginParams) => {
-  if (isH5 || (typeof uni !== 'undefined' && !uni.getSystemInfoSync?.())) {
+  if (isH5) {
     return Promise.resolve({
       token: 'mock_wechat_token_' + Date.now(),
       refreshToken: 'mock_refresh_token_' + Date.now(),
@@ -92,9 +92,10 @@ export const getUserProfile = () => {
 
 /**
  * 更新用户信息
+ * 端点对齐后端 UserController：PUT /api/users/me/profile（原误用 /api/users/me 会 404）
  */
 export const updateUserProfile = (data: any) => {
-  return put('/api/users/me', data)
+  return put('/api/users/me/profile', data)
 }
 
 /**

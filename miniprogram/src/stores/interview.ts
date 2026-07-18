@@ -119,15 +119,13 @@ export const useInterviewStore = defineStore('interview', () => {
 
   /**
    * 获取面试列表
+   * 后端 InterviewController.getAllSessions 仅接受 status 参数、无分页、返回全量 List，
+   * 故此处去除 page/pageSize（B8 去分页死代码），仅保留可选 status 筛选。
    */
-  const fetchInterviewList = async (params?: {
-    page?: number
-    pageSize?: number
-    status?: string
-  }) => {
+  const fetchInterviewList = async (status?: string) => {
     isLoading.value = true
     try {
-      const res = await getInterviewList(params)
+      const res = await getInterviewList(status ? { status } : undefined)
       const list = res.list || res.data || []
       // 转换每个item的状态
       interviewList.value = list.map((item: any) => ({
@@ -206,16 +204,24 @@ export const useInterviewStore = defineStore('interview', () => {
 
   /**
    * 删除面试
+   * id 放宽为 number|string|undefined：list.vue 的 sessionId 来自 Interview.sessionId(string) 或 id(number)，
+   * 均可能为 undefined；底层 deleteInterview 仅支持 string|number，故内部做守卫。
    */
-  const removeInterview = async (id: number) => {
+  const removeInterview = async (id: number | string | undefined) => {
+    if (id === undefined || id === null) {
+      throw new Error('删除面试失败：缺少 sessionId')
+    }
     await deleteInterview(id)
-    // 从列表中移除
-    const index = interviewList.value.findIndex(i => i.id === id)
+    // 从列表中移除（id 可能是 sessionId(string) 或 id(number)，需双重匹配）
+    const numId = typeof id === 'string' ? parseInt(id, 10) : id
+    const index = interviewList.value.findIndex(
+      i => i.id === numId || i.sessionId === id || String(i.id) === String(id)
+    )
     if (index > -1) {
       interviewList.value.splice(index, 1)
     }
     // 如果是当前面试，清空
-    if (currentInterview.value?.id === id) {
+    if (currentInterview.value?.id === numId) {
       currentInterview.value = null
       currentQuestions.value = []
       currentQuestionIndex.value = 0
@@ -256,14 +262,14 @@ export const useInterviewStore = defineStore('interview', () => {
 
   /**
    * 提交答案（自适应难度版本）
-   * 新模式：立即返回，SSE 推送下一题
+   * 返回后端的 SubmitAnswerResponse（含 nextQuestion/hasNextQuestion），
+   * 由调用方决定如何推进下一题（NC1：不再仅依赖 SSE 推送）。
    */
   const submitQuestionAnswer = async (params: AnswerParams) => {
     isSubmitting.value = true
     try {
-      // 使用自适应难度 API 提交答案（立即返回，SSE 推送下一题）
-      await submitAnswerAdaptive(params.interviewId, params.questionId, params.answer)
-      // 不再等待下一题，SSE 会推送
+      // 返回同步响应：调用方可直接用返回值渲染下一题，SSE onQuestion 作为补充去重
+      return await submitAnswerAdaptive(params.interviewId, params.questionId, params.answer)
     } finally {
       isSubmitting.value = false
     }
@@ -324,6 +330,7 @@ export const useInterviewStore = defineStore('interview', () => {
       statistics.value = stats
       return stats
     } catch (error) {
+      console.error('获取面试历史统计失败:', error)
     }
   }
 

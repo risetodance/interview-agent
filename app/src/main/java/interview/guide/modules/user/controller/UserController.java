@@ -67,8 +67,12 @@ public class UserController {
             // 尝试登录
             LoginResponse response = loginService.login(request);
             return Result.success("登录成功", response);
-        } catch (Exception e) {
-            // 登录失败，尝试注册新用户
+        } catch (IllegalArgumentException e) {
+            // loginService 对"用户不存在"和"密码错误"都抛 IllegalArgumentException，需区分：
+            // 用户已存在 → 密码错误，直接返回；用户不存在 → 注册新用户
+            if (queryService.existsByUsername(request.username())) {
+                return Result.error("用户名或密码错误");
+            }
             log.info("用户不存在，尝试创建新用户: username={}", request.username());
             try {
                 RegisterRequest registerRequest = new RegisterRequest(
@@ -77,14 +81,16 @@ public class UserController {
                     request.username() + "@test.com",
                     request.username()
                 );
-                RegisterResponse registerResponse = registerService.register(registerRequest);
-                // 注册成功后登录
+                registerService.register(registerRequest);
                 LoginResponse response = loginService.login(request);
                 return Result.success("注册并登录成功", response);
             } catch (Exception ex) {
                 log.error("H5测试登录失败", ex);
                 return Result.error("登录失败: " + ex.getMessage());
             }
+        } catch (Exception e) {
+            log.error("H5测试登录失败", e);
+            return Result.error(e.getMessage());
         }
     }
 

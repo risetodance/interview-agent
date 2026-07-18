@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { uploadResume, reanalyzeResume, type UploadResumeResult } from '../../api/resume'
+import { apiBaseUrl } from '../../utils/env'
 
 // 简历名称
 const resumeName = ref('')
@@ -146,7 +147,7 @@ const handleUpload = async () => {
 
     // #ifdef H5
     // H5 环境下使用原生 fetch 上传
-    const baseURL = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://api.interview-guide.com'
+    // D2: baseURL 统一从 env.ts 获取，避免本地重复拼接
     const token = uni.getStorageSync('token')
 
     // 使用用户选择的文件
@@ -166,7 +167,7 @@ const handleUpload = async () => {
       formData.append('name', resumeName.value)
     }
 
-    const uploadResponse = await fetch(baseURL + '/api/resumes/upload', {
+    const uploadResponse = await fetch(apiBaseUrl + '/api/resumes/upload', {
       method: 'POST',
       headers: {
         'Authorization': token ? `Bearer ${token}` : ''
@@ -342,7 +343,7 @@ const goBack = () => {
 </template>
 
 <style lang="scss">
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .upload-container {
   min-height: 100vh;

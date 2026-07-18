@@ -257,7 +257,7 @@ onShow(() => {
 </template>
 
 <style lang="scss">
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .question-bank-list-container {
   display: flex;

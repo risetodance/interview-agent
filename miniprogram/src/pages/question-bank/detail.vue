@@ -90,6 +90,13 @@ const goToEdit = (question: QuestionDTO) => {
   })
 }
 
+// 新增题目：复用 edit.vue 的创建模式（不传 id 即走创建分支），后端 POST /api/questions 与 web 端共用
+const goToCreateQuestion = () => {
+  uni.navigateTo({
+    url: `/pages/question-bank/edit?bankId=${bankId.value}`
+  })
+}
+
 // 删除题目
 const handleDelete = (question: QuestionDTO) => {
   uni.showModal({
@@ -168,6 +175,10 @@ onLoad((options: any) => {
         <text class="title-text">{{ bankName || '题目列表' }}</text>
         <text class="title-desc">共 {{ pagination.totalElements }} 道题目</text>
       </view>
+      <view class="header-action" @click="goToCreateQuestion">
+        <text class="action-icon">+</text>
+        <text class="action-text">新增题目</text>
+      </view>
     </view>
 
     <!-- 搜索和筛选 -->
@@ -236,6 +247,9 @@ onLoad((options: any) => {
       <view v-if="questionBankStore.questions.length === 0 && !loading" class="empty">
         <text class="empty-text">暂无题目</text>
         <text class="empty-desc">该题库下还没有题目</text>
+        <view class="empty-action" @click="goToCreateQuestion">
+          <text>+ 新增第一道题</text>
+        </view>
       </view>
 
       <!-- 加载状态 -->
@@ -309,7 +323,7 @@ onLoad((options: any) => {
 </template>
 
 <style lang="scss">
-@import '../../styles/variables.scss';
+@use '../../styles/variables.scss' as *;
 
 .question-detail-container {
   display: flex;
@@ -320,11 +334,17 @@ onLoad((options: any) => {
 
 // 顶部区域
 .header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 48rpx 40rpx 32rpx;
   background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
 }
 
 .header-title {
+  flex: 1;
+  min-width: 0;
+
   .title-text {
     display: block;
     font-size: 40rpx;
@@ -336,6 +356,30 @@ onLoad((options: any) => {
   .title-desc {
     font-size: 26rpx;
     color: rgba(255, 255, 255, 0.75);
+  }
+}
+
+// 新增题目按钮
+.header-action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 14rpx 28rpx;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 32rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.35);
+
+  .action-icon {
+    font-size: 32rpx;
+    color: #fff;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .action-text {
+    font-size: 26rpx;
+    color: #fff;
   }
 }
 
@@ -468,6 +512,15 @@ onLoad((options: any) => {
   .empty-desc {
     font-size: 26rpx;
     color: $text-muted;
+  }
+
+  .empty-action {
+    margin-top: 32rpx;
+    padding: 18rpx 48rpx;
+    background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
+    color: #fff;
+    font-size: 28rpx;
+    border-radius: 40rpx;
   }
 }
 
