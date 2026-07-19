@@ -212,12 +212,18 @@ onLoad((options: any) => {
 
 .form-input {
   height: 88rpx;
+  width: 100%;
+  box-sizing: border-box;
   font-size: 28rpx;
   color: $text-primary;
 }
 
 .form-textarea {
   height: 160rpx;
+  width: 100%;
+  box-sizing: border-box;
+  // H5 下 textarea 默认可横向拖拽缩放，破坏布局对齐，锁定
+  resize: none;
   padding: 24rpx 0;
   font-size: 28rpx;
   color: $text-primary;

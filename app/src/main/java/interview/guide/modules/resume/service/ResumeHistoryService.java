@@ -5,6 +5,7 @@ import interview.guide.common.exception.ErrorCode;
 import interview.guide.infrastructure.export.PdfExportService;
 import interview.guide.infrastructure.mapper.InterviewMapper;
 import interview.guide.infrastructure.mapper.ResumeMapper;
+import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.interview.model.ResumeAnalysisResponse;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
@@ -12,6 +13,8 @@ import interview.guide.modules.resume.model.ResumeAnalysisEntity;
 import interview.guide.modules.resume.model.ResumeDetailDTO;
 import interview.guide.modules.resume.model.ResumeEntity;
 import interview.guide.modules.resume.model.ResumeListItemDTO;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -100,10 +103,11 @@ public class ResumeHistoryService {
             this::extractMatchedPositions
         );
 
-        // 使用 InterviewMapper 转换面试历史
-        List<Object> interviewHistory = interviewMapper.toInterviewHistoryList(
-            interviewPersistenceService.findByResumeId(id)
-        );
+       // 使用 InterviewMapper 转换面试历史
+       List<Object> interviewHistory = interviewMapper.toInterviewHistoryList(
+           interviewPersistenceService.findByResumeId(id)
+       );
+        fillAnsweredCount(interviewHistory);
 
         return new ResumeDetailDTO(
             resume.getId(),
@@ -119,6 +123,28 @@ public class ResumeHistoryService {
             analysisHistory,
             interviewHistory
         );
+    }
+
+    /**
+     * 回填每场面试的真实已答题数。
+     * 不用 status=COMPLETED 近似视为"全部答完"——用户可能中途提前结束，
+     * 此时仅答了部分题。统计该 session 下 userAnswer 非空的答案记录数才是准确值。
+     */
+    @SuppressWarnings("unchecked")
+    private void fillAnsweredCount(List<Object> interviewHistory) {
+        if (interviewHistory == null || interviewHistory.isEmpty()) return;
+        for (Object item : interviewHistory) {
+            if (!(item instanceof Map<?, ?> raw)) continue;
+            Object sessionIdObj = raw.get("sessionId");
+            if (!(sessionIdObj instanceof String sessionId) || sessionId.isBlank()) continue;
+            int answeredCount = (int) interviewPersistenceService.findAnswersBySessionId(sessionId).stream()
+                .filter(a -> a.getUserAnswer() != null && !a.getUserAnswer().isBlank())
+                .count();
+            // Map 是 LinkedHashMap（来自 InterviewMapper），按原类型重建保持顺序
+            if (raw instanceof LinkedHashMap) {
+                ((LinkedHashMap<String, Object>) raw).put("answeredCount", answeredCount);
+            }
+        }
     }
 
     /**
@@ -206,4 +232,3 @@ public class ResumeHistoryService {
      */
     public record ExportResult(byte[] pdfBytes, String filename) {}
 }
-

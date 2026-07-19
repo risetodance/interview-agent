@@ -115,14 +115,17 @@ public interface InterviewMapper {
     /**
      * InterviewSessionEntity 转换为简要信息 Map
      * 用于 ResumeDetailDTO 中的面试历史列表
-     */
+    */
     default java.util.Map<String, Object> toInterviewHistoryItem(InterviewSessionEntity session) {
         java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
         // 优先使用 comprehensiveScore，如果没有则用 overallScore
         Integer score = session.getComprehensiveScore() != null ? session.getComprehensiveScore() : session.getOverallScore();
+        // 已答题数 answeredCount 不在此处近似计算（不能简单用 status=COMPLETED 视为全部答完，
+        // 因为用户可能中途提前结束），交由 ResumeHistoryService 统计真实有 userAnswer 的答案记录数后回填。
+        int totalQuestions = session.getTotalQuestions() != null ? session.getTotalQuestions() : 0;
         map.put("id", session.getId());
         map.put("sessionId", session.getSessionId());
-        map.put("totalQuestions", session.getTotalQuestions());
+        map.put("totalQuestions", totalQuestions);
         map.put("status", session.getStatus().toString());
         map.put("evaluateStatus", session.getEvaluateStatus() != null ? session.getEvaluateStatus().name() : null);
         map.put("evaluateError", session.getEvaluateError());

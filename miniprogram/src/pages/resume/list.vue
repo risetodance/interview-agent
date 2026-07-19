@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onActivated, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onActivated, onUnmounted } from 'vue'
 import { getResumeList, deleteResume, type Resume, type ResumeListParams, type InterviewStatus } from '../../api/resume'
 
 // 简历列表数据
@@ -11,6 +11,16 @@ const listParams = ref<ResumeListParams>({
   pageSize: 20
 })
 const total = ref(0)
+
+// 本地搜索过滤：后端 GET /api/resumes 不支持 keyword 参数（返回全部），
+// 前端按文件名即时过滤，避免"搜什么都一样"。简历数量少，本地过滤即时且无网络开销。
+const filteredResumeList = computed(() => {
+  const keyword = (listParams.value.keyword || '').trim().toLowerCase()
+  if (!keyword) return resumeList.value
+  return resumeList.value.filter(r =>
+    (r.name || r.filename || r.fileName || '').toLowerCase().includes(keyword)
+  )
+})
 
 // 解析状态映射
 const parseStatusMap: Record<string, { text: string; color: string }> = {
@@ -159,14 +169,14 @@ const formatDate = (date: string): string => {
       @refresherrefresh="onRefresh"
       @scrolltolower="onLoadMore"
     >
-      <view v-if="resumeList.length === 0 && !loading" class="empty">
+      <view v-if="filteredResumeList.length === 0 && !loading" class="empty">
         <text class="empty-icon">&#xe60c;</text>
-        <text class="empty-text">暂无简历</text>
-        <text class="empty-desc">点击下方按钮上传您的第一份简历</text>
+        <text class="empty-text">{{ listParams.keyword ? '没有匹配的简历' : '暂无简历' }}</text>
+        <text class="empty-desc">{{ listParams.keyword ? '试试其他关键词' : '点击下方按钮上传您的第一份简历' }}</text>
       </view>
 
       <view
-        v-for="(item, index) in resumeList"
+        v-for="(item, index) in filteredResumeList"
         :key="item.id"
         class="resume-card"
         @click="goToDetail(item.id)"

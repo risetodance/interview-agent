@@ -526,6 +526,17 @@ const formatDate = (date: string): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// 面试状态中文映射（后端返回 CREATED/IN_PROGRESS/COMPLETED/EVALUATED 等英文枚举）
+const interviewStatusText = (status: string): string => {
+  const map: Record<string, string> = {
+    CREATED: '待面试',
+    IN_PROGRESS: '进行中',
+    COMPLETED: '已完成',
+    EVALUATED: '已评估'
+  }
+  return map[status] || status || '进行中'
+}
+
 // 格式化分析时间（格式：2026/03/21 01:43）
 const formatAnalysisDate = (dateStr: string): string => {
   if (!dateStr) return ''
@@ -778,7 +789,7 @@ const formatAnalysisItem = (item: any): string => {
         <view class="section-title">关联面试</view>
         <view v-for="(iv, idx) in resumeDetail.interviews" :key="iv.sessionId || idx" class="interview-item">
           <view class="interview-info">
-            <text class="interview-status">{{ iv.status || '进行中' }}</text>
+            <text class="interview-status">{{ interviewStatusText(iv.status) }}</text>
             <text class="interview-progress">{{ iv.answeredCount ?? 0 }} / {{ iv.totalQuestions ?? 0 }} 题</text>
           </view>
           <text v-if="iv.overallScore !== undefined && iv.overallScore !== null" class="interview-score">{{ iv.overallScore }} 分</text>
