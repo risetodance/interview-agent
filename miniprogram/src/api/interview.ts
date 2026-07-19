@@ -464,6 +464,8 @@ export interface SessionProgressDTO {
   // 后端处理状态（与 SessionProgressDTO.ProcessingStatus 对应）：
   // IDLE 空闲可继续；PROCESSING 工作流正在评分/生成下一题，此时 currentQuestion 为 null
   processingStatus: 'IDLE' | 'PROCESSING'
+  // 会话状态：CREATED/IN_PROGRESS/COMPLETED/EVALUATED，前端据此判断面试是否结束
+  sessionStatus?: string
 }
 
 /**

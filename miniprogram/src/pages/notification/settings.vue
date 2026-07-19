@@ -59,7 +59,7 @@ const settingsItems = computed(() => [
     title: '知识库通知',
     desc: '接收知识库更新、分享等通知',
     icon: '知识',
-    color: $primary-color
+    color: '#0ea5e9'
   },
   {
     key: 'systemNotification',

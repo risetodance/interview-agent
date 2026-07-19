@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import Icon from '../../components/common/Icon.vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useQuestionBankStore, type QuestionBankDTO } from '../../stores/question-bank'
 
@@ -129,7 +130,7 @@ onShow(() => {
 
       <!-- 创建题库按钮 -->
       <view class="create-btn" @click="goToCreate">
-        <text class="iconfont">+</text>
+        <Icon name="plus" :size="18" color="#fff" />
         <text>创建题库</text>
       </view>
     </view>
@@ -137,7 +138,7 @@ onShow(() => {
     <!-- 搜索框 -->
     <view class="search-bar">
       <view class="search-input-wrap">
-        <text class="search-icon">&#xe618;</text>
+        <view class="search-icon"><Icon name="search" :size="18" color="#94a3b8" /></view>
         <input
           v-model="searchKeyword"
           class="search-input"
@@ -243,7 +244,7 @@ onShow(() => {
 
       <!-- 空状态 -->
       <view v-if="filteredSystemBanks.length === 0 && filteredUserBanks.length === 0 && !loading" class="empty">
-        <text class="empty-icon">&#xe60c;</text>
+        <view class="empty-icon"><Icon name="library" :size="48" color="#cbd5e1" /></view>
         <text class="empty-text">暂无题库</text>
         <text class="empty-desc">点击上方按钮创建你的第一个题库</text>
       </view>
@@ -337,13 +338,6 @@ onShow(() => {
     transform: scale(0.97);
   }
 
-  .iconfont {
-    font-size: 32rpx;
-    margin: 0;
-    padding: 0;
-    flex-shrink: 0;
-  }
-
   text {
     margin: 0;
     padding: 0;
@@ -370,9 +364,9 @@ onShow(() => {
 }
 
 .search-icon {
-  font-size: 32rpx;
-  color: $text-muted;
   margin-right: 16rpx;
+  display: flex;
+  align-items: center;
 }
 
 .search-input {
@@ -568,8 +562,11 @@ onShow(() => {
   padding: 120rpx 0;
 
   .empty-icon {
-    font-size: 160rpx;
-    color: #e2e8f0;
+    width: 160rpx;
+    height: 160rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     margin-bottom: 32rpx;
   }
 

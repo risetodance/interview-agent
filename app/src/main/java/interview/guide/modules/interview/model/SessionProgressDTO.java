@@ -12,7 +12,8 @@ public record SessionProgressDTO(
     int totalQuestions,
     CurrentQuestionDTO currentQuestion,
     List<AnswerHistoryDTO> history,
-    ProcessingStatus processingStatus  // 新增：处理状态
+    ProcessingStatus processingStatus,  // 处理状态
+    String sessionStatus  // 会话状态：CREATED/IN_PROGRESS/COMPLETED/EVALUATED，前端据此判断面试是否结束
 ) {
     /**
      * 处理状态枚举
@@ -27,6 +28,6 @@ public record SessionProgressDTO(
      */
     public SessionProgressDTO(String sessionId, int currentQuestionIndex, int totalQuestions,
                               CurrentQuestionDTO currentQuestion, List<AnswerHistoryDTO> history) {
-        this(sessionId, currentQuestionIndex, totalQuestions, currentQuestion, history, ProcessingStatus.IDLE);
+        this(sessionId, currentQuestionIndex, totalQuestions, currentQuestion, history, ProcessingStatus.IDLE, null);
     }
 }

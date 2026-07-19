@@ -580,7 +580,8 @@ public class InterviewSessionService {
                 totalQuestions,
                 currentQuestion,
                 history,
-                processingStatus
+                processingStatus,
+                session.getStatus() != null ? session.getStatus().name() : null
         );
     }
 

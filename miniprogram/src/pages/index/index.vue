@@ -1,67 +1,94 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '../../stores/user'
+import Icon from '../../components/common/Icon.vue'
 
 const userStore = useUserStore()
-const { isLoggedIn, userInfo } = userStore
+const isLoggedIn = computed(() => userStore.isLoggedIn)
+const userInfo = computed(() => userStore.userInfo)
 
-// 功能模块
+// 功能模块：每项一个和谐区分的强调色，破除"一片蓝"的单调
 const features = ref([
   {
     id: 'resume',
     title: '简历管理',
     desc: '智能分析简历',
-    icon: '📄',
-    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)',
-    bgColor: '#e0f2fe',
+    icon: 'file-text',
+    accent: '#0ea5e9',
+    tint: '#f0f9ff',
     path: '/pages/resume/list'
   },
   {
     id: 'interview',
     title: 'AI面试',
     desc: '模拟面试实战',
-    icon: '💼',
-    gradient: 'linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)',
-    bgColor: '#e0f2fe',
+    icon: 'mic',
+    accent: '#6366f1',
+    tint: '#eef2ff',
     path: '/pages/interview/list'
   },
   {
     id: 'knowledge',
     title: '知识库',
     desc: '智能问答助手',
-    icon: '📚',
-    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)',
-    bgColor: '#e0f2fe',
+    icon: 'database',
+    accent: '#06b6d4',
+    tint: '#ecfeff',
     path: '/pages/knowledge/list'
   },
   {
     id: 'question-bank',
     title: '题库管理',
     desc: '管理面试题库',
-    icon: '📝',
-    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)',
-    bgColor: '#e0f2fe',
+    icon: 'library',
+    accent: '#14b8a6',
+    tint: '#f0fdfa',
     path: '/pages/question-bank/list'
   },
   {
     id: 'notification',
     title: '消息',
     desc: '最新动态',
-    icon: '🔔',
-    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)',
-    bgColor: '#e0f2fe',
+    icon: 'bell',
+    accent: '#f59e0b',
+    tint: '#fffbeb',
     path: '/pages/notification/list'
   },
   {
     id: 'points',
     title: '积分商城',
     desc: '兑换惊喜好礼',
-    icon: '🎁',
-    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)',
-    bgColor: '#e0f2fe',
+    icon: 'gift',
+    accent: '#f43f5e',
+    tint: '#fff1f2',
     path: '/pages/points/index'
   }
 ])
+
+const statusBarHeight = ref(0)
+onMounted(() => {
+  try {
+    const sysInfo = (uni.getWindowInfo ? uni.getWindowInfo() : uni.getSystemInfoSync()) as any
+    statusBarHeight.value = sysInfo.statusBarHeight || 0
+  } catch (e) {
+    statusBarHeight.value = 0
+  }
+})
+
+const greeting = computed(() => {
+  const h = new Date().getHours()
+  if (h < 6) return '夜深了'
+  if (h < 12) return '早上好'
+  if (h < 14) return '中午好'
+  if (h < 18) return '下午好'
+  return '晚上好'
+})
+
+const displayName = computed(() => {
+  if (isLoggedIn.value && userInfo.value?.nickname) return userInfo.value.nickname
+  if (isLoggedIn.value && userInfo.value?.username) return userInfo.value.username
+  return '面试达人'
+})
 
 const goToFeature = (path: string) => {
   uni.navigateTo({ url: path })
@@ -74,67 +101,68 @@ const goToLogin = () => {
 const goToProfile = () => {
   uni.navigateTo({ url: '/pages/profile/index' })
 }
+
+const startInterview = () => {
+  if (isLoggedIn.value) {
+    uni.navigateTo({ url: '/pages/interview/list' })
+  } else {
+    goToLogin()
+  }
+}
 </script>
 
 <template>
   <view class="index-container">
-    <!-- 顶部装饰 -->
-    <view class="top-decoration">
-      <view class="decoration-circle decoration-1"></view>
-      <view class="decoration-circle decoration-2"></view>
-      <view class="decoration-circle decoration-3"></view>
-    </view>
+    <!-- 状态栏安全区占位 -->
+    <view class="status-bar" :style="{ height: statusBarHeight + 'px' }"></view>
 
-    <!-- 顶部区域 -->
-    <view class="hero-section">
-      <view class="hero-content">
-        <view class="hero-top">
-          <view class="app-info">
-            <text class="app-name">AI面试指南</text>
-            <text class="app-slogan">智能面试助手</text>
-          </view>
-          <view class="avatar-wrap" @click="goToProfile">
-            <view class="avatar">
-              <text class="avatar-text">{{ isLoggedIn && userInfo?.nickname ? userInfo.nickname[0] : '我' }}</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 欢迎卡片 -->
-        <view class="welcome-card" @click="isLoggedIn || goToLogin()">
-          <view class="card-pattern"></view>
-          <view class="card-content">
-            <view class="card-left">
-              <text class="greeting">{{ isLoggedIn ? '欢迎回来' : '登录体验更多' }}</text>
-              <text class="username" v-if="isLoggedIn">{{ userInfo?.nickname || '用户' }}</text>
-              <text class="tip">{{ isLoggedIn ? '准备开始面试了吗？' : 'AI助力每一次面试成功' }}</text>
-            </view>
-            <view class="card-right">
-              <text class="arrow">→</text>
-            </view>
-          </view>
+    <!-- 紧凑顶栏 -->
+    <view class="topbar">
+      <view class="topbar-left">
+        <text class="greeting-text">{{ greeting }}，</text>
+        <text class="username-text">{{ displayName }}</text>
+      </view>
+      <view class="avatar-wrap" @click="goToProfile">
+        <view class="avatar">
+          <text class="avatar-text">{{ displayName.charAt(0) }}</text>
         </view>
       </view>
     </view>
 
-    <!-- 功能区域 -->
-    <view class="features-section">
-      <view class="section-header">
-        <text class="section-title">核心功能</text>
-        <text class="section-desc">探索AI面试的无限可能</text>
+    <scroll-view class="main-scroll" scroll-y :show-scrollbar="false">
+      <!-- Hero 主操作卡 -->
+      <view class="hero-card" @click="startInterview">
+        <view class="hero-pattern"></view>
+        <view class="hero-deco">
+          <Icon name="sparkles" :size="120" color="rgba(255,255,255,0.2)" />
+        </view>
+        <view class="hero-body">
+          <text class="hero-title">AI 模拟面试</text>
+          <text class="hero-sub">多视角面试官 · 自适应难度 · 实时评分</text>
+          <view class="hero-cta">
+            <text class="hero-cta-text">{{ isLoggedIn ? '立即开始' : '登录后开始' }}</text>
+            <Icon name="chevron-right" :size="16" color="#0284c7" />
+          </view>
+        </view>
       </view>
 
-      <view class="features-grid">
-        <view
-          v-for="item in features"
-          :key="item.id"
-          class="feature-card"
-          :style="{ '--card-bg': item.bgColor }"
-          @click="goToFeature(item.path)"
-        >
-          <view class="card-inner">
-            <view class="feature-icon" :style="{ background: item.gradient }">
-              <text>{{ item.icon }}</text>
+      <!-- 核心功能 -->
+      <view class="features-section">
+        <view class="section-header">
+          <text class="section-title">核心功能</text>
+          <text class="section-desc">探索 AI 面试的无限可能</text>
+        </view>
+
+        <view class="features-grid">
+          <view
+            v-for="item in features"
+            :key="item.id"
+            class="feature-card"
+            :hover-class="'feature-card--pressed'"
+            @click="goToFeature(item.path)"
+          >
+            <view class="feature-icon" :style="{ backgroundColor: item.tint }">
+              <Icon :name="item.icon" :size="24" :color="item.accent" />
             </view>
             <view class="feature-info">
               <text class="feature-title">{{ item.title }}</text>
@@ -143,13 +171,11 @@ const goToProfile = () => {
           </view>
         </view>
       </view>
-    </view>
 
-    
-    <!-- 底部 -->
-    <view class="bottom-section">
-      <text class="copyright">© 2026 AI面试指南</text>
-    </view>
+      <view class="bottom-section">
+        <text class="copyright">© 2026 AI 面试指南</text>
+      </view>
+    </scroll-view>
   </view>
 </template>
 
@@ -157,322 +183,217 @@ const goToProfile = () => {
 @use '../../styles/variables.scss' as *;
 
 .index-container {
-  min-height: 100vh;
-  background: $bg;
-  position: relative;
-  overflow: hidden;
-}
-
-// 顶部装饰
-.top-decoration {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 400rpx;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.decoration-circle {
-  position: absolute;
-  border-radius: 50%;
-}
-
-.decoration-1 {
-  width: 500rpx;
-  height: 500rpx;
-  background: linear-gradient(135deg, rgba($primary-light, 0.3) 0%, rgba($primary, 0.1) 100%);
-  top: -200rpx;
-  right: -150rpx;
-  animation: float 8s ease-in-out infinite;
-}
-
-.decoration-2 {
-  width: 300rpx;
-  height: 300rpx;
-  background: linear-gradient(135deg, rgba($accent, 0.2) 0%, rgba($primary-light, 0.1) 100%);
-  top: 50rpx;
-  left: -100rpx;
-  animation: float 10s ease-in-out infinite reverse;
-}
-
-.decoration-3 {
-  width: 200rpx;
-  height: 200rpx;
-  background: linear-gradient(135deg, rgba($primary, 0.15) 0%, transparent 100%);
-  top: 150rpx;
-  right: 50rpx;
-  animation: float 6s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-20rpx) rotate(5deg);
-  }
-}
-
-// 顶部英雄区域
-.hero-section {
-  position: relative;
-  padding: 120rpx 40rpx 60rpx;
-  z-index: 1;
-}
-
-.hero-content {
-  max-width: 100%;
-}
-
-.hero-top {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 40rpx;
+  flex-direction: column;
+  height: 100vh;
+  background: $bg;
 }
 
-.app-info {
+.status-bar {
+  flex-shrink: 0;
+}
+
+.topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24rpx 40rpx 16rpx;
+}
+
+.topbar-left {
   display: flex;
   flex-direction: column;
 }
 
-.app-name {
-  font-size: 48rpx;
-  font-weight: 800;
-  color: $text-primary;
-  letter-spacing: 2rpx;
-  background: linear-gradient(135deg, $primary-dark 0%, $primary 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.app-slogan {
+.greeting-text {
   font-size: 24rpx;
   color: $text-muted;
-  margin-top: 8rpx;
-  font-weight: 500;
+  line-height: 1.4;
+}
+
+.username-text {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: $text-primary;
+  line-height: 1.3;
 }
 
 .avatar-wrap {
-  position: relative;
+  padding: 8rpx;
 }
 
 .avatar {
-  width: 88rpx;
-  height: 88rpx;
+  width: 80rpx;
+  height: 80rpx;
   border-radius: 50%;
-  background: linear-gradient(135deg, $primary 0%, $accent 100%);
+  background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8rpx 24rpx rgba($primary, 0.3);
+  box-shadow: 0 4rpx 12rpx rgba($primary, 0.3);
 }
 
 .avatar-text {
   font-size: 32rpx;
-  font-weight: 700;
-  color: white;
+  font-weight: 600;
+  color: #fff;
 }
 
-// 欢迎卡片
-.welcome-card {
+.main-scroll {
+  flex: 1;
+  // 不给 scroll-view 设 padding：小程序端 scroll-view 对 padding 的宽度计算有特殊性，
+  // 会导致内容（尤其 2 列 grid 右列）溢出视口右边缘被裁，表现为"右侧遮挡"。
+  // 改为内部各区块用横向 margin 收窄，scroll-view 本身满宽。
+}
+
+// Hero 主操作卡
+.hero-card {
   position: relative;
-  background: $card-bg;
-  border-radius: 32rpx;
   overflow: hidden;
-  box-shadow: 0 12rpx 40rpx rgba($primary, 0.12), 0 4rpx 12rpx rgba(0, 0, 0, 0.04);
+  border-radius: 28rpx;
+  background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 60%, #7dd3fc 100%);
+  padding: 48rpx 40rpx;
+  margin: 0 32rpx 48rpx;
+  box-shadow: 0 12rpx 32rpx rgba(14, 165, 233, 0.28);
 }
 
-.card-pattern {
+.hero-pattern {
   position: absolute;
-  top: -50rpx;
-  right: -50rpx;
-  width: 200rpx;
-  height: 200rpx;
-  background: radial-gradient(circle, rgba($primary-light, 0.3) 0%, transparent 70%);
-  border-radius: 50%;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  // 点阵纹理替代漂浮渐变球：轻量、有质感
+  background-image: radial-gradient(rgba(255, 255, 255, 0.18) 1.5px, transparent 1.5px);
+  background-size: 28rpx 28rpx;
+  pointer-events: none;
 }
 
-.card-content {
+.hero-deco {
+  position: absolute;
+  top: -16rpx;
+  right: -8rpx;
+  pointer-events: none;
+}
+
+.hero-body {
   position: relative;
-  padding: 36rpx 32rpx;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.card-left {
+  z-index: 1;
   display: flex;
   flex-direction: column;
 }
 
-.greeting {
-  font-size: 28rpx;
-  color: $text-secondary;
-  font-weight: 500;
+.hero-title {
+  font-size: 44rpx;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 1rpx;
+  margin-bottom: 12rpx;
 }
 
-.username {
-  font-size: 36rpx;
-  font-weight: 700;
-  color: $primary;
-  margin-top: 4rpx;
-}
-
-.tip {
+.hero-sub {
   font-size: 24rpx;
-  color: $text-muted;
-  margin-top: 8rpx;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 32rpx;
+  line-height: 1.5;
 }
 
-.card-right {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 50%;
-  background: linear-gradient(135deg, $primary 0%, $accent 100%);
-  display: flex;
+.hero-cta {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  box-shadow: 0 6rpx 20rpx rgba($primary, 0.3);
+  gap: 4rpx;
+  align-self: flex-start;
+  background: #fff;
+  padding: 16rpx 32rpx;
+  border-radius: 999rpx;
 }
 
-.arrow {
-  font-size: 32rpx;
-  color: white;
+.hero-cta-text {
+  font-size: 28rpx;
   font-weight: 600;
+  color: $primary-dark;
 }
 
-// 功能区域
 .features-section {
-  position: relative;
-  padding: 48rpx 40rpx;
-  z-index: 1;
+  margin: 0 32rpx 40rpx;
 }
 
 .section-header {
-  margin-bottom: 36rpx;
+  margin-bottom: 24rpx;
 }
 
 .section-title {
-  font-size: 38rpx;
+  display: block;
+  font-size: 32rpx;
   font-weight: 700;
   color: $text-primary;
-  display: block;
+  margin-bottom: 4rpx;
 }
 
 .section-desc {
   font-size: 24rpx;
   color: $text-muted;
-  margin-top: 8rpx;
-  display: block;
 }
 
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 24rpx;
 }
 
 .feature-card {
-  background: var(--card-bg);
-  border-radius: 28rpx;
-  padding: 4rpx;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.04);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-  &:active {
-    transform: scale(0.97);
-    box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.06);
-  }
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  background: $card-bg;
+  border-radius: 24rpx;
+  padding: 28rpx 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(15, 23, 42, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.card-inner {
-  background: var(--card-bg);
-  border-radius: 24rpx;
-  padding: 28rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
+.feature-card--pressed {
+  transform: scale(0.97);
+  box-shadow: 0 1rpx 6rpx rgba(15, 23, 42, 0.06);
 }
 
 .feature-icon {
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 24rpx;
+  flex-shrink: 0;
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 20rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 40rpx;
-  margin-bottom: 16rpx;
-  box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.1);
 }
 
 .feature-info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
 .feature-title {
-  font-size: 28rpx;
+  font-size: 30rpx;
   font-weight: 600;
   color: $text-primary;
+  margin-bottom: 4rpx;
 }
 
 .feature-desc {
   font-size: 22rpx;
   color: $text-muted;
-  margin-top: 6rpx;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-// 快捷入口
-.quick-section {
-  padding: 20rpx 40rpx 48rpx;
-  z-index: 1;
-  position: relative;
-}
-
-.quick-grid {
-  display: flex;
-  gap: 24rpx;
-}
-
-.quick-card {
-  flex: 1;
-  border-radius: 24rpx;
-  padding: 28rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12rpx;
-  box-shadow: 0 6rpx 24rpx rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-
-  &:active {
-    transform: scale(0.97);
-  }
-}
-
-.quick-icon {
-  font-size: 32rpx;
-}
-
-.quick-title {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: $text-primary;
-}
-
-// 底部
 .bottom-section {
-  padding: 40rpx;
-  text-align: center;
-  position: relative;
-  z-index: 1;
+  padding: 16rpx 32rpx 64rpx;
+  display: flex;
+  justify-content: center;
 }
 
 .copyright {

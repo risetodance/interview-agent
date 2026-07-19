@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onActivated, onUnmounted } from 'vue'
+import Icon from '../../components/common/Icon.vue'
 import { getResumeList, deleteResume, type Resume, type ResumeListParams, type InterviewStatus } from '../../api/resume'
 
 // 简历列表数据
@@ -18,7 +19,7 @@ const filteredResumeList = computed(() => {
   const keyword = (listParams.value.keyword || '').trim().toLowerCase()
   if (!keyword) return resumeList.value
   return resumeList.value.filter(r =>
-    (r.name || r.filename || r.fileName || '').toLowerCase().includes(keyword)
+    (r.name || r.fileName || '').toLowerCase().includes(keyword)
   )
 })
 
@@ -151,7 +152,7 @@ const formatDate = (date: string): string => {
     <!-- 顶部搜索和筛选 -->
     <view class="header">
       <view class="search-bar">
-        <text class="iconfont icon-search">&#xe618;</text>
+        <view class="search-icon"><Icon name="search" :size="18" color="#94a3b8" /></view>
         <input
           v-model="listParams.keyword"
           placeholder="搜索简历"
@@ -170,7 +171,7 @@ const formatDate = (date: string): string => {
       @scrolltolower="onLoadMore"
     >
       <view v-if="filteredResumeList.length === 0 && !loading" class="empty">
-        <text class="empty-icon">&#xe60c;</text>
+        <view class="empty-icon"><Icon name="file-text" :size="48" color="#cbd5e1" /></view>
         <text class="empty-text">{{ listParams.keyword ? '没有匹配的简历' : '暂无简历' }}</text>
         <text class="empty-desc">{{ listParams.keyword ? '试试其他关键词' : '点击下方按钮上传您的第一份简历' }}</text>
       </view>
@@ -246,7 +247,7 @@ const formatDate = (date: string): string => {
 
     <!-- 上传按钮 -->
     <view class="upload-btn" @click="goToUpload">
-      <text class="iconfont">&#xe60d;</text>
+      <Icon name="upload" :size="20" color="#fff" />
       <text>上传简历</text>
     </view>
   </view>
@@ -275,10 +276,10 @@ const formatDate = (date: string): string => {
   background-color: #f1f5f9;
   border-radius: 16rpx;
 
-  .iconfont {
-    font-size: 28rpx;
-    color: $text-muted;
+  .search-icon {
     margin-right: 16rpx;
+    display: flex;
+    align-items: center;
   }
 
   input {
@@ -301,8 +302,11 @@ const formatDate = (date: string): string => {
   padding: 160rpx 0;
 
   .empty-icon {
-    font-size: 120rpx;
-    color: #e2e8f0;
+    width: 120rpx;
+    height: 120rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     margin-bottom: 24rpx;
   }
 
@@ -480,9 +484,5 @@ const formatDate = (date: string): string => {
   color: white;
   font-size: 32rpx;
   font-weight: 500;
-
-  .iconfont {
-    font-size: 36rpx;
-  }
 }
 </style>

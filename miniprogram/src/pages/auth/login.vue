@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
 import { useUserStore } from '../../stores/user'
+import Icon from '../../components/common/Icon.vue'
 import { wechatLogin } from '../../api/auth'
 import { login, testLogin } from '../../api/user'
 import { isH5 } from "../../utils/env"
@@ -201,36 +202,21 @@ onUnmounted(() => {
 
 <template>
   <view class="login-container">
-    <!-- 动态背景 -->
-    <view class="bg-mesh">
-      <view class="mesh-gradient mesh-1"></view>
-      <view class="mesh-gradient mesh-2"></view>
-      <view class="mesh-gradient mesh-3"></view>
-      <view class="floating-shape shape-1"></view>
-      <view class="floating-shape shape-2"></view>
-      <view class="floating-shape shape-3"></view>
-    </view>
-
     <!-- 顶部品牌区 -->
-    <view class="hero-section">
+    <view class="hero">
       <view class="brand-badge">
-        <text class="badge-text">AI</text>
+        <Icon name="sparkles" :size="44" color="#fff" />
       </view>
-      <view class="hero-title">
-        <text class="title-line1">面试</text>
-        <text class="title-line2">更简单</text>
-      </view>
-      <text class="hero-tagline">AI 助力，每一次面试都更有底气</text>
+      <text class="brand-title">AI 面试指南</text>
+      <text class="brand-sub">多视角面试官 · 自适应难度 · 实时评分</text>
     </view>
 
     <!-- 登录卡片 -->
     <view class="login-card">
       <!-- 主登录按钮 -->
       <button class="primary-btn" :disabled="isLoading" @click="handleWechatLogin">
-        <view class="btn-content">
-          <text class="btn-text">{{ isLoading ? '登录中...' : '微信一键登录' }}</text>
-        </view>
-        <view class="btn-shine"></view>
+        <Icon name="message" :size="20" color="#fff" />
+        <text class="btn-text">{{ isLoading ? '登录中...' : '微信一键登录' }}</text>
       </button>
 
       <!-- 分割线 -->
@@ -240,7 +226,7 @@ onUnmounted(() => {
         <view class="divider-line"></view>
       </view>
 
-      <!-- 登录方式tabs -->
+      <!-- 登录方式 tabs -->
       <view class="login-tabs">
         <view
           class="tab-item"
@@ -300,12 +286,8 @@ onUnmounted(() => {
 
     <!-- 用户协议 -->
     <view class="agreement">
-      <view
-        class="agreement-check"
-        :class="{ checked: agreed }"
-        @click="agreed = !agreed"
-      >
-        <text v-if="agreed" class="check-icon">✓</text>
+      <view class="agreement-check" :class="{ checked: agreed }" @click="agreed = !agreed">
+        <Icon v-if="agreed" name="check" :size="14" color="#fff" />
       </view>
       <text class="agreement-text">
         我已阅读并同意
@@ -315,9 +297,9 @@ onUnmounted(() => {
       </text>
     </view>
 
-    <!-- 底部装饰 -->
-    <view class="bottom-decoration">
-      <text class="copyright">© 2026 AI面试指南</text>
+    <!-- 底部 -->
+    <view class="bottom">
+      <text class="copyright">© 2026 AI 面试指南</text>
     </view>
   </view>
 </template>
@@ -325,274 +307,84 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 @use '../../styles/variables.scss' as *;
 
-$bg: #f0f4ff;
-
 .login-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f0f4ff 0%, #e0e7ff 50%, #f5f3ff 100%);
+  background: $bg;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 100rpx 40rpx 60rpx;
-  position: relative;
-  overflow: hidden;
-}
-
-// 动态背景
-.bg-mesh {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
-}
-
-.mesh-gradient {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80rpx);
-  opacity: 0.6;
-}
-
-.mesh-1 {
-  width: 600rpx;
-  height: 600rpx;
-  background: linear-gradient(135deg, rgba($primary-light, 0.8) 0%, rgba($primary, 0.4) 100%);
-  top: -200rpx;
-  right: -150rpx;
-  animation: meshFloat 15s ease-in-out infinite;
-}
-
-.mesh-2 {
-  width: 500rpx;
-  height: 500rpx;
-  background: linear-gradient(135deg, rgba($accent, 0.6) 0%, rgba($primary-light, 0.3) 100%);
-  bottom: 100rpx;
-  left: -200rpx;
-  animation: meshFloat 12s ease-in-out infinite reverse;
-}
-
-.mesh-3 {
-  width: 300rpx;
-  height: 300rpx;
-  background: linear-gradient(135deg, rgba($primary, 0.4) 0%, rgba($accent, 0.2) 100%);
-  top: 40%;
-  right: -50rpx;
-  animation: meshFloat 18s ease-in-out infinite;
-}
-
-@keyframes meshFloat {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  25% {
-    transform: translate(30rpx, -30rpx) scale(1.05);
-  }
-  50% {
-    transform: translate(-20rpx, 20rpx) scale(0.95);
-  }
-  75% {
-    transform: translate(20rpx, 30rpx) scale(1.02);
-  }
-}
-
-.floating-shape {
-  position: absolute;
-  border-radius: 16rpx;
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10rpx);
-}
-
-.shape-1 {
-  width: 120rpx;
-  height: 120rpx;
-  top: 15%;
-  right: 15%;
-  transform: rotate(15deg);
-  animation: shapeFloat 8s ease-in-out infinite;
-}
-
-.shape-2 {
-  width: 80rpx;
-  height: 80rpx;
-  top: 60%;
-  left: 8%;
-  transform: rotate(-20deg);
-  animation: shapeFloat 10s ease-in-out infinite reverse;
-}
-
-.shape-3 {
-  width: 60rpx;
-  height: 60rpx;
-  top: 35%;
-  left: 12%;
-  border-radius: 50%;
-  animation: shapeFloat 12s ease-in-out infinite;
-}
-
-@keyframes shapeFloat {
-  0%, 100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-20rpx) rotate(10deg);
-  }
+  padding: calc(env(safe-area-inset-top, 0px) + 120rpx) 48rpx 60rpx;
 }
 
 // 顶部品牌区
-.hero-section {
-  position: relative;
-  z-index: 1;
+.hero {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 60rpx;
+  margin-bottom: 72rpx;
 }
 
 .brand-badge {
-  width: 100rpx;
-  height: 100rpx;
-  border-radius: 28rpx;
-  background: linear-gradient(135deg, $primary 0%, $accent 100%);
+  width: 128rpx;
+  height: 128rpx;
+  border-radius: 32rpx;
+  background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 32rpx;
-  box-shadow: 0 12rpx 40rpx rgba($primary, 0.35);
-  animation: badgePop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 12rpx 32rpx rgba($primary, 0.3);
 }
 
-@keyframes badgePop {
-  0% {
-    transform: scale(0);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.badge-text {
-  font-size: 36rpx;
-  font-weight: 800;
-  color: white;
-  letter-spacing: 2rpx;
-}
-
-.hero-title {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 16rpx;
-}
-
-.title-line1 {
-  font-size: 64rpx;
-  font-weight: 900;
-  color: $primary;
-  letter-spacing: 8rpx;
-  animation: slideUp 0.5s ease-out 0.2s both;
-}
-
-.title-line2 {
+.brand-title {
   font-size: 48rpx;
-  font-weight: 700;
-  background: linear-gradient(135deg, $primary 0%, $accent 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  letter-spacing: 12rpx;
-  animation: slideUp 0.5s ease-out 0.3s both;
+  font-weight: 800;
+  color: $text-primary;
+  letter-spacing: 2rpx;
+  margin-bottom: 12rpx;
 }
 
-@keyframes slideUp {
-  0% {
-    transform: translateY(30rpx);
-    opacity: 0;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.hero-tagline {
-  font-size: 26rpx;
-  color: $text-secondary;
-  animation: fadeIn 0.5s ease-out 0.4s both;
-}
-
-@keyframes fadeIn {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+.brand-sub {
+  font-size: 24rpx;
+  color: $text-muted;
+  letter-spacing: 1rpx;
 }
 
 // 登录卡片
 .login-card {
   width: 100%;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20rpx);
-  border-radius: 40rpx;
+  background: $card-bg;
+  border-radius: 32rpx;
   padding: 48rpx 40rpx;
-  box-shadow: 0 20rpx 60rpx rgba($primary, 0.12), 0 8rpx 24rpx rgba(0, 0, 0, 0.04);
-  border: 1rpx solid rgba(255, 255, 255, 0.5);
-  position: relative;
-  z-index: 1;
+  box-shadow: 0 8rpx 32rpx rgba(15, 23, 42, 0.06);
 }
 
-// 主登录按钮
+// 主登录按钮（微信绿）
 .primary-btn {
   width: 100%;
-  height: 100rpx;
+  height: 96rpx;
   background: linear-gradient(135deg, #07c160 0%, #06ad56 100%);
-  border-radius: 50rpx;
+  border-radius: 48rpx;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 12rpx;
   border: none;
-  box-shadow: 0 8rpx 32rpx rgba(12, 193, 96, 0.35);
-  position: relative;
-  overflow: hidden;
+  box-shadow: 0 8rpx 24rpx rgba(7, 193, 96, 0.3);
+
+  &::after {
+    border: none;
+  }
 
   &:active {
     transform: scale(0.98);
   }
 
-  &::after { border: none; }
-
-  &:disabled {
-    opacity: 0.7;
+  .btn-text {
+    font-size: 32rpx;
+    font-weight: 600;
+    color: #fff;
   }
-}
-
-.btn-content {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  z-index: 1;
-}
-
-.btn-text {
-  font-size: 34rpx;
-  color: white;
-  font-weight: 600;
-  letter-spacing: 2rpx;
-}
-
-.btn-shine {
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-  animation: shine 3s ease-in-out infinite;
-}
-
-@keyframes shine {
-  0% { left: -100%; }
-  50%, 100% { left: 100%; }
 }
 
 // 分割线
@@ -605,7 +397,7 @@ $bg: #f0f4ff;
 .divider-line {
   flex: 1;
   height: 1rpx;
-  background: linear-gradient(90deg, transparent, rgba($text-muted, 0.2), transparent);
+  background: #e2e8f0;
 }
 
 .divider-text {
@@ -614,95 +406,65 @@ $bg: #f0f4ff;
   color: $text-muted;
 }
 
-// 登录tabs
+// tabs
 .login-tabs {
   display: flex;
-  background: #f1f5f9;
-  border-radius: 16rpx;
-  padding: 6rpx;
+  gap: 16rpx;
   margin-bottom: 32rpx;
 }
 
 .tab-item {
   flex: 1;
-  height: 64rpx;
+  height: 80rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12rpx;
-  transition: all 0.3s ease;
-
-  text {
-    font-size: 28rpx;
-    color: $text-secondary;
-    font-weight: 500;
-  }
+  border-radius: 16rpx;
+  background: $bg;
+  font-size: 28rpx;
+  color: $text-secondary;
+  transition: all 0.2s;
 
   &.active {
-    background: white;
-    box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
-
-    text {
-      color: $primary;
-      font-weight: 600;
-    }
+    background: rgba($primary, 0.1);
+    color: $primary;
+    font-weight: 600;
   }
 }
 
 // 表单
 .form-section {
-  animation: fadeSlide 0.3s ease-out;
-}
-
-@keyframes fadeSlide {
-  0% {
-    opacity: 0;
-    transform: translateY(-10rpx);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  display: flex;
+  flex-direction: column;
 }
 
 .input-group {
   display: flex;
   flex-direction: column;
   gap: 24rpx;
+  margin-bottom: 40rpx;
 }
 
 .input-item {
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
 }
 
 .input-label {
   font-size: 26rpx;
   color: $text-secondary;
-  font-weight: 500;
-  padding-left: 8rpx;
+  margin-bottom: 12rpx;
 }
 
 .input-field {
   width: 100%;
   height: 88rpx;
-  background: white;
-  border: 2rpx solid #e2e8f0;
-  border-radius: 20rpx;
   padding: 0 24rpx;
-  font-size: 28rpx;
+  background: $bg;
+  border-radius: 16rpx;
+  font-size: 30rpx;
   color: $text-primary;
-  transition: all 0.3s ease;
-
-  &:focus {
-    border-color: $primary;
-    box-shadow: 0 0 0 4rpx rgba($primary, 0.1);
-  }
-
-  &::placeholder {
-    color: $text-muted;
-  }
+  box-sizing: border-box;
 }
 
 .code-row {
@@ -715,27 +477,19 @@ $bg: #f0f4ff;
 }
 
 .code-btn {
-  width: 180rpx;
+  flex-shrink: 0;
   height: 88rpx;
-  background: linear-gradient(135deg, $primary 0%, $accent 100%);
-  border-radius: 20rpx;
+  padding: 0 28rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-
-  text {
-    font-size: 26rpx;
-    color: white;
-    font-weight: 600;
-  }
+  background: rgba($primary, 0.1);
+  border-radius: 16rpx;
+  font-size: 26rpx;
+  color: $primary;
 
   &.disabled {
-    background: #e2e8f0;
-
-    text {
-      color: $text-muted;
-    }
+    opacity: 0.5;
   }
 }
 
@@ -743,76 +497,53 @@ $bg: #f0f4ff;
 .submit-btn {
   width: 100%;
   height: 96rpx;
-  background: linear-gradient(135deg, $primary 0%, $accent 100%);
+  background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
   border-radius: 48rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  margin-top: 32rpx;
-  box-shadow: 0 8rpx 32rpx rgba($primary, 0.3);
+  box-shadow: 0 8rpx 24rpx rgba($primary, 0.3);
+  color: #fff;
+  font-size: 32rpx;
+  font-weight: 600;
 
-  text {
-    font-size: 32rpx;
-    color: white;
-    font-weight: 700;
+  &::after {
+    border: none;
   }
 
   &:active {
     transform: scale(0.98);
   }
-
-  &:disabled {
-    opacity: 0.6;
-  }
-
-  &::after { border: none; }
 }
 
 // 用户协议
 .agreement {
-  position: relative;
-  z-index: 1;
   display: flex;
-  align-items: flex-start;
-  gap: 12rpx;
-  margin-top: 32rpx;
-  padding: 0 20rpx;
+  align-items: center;
+  margin-top: 40rpx;
 }
 
 .agreement-check {
-  width: 32rpx;
-  height: 32rpx;
+  width: 36rpx;
+  height: 36rpx;
   border-radius: 50%;
-  background: rgba($primary, 0.1);
-  border: 2rpx solid $primary;
+  border: 2rpx solid #cbd5e1;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-right: 16rpx;
   flex-shrink: 0;
-  margin-top: 4rpx;
 
-  // N8：选中态视觉反馈（实心 + 反白 ✓），未选中保持空圈
   &.checked {
     background: $primary;
+    border-color: $primary;
   }
 }
 
-.check-icon {
-  font-size: 20rpx;
-  color: $primary;
-  font-weight: 700;
-}
-
-// N8：选中态背景下 ✓ 改白色，保证可见
-.agreement-check.checked .check-icon {
-  color: white;
-}
-
 .agreement-text {
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: $text-muted;
-  line-height: 1.6;
 }
 
 .link {
@@ -820,15 +551,13 @@ $bg: #f0f4ff;
 }
 
 // 底部
-.bottom-decoration {
-  position: relative;
-  z-index: 1;
+.bottom {
   margin-top: auto;
   padding-top: 60rpx;
 }
 
 .copyright {
-  font-size: 20rpx;
+  font-size: 22rpx;
   color: $text-muted;
 }
 </style>

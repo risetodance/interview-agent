@@ -381,209 +381,177 @@ const getStatColor = (index: number): string => {
   return colors[index % colors.length]
 }
 
+// 知识库卡片图标颜色（按向量化状态）
+const statusIconColor = (status: VectorStatus): string => {
+  return statusMap[status]?.color || '#0ea5e9'
+}
+
 onMounted(() => {
   loadData()
 })
 </script>
 
+
 <template>
-  <view class="knowledge-list-container">
-    <!-- 顶部搜索和标题 -->
-    <view class="header">
-      <view class="header-content">
-        <view class="header-top">
-          <text class="page-title">知识库管理</text>
+  <view class="kb-container">
+    <!-- 顶部品牌区：标题 + 统计数字 + 搜索 -->
+    <view class="kb-header">
+      <view class="header-row">
+        <view class="header-left">
+          <text class="page-title">知识库</text>
+          <view v-if="stats" class="header-stats">
+            <text class="hs-num">{{ stats.totalCount }}</text>
+            <text class="hs-label">个库</text>
+            <text class="hs-sep">·</text>
+            <text class="hs-num">{{ stats.totalAccessCount }}</text>
+            <text class="hs-label">次访问</text>
+            <text class="hs-sep">·</text>
+            <text class="hs-num">{{ formatFileSize(stats.totalStorageSize) }}</text>
+          </view>
         </view>
-        <view class="search-bar">
-          <Icon name="search" :size="18" color="rgba(255,255,255,0.75)" />
-          <input
-            v-model="searchKeyword"
-            placeholder="搜索知识库..."
-            @confirm="handleSearch"
-          />
-          <Icon v-if="searchKeyword" name="x" :size="16" color="rgba(255,255,255,0.75)" @click="searchKeyword = ''; handleSearch()" />
+      </view>
+      <view class="search-bar">
+        <view class="search-icon-wrap"><Icon name="search" :size="16" color="#94a3b8" /></view>
+        <input
+          v-model="searchKeyword"
+          class="search-input"
+          placeholder="搜索知识库"
+          placeholder-class="search-ph"
+          @confirm="handleSearch"
+        />
+        <view v-if="searchKeyword" class="search-clear" @click="searchKeyword = ''; handleSearch()">
+          <Icon name="x" :size="14" color="#94a3b8" />
         </view>
       </view>
     </view>
 
-    <!-- 统计卡片 -->
-    <view v-if="stats" class="stats-section">
-      <view class="stat-card">
-        <view class="stat-icon" :style="{ background: getStatColor(0) }">
-          <Icon name="database" :size="32" color="#fff" />
-        </view>
-        <view class="stat-info">
-          <text class="stat-value">{{ stats.totalCount }}</text>
-          <text class="stat-label">知识库总数</text>
-        </view>
-      </view>
-      <view class="stat-card">
-        <view class="stat-icon" :style="{ background: getStatColor(1) }">
-          <Icon name="eye" :size="32" color="#fff" />
-        </view>
-        <view class="stat-info">
-          <text class="stat-value">{{ stats.totalAccessCount }}</text>
-          <text class="stat-label">总访问次数</text>
-        </view>
-      </view>
-      <view class="stat-card">
-        <view class="stat-icon" :style="{ background: getStatColor(2) }">
-          <Icon name="harddrive" :size="32" color="#fff" />
-        </view>
-        <view class="stat-info">
-          <text class="stat-value">{{ formatFileSize(stats.totalStorageSize) }}</text>
-          <text class="stat-label">总存储大小</text>
-        </view>
-      </view>
-    </view>
-
-    <!-- 筛选栏 -->
-    <view class="filter-section">
+    <!-- 筛选栏：紧凑的胶囊筛选 -->
+    <view class="filter-bar">
       <picker mode="selector" :range="['按时间', '按大小', '按访问']" :value="['time', 'size', 'access'].indexOf(sortBy)" @change="handleSortChange">
-        <view class="filter-item">
-          <text class="filter-label">排序</text>
-          <text class="filter-value">
-            {{ { time: '按时间', size: '按大小', access: '按访问' }[sortBy] }}
-          </text>
-          <Icon name="chevron-down" :size="14" color="#94a3b8" />
+        <view class="chip">
+          <Icon name="filter" :size="12" color="#64748b" />
+          <text class="chip-text">{{ { time: '按时间', size: '按大小', access: '按访问' }[sortBy] }}</text>
+          <Icon name="chevron-down" :size="12" color="#94a3b8" />
         </view>
       </picker>
 
       <picker mode="selector" :range="['全部分类', ...categories]" :value="selectedCategory ? ['', ...categories].indexOf(selectedCategory) : 0" @change="handleCategoryChange">
-        <view class="filter-item">
-          <text class="filter-label">分类</text>
-          <text class="filter-value">
-            {{ selectedCategory || '全部分类' }}
-          </text>
-          <Icon name="chevron-down" :size="14" color="#94a3b8" />
+        <view class="chip" :class="{ active: !!selectedCategory }">
+          <Icon name="tag" :size="12" color="#64748b" />
+          <text class="chip-text">{{ selectedCategory || '全部分类' }}</text>
+          <Icon name="chevron-down" :size="12" color="#94a3b8" />
         </view>
       </picker>
     </view>
 
     <!-- 知识库列表 -->
     <scroll-view
-      class="knowledge-list"
+      class="kb-list"
       scroll-y
       :refresher-enabled="true"
       :refresher-triggered="refreshing"
       @refresherrefresh="onRefresh"
     >
       <view v-if="knowledgebaseList.length === 0 && !loading" class="empty">
-        <Icon name="folder" :size="80" color="#e2e8f0" />
+        <view class="empty-icon"><Icon name="folder" :size="56" color="#cbd5e1" /></view>
         <text class="empty-text">暂无知识库</text>
-        <text class="empty-desc">点击下方按钮创建您的第一个知识库</text>
+        <text class="empty-desc">点击右下角按钮创建第一个知识库</text>
       </view>
 
       <view
         v-for="item in knowledgebaseList"
         :key="item.id"
-        class="knowledge-card"
+        class="kb-card"
+        :class="{ selected: selectedKbIds.has(item.id) }"
+        @click="toggleKbSelection(item.id)"
       >
-        <!-- 选择框 -->
-        <view class="card-checkbox" @click.stop="toggleKbSelection(item.id)">
-          <Icon
-            :name="selectedKbIds.has(item.id) ? 'check-square' : 'square'"
-            :size="22"
-            :color="selectedKbIds.has(item.id) ? '#3B82F6' : '#94a3b8'"
-          />
+        <!-- 顶部：图标 + 名称 + 状态 + 操作 -->
+        <view class="card-top">
+          <view class="card-icon" :class="'status-' + item.vectorStatus?.toLowerCase()">
+            <Icon name="file-text" :size="22" :color="statusIconColor(item.vectorStatus)" />
+          </view>
+          <view class="card-info">
+            <text class="card-name">{{ item.name }}</text>
+            <text class="card-filename">{{ item.originalFilename }}</text>
+          </view>
+          <view
+            class="status-pill"
+            :style="{ background: statusMap[item.vectorStatus]?.bgColor, color: statusMap[item.vectorStatus]?.color }"
+          >
+            {{ statusMap[item.vectorStatus]?.text }}
+          </view>
         </view>
 
-        <!-- 卡片主体 -->
-        <view class="card-main" @click="toggleKbSelection(item.id)">
-          <view class="card-header">
-            <view class="card-icon">
-              <Icon name="file-text" :size="32" color="#fff" />
-            </view>
-            <view class="card-info">
-              <text class="card-name">{{ item.name }}</text>
-              <text class="card-filename">{{ item.originalFilename }}</text>
-            </view>
-            <view
-              class="status-badge"
-              :style="{ background: statusMap[item.vectorStatus]?.bgColor, color: statusMap[item.vectorStatus]?.color }"
-            >
-              {{ statusMap[item.vectorStatus]?.text }}
-            </view>
-          </view>
+        <!-- meta 行：大小 · 访问 · 分块 · 时间，单行小字 -->
+        <view class="card-meta">
+          <text class="meta-text">{{ formatFileSize(item.fileSize) }}</text>
+          <text class="meta-dot">·</text>
+          <text class="meta-text">{{ item.accessCount }} 次访问</text>
+          <text class="meta-dot">·</text>
+          <text class="meta-text">{{ item.chunkCount }} 分块</text>
+          <text class="meta-dot">·</text>
+          <text class="meta-text">{{ formatTimeAgo(item.uploadedAt) }}</text>
+        </view>
 
-          <view class="card-meta">
-            <view class="meta-item">
-              <text class="meta-label">大小</text>
-              <text class="meta-value">{{ formatFileSize(item.fileSize) }}</text>
-            </view>
-            <view class="meta-item">
-              <text class="meta-label">访问</text>
-              <text class="meta-value">{{ item.accessCount }}</text>
-            </view>
-            <view class="meta-item">
-              <text class="meta-label">分块</text>
-              <text class="meta-value">{{ item.chunkCount }}</text>
-            </view>
-          </view>
-
+        <!-- 分类 + 操作 -->
+        <view class="card-bottom">
           <!-- 分类编辑 -->
-          <view class="card-category">
+          <view class="category-area" @click.stop>
             <template v-if="editingCategoryId === item.id">
               <input
                 v-model="editingCategoryValue"
                 class="category-input"
-                placeholder="输入分类名称"
+                placeholder="分类名"
                 @click.stop
               />
-              <view class="category-actions">
-                <text class="category-btn confirm" @click.stop="saveCategory(item.id)">✓</text>
-                <text class="category-btn cancel" @click.stop="cancelEditCategory">✕</text>
-              </view>
+              <view class="cat-act confirm" @click.stop="saveCategory(item.id)"><Icon name="check" :size="12" color="#fff" /></view>
+              <view class="cat-act cancel" @click.stop="cancelEditCategory"><Icon name="x" :size="12" color="#64748b" /></view>
             </template>
             <template v-else>
-              <text class="category-tag" :class="{ empty: !item.category }" @click.stop="startEditCategory(item)">
+              <text class="cat-tag" :class="{ empty: !item.category }" @click.stop="startEditCategory(item)">
+                <Icon name="tag" :size="11" :color="item.category ? '#0ea5e9' : '#94a3b8'" />
                 {{ item.category || '未分类' }}
               </text>
             </template>
           </view>
-        </view>
 
-        <!-- 操作按钮 -->
-        <view class="card-actions" @click.stop>
-          <view class="action-btn" @click="handleDownload(item)">
-            <text>下载</text>
+          <!-- 操作图标 -->
+          <view class="card-actions" @click.stop>
+            <view class="icon-action" @click="handleDownload(item)">
+              <Icon name="download" :size="16" color="#64748b" />
+            </view>
+            <view v-if="item.vectorStatus === 'FAILED'" class="icon-action" @click="handleRevectorize(item)">
+              <Icon name="rotate-cw" :size="16" color="#f59e0b" />
+            </view>
+            <view class="icon-action danger" @click.stop="handleDelete(item)">
+              <Icon name="trash" :size="16" color="#ef4444" />
+            </view>
           </view>
-          <view v-if="item.vectorStatus === 'FAILED'" class="action-btn" @click="handleRevectorize(item)">
-            <text>重新向量化</text>
-          </view>
-          <view class="action-btn danger" @click.stop="handleDelete(item)">
-            <text>删除</text>
-          </view>
-        </view>
-
-        <view class="card-footer">
-          <text class="update-time">{{ formatTimeAgo(item.uploadedAt) }}</text>
         </view>
       </view>
 
-      <!-- 加载状态 -->
       <view v-if="loading" class="loading-more">
         <text>加载中...</text>
       </view>
     </scroll-view>
 
-    <!-- 创建按钮 -->
-    <view class="create-btn" @click="showCreateModal = true">
+    <!-- 悬浮创建按钮（FAB） -->
+    <view class="fab" @click="showCreateModal = true">
       <Icon name="plus" :size="24" color="#fff" />
-      <text>创建知识库</text>
     </view>
 
     <!-- 多选底部栏 -->
     <view v-if="showSelectionBar" class="selection-bar">
-      <view class="selection-info">
-        <text class="selection-count">已选择 {{ selectedKbIds.size }} 个知识库</text>
-        <text class="selection-clear" @click="clearSelection">清除</text>
+      <view class="sel-info">
+        <text class="sel-count">已选 {{ selectedKbIds.size }} 个</text>
+        <text class="sel-clear" @click="clearSelection">清除</text>
       </view>
-      <view class="selection-actions">
-        <view class="selection-btn secondary" @click="toggleSelectAll">
+      <view class="sel-actions">
+        <view class="sel-btn ghost" @click="toggleSelectAll">
           <text>{{ selectedKbIds.size === knowledgebaseList.length ? '取消全选' : '全选' }}</text>
         </view>
-        <view class="selection-btn primary" @click="goToChat">
+        <view class="sel-btn primary" @click="goToChat">
+          <Icon name="message" :size="14" color="#fff" />
           <text>开始问答</text>
         </view>
       </view>
@@ -594,7 +562,7 @@ onMounted(() => {
       <view class="modal-content" @click.stop>
         <view class="modal-header">
           <text class="modal-title">创建知识库</text>
-          <text class="modal-close" @click="cancelCreate">✕</text>
+          <view class="modal-close" @click="cancelCreate"><Icon name="x" :size="18" color="#94a3b8" /></view>
         </view>
 
         <view class="modal-body">
@@ -604,6 +572,7 @@ onMounted(() => {
               v-model="kbName"
               class="form-input"
               placeholder="请输入知识库名称"
+              placeholder-class="form-ph"
             />
           </view>
 
@@ -613,14 +582,16 @@ onMounted(() => {
               v-model="kbCategory"
               class="form-input"
               placeholder="请输入分类名称"
+              placeholder-class="form-ph"
             />
           </view>
 
           <view class="form-item">
             <text class="form-label">上传文档 *</text>
             <view class="file-upload" @click="chooseFile">
+              <view class="fu-icon"><Icon name="upload" :size="20" color="#0ea5e9" /></view>
               <text v-if="selectedFileName" class="file-name">{{ selectedFileName }}</text>
-              <text v-else class="file-placeholder">点击选择文件（PDF/DOC/DOCX/TXT/MD）</text>
+              <text v-else class="file-ph">点击选择文件（PDF/DOC/DOCX/TXT/MD）</text>
             </view>
           </view>
         </view>
@@ -636,12 +607,12 @@ onMounted(() => {
 
     <!-- 删除确认弹窗 -->
     <view v-if="showDeleteModal" class="modal-mask" @click="showDeleteModal = false">
-      <view class="modal-content delete-modal" @click.stop>
+      <view class="modal-content" @click.stop>
         <view class="modal-header">
           <text class="modal-title">确认删除</text>
         </view>
         <view class="modal-body">
-          <text class="delete-message">确定要删除知识库「{{ deleteItem?.name }}」吗？此操作不可恢复。</text>
+          <text class="delete-msg">确定要删除「{{ deleteItem?.name }}」吗？此操作不可恢复。</text>
         </view>
         <view class="modal-footer">
           <view class="btn-cancel" @click="showDeleteModal = false">取消</view>
@@ -654,228 +625,190 @@ onMounted(() => {
   </view>
 </template>
 
-<style lang="scss">
+<style lang="scss" scoped>
 @use '../../styles/variables.scss' as *;
 
-.knowledge-list-container {
+.kb-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  background-color: $bg;
+  height: 100vh;
+  background: $bg;
 }
 
-.header {
-  background: linear-gradient(135deg, $primary 0%, $primary-dark 50%, $primary-light 100%);
-  padding: 48rpx 40rpx 80rpx;
-  position: relative;
-  overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    width: 300rpx;
-    height: 300rpx;
-    background: rgba(255, 255, 255, 0.06);
-    border-radius: 50%;
-    top: -100rpx;
-    right: -80rpx;
-  }
+// ===== 顶部品牌区 =====
+.kb-header {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
+  padding: calc(env(safe-area-inset-top, 0px) + 48rpx) 32rpx 32rpx;
 }
 
-.header-content {
-  position: relative;
-  z-index: 1;
-}
-
-.header-top {
+.header-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  margin-bottom: 32rpx;
+  margin-bottom: 28rpx;
 }
 
 .page-title {
-  font-size: 40rpx;
+  font-size: 44rpx;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 1rpx;
+}
+
+.header-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 6rpx;
+  margin-top: 12rpx;
+  flex-wrap: wrap;
+}
+
+.hs-num {
+  font-size: 24rpx;
   font-weight: 700;
   color: #fff;
+}
+
+.hs-label {
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.hs-sep {
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0 4rpx;
 }
 
 .search-bar {
   display: flex;
   align-items: center;
-  padding: 24rpx 32rpx;
-  background: rgba(255, 255, 255, 0.18);
-  border-radius: 40rpx;
-  backdrop-filter: blur(12rpx);
-  border: 1rpx solid rgba(255, 255, 255, 0.12);
-
-  .icon-search {
-    font-size: 32rpx;
-    color: rgba(255, 255, 255, 0.75);
-    margin-right: 16rpx;
-  }
-
-  input {
-    flex: 1;
-    font-size: 28rpx;
-    color: #fff;
-    &::placeholder {
-      color: rgba(255, 255, 255, 0.6);
-    }
-  }
-
-  .clear-btn {
-    font-size: 28rpx;
-    color: rgba(255, 255, 255, 0.75);
-    padding: 8rpx;
-  }
-}
-
-// 统计卡片
-.stats-section {
-  display: flex;
-  gap: 24rpx;
-  padding: 0 32rpx;
-  margin-top: -60rpx;
-  margin-bottom: 32rpx;
-  position: relative;
-  z-index: 10;
-}
-
-.stat-card {
-  flex: 1;
   background: #fff;
-  border-radius: 20rpx;
-  padding: 24rpx;
+  border-radius: 16rpx;
+  padding: 0 20rpx;
+  height: 76rpx;
+}
+
+.search-icon-wrap {
   display: flex;
   align-items: center;
-  gap: 20rpx;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
+  margin-right: 12rpx;
 }
 
-.stat-icon {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 20rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36rpx;
-  color: #fff;
-}
-
-.stat-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.stat-value {
-  font-size: 32rpx;
-  font-weight: 700;
+.search-input {
+  flex: 1;
+  font-size: 28rpx;
   color: $text-primary;
 }
 
-.stat-label {
-  font-size: 22rpx;
+.search-ph {
   color: $text-muted;
-  margin-top: 4rpx;
 }
 
-// 筛选栏
-.filter-section {
-  display: flex;
-  padding: 0 32rpx;
-  margin-bottom: 24rpx;
-  gap: 24rpx;
-}
-
-.filter-item {
+.search-clear {
+  padding: 8rpx;
   display: flex;
   align-items: center;
-  background: #fff;
-  padding: 20rpx 28rpx;
-  border-radius: 16rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
 
-  .filter-label {
-    font-size: 24rpx;
-    color: $text-muted;
-    margin-right: 12rpx;
-  }
+// ===== 筛选栏 =====
+.filter-bar {
+  flex-shrink: 0;
+  display: flex;
+  gap: 16rpx;
+  padding: 24rpx 32rpx 8rpx;
+}
 
-  .filter-value {
-    font-size: 26rpx;
-    color: $text-primary;
-    font-weight: 500;
-  }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6rpx;
+  background: $card-bg;
+  border-radius: 999rpx;
+  padding: 12rpx 24rpx;
+  box-shadow: 0 1rpx 8rpx rgba(15, 23, 42, 0.04);
 
-  .filter-arrow {
-    font-size: 20rpx;
-    color: $text-muted;
-    margin-left: 12rpx;
+  &.active {
+    background: rgba($primary, 0.1);
   }
 }
 
-// 知识库列表
-.knowledge-list {
+.chip-text {
+  font-size: 24rpx;
+  color: $text-secondary;
+  font-weight: 500;
+}
+
+// ===== 列表 =====
+.kb-list {
   flex: 1;
-  padding: 0 32rpx;
+  padding: 16rpx 32rpx 32rpx;
 }
 
 .empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 120rpx 0;
-
-  :deep(.icon) {
-    margin-bottom: 32rpx;
-  }
-
-  .empty-text {
-    font-size: 32rpx;
-    font-weight: 600;
-    color: $text-secondary;
-    margin-bottom: 12rpx;
-  }
-
-  .empty-desc {
-    font-size: 26rpx;
-    color: $text-muted;
-  }
+  padding: 140rpx 0;
 }
 
-.knowledge-card {
-  background: $card-bg;
-  border-radius: 24rpx;
-  padding: 28rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
-}
-
-.card-main {
-  margin-bottom: 20rpx;
-}
-
-.card-header {
-  display: flex;
-  align-items: flex-start;
-  margin-bottom: 24rpx;
-}
-
-.card-icon {
-  width: 88rpx;
-  height: 88rpx;
-  border-radius: 20rpx;
-  background: linear-gradient(135deg, $warning, #fbbf24);
+.empty-icon {
+  width: 112rpx;
+  height: 112rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 40rpx;
-  color: #fff;
-  margin-right: 20rpx;
+  margin-bottom: 24rpx;
+}
+
+.empty-text {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: $text-secondary;
+  margin-bottom: 8rpx;
+}
+
+.empty-desc {
+  font-size: 24rpx;
+  color: $text-muted;
+}
+
+// ===== 知识库卡片 =====
+.kb-card {
+  background: $card-bg;
+  border-radius: 20rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(15, 23, 42, 0.04);
+  border: 2rpx solid transparent;
+  transition: border-color 0.15s;
+
+  &.selected {
+    border-color: $primary;
+    background: rgba($primary, 0.02);
+  }
+}
+
+.card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
+.card-icon {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 14rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  background: #f0f9ff;
+
+  &.status-failed { background: #fef2f2; }
+  &.status-processing { background: #eff6ff; }
+  &.status-pending { background: #fffbeb; }
 }
 
 .card-info {
@@ -888,112 +821,99 @@ onMounted(() => {
   font-size: 30rpx;
   font-weight: 600;
   color: $text-primary;
-  margin-bottom: 6rpx;
+  margin-bottom: 4rpx;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .card-filename {
   display: block;
-  font-size: 24rpx;
+  font-size: 22rpx;
   color: $text-muted;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.status-badge {
-  padding: 8rpx 16rpx;
-  border-radius: 8rpx;
-  font-size: 22rpx;
-  font-weight: 500;
+.status-pill {
   flex-shrink: 0;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  font-size: 20rpx;
+  font-weight: 500;
 }
 
 .card-meta {
   display: flex;
-  padding: 20rpx 0;
-  border-top: 1rpx solid #f1f5f9;
-  border-bottom: 1rpx solid #f1f5f9;
-}
-
-.meta-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
   align-items: center;
-
-  &:first-child {
-    border-right: 1rpx solid #f1f5f9;
-  }
-
-  &:last-child {
-    border-left: 1rpx solid #f1f5f9;
-  }
+  flex-wrap: wrap;
+  gap: 4rpx;
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid #f1f5f9;
 }
 
-.meta-label {
+.meta-text {
   font-size: 22rpx;
   color: $text-muted;
-  margin-bottom: 6rpx;
 }
 
-.meta-value {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: $text-primary;
+.meta-dot {
+  font-size: 20rpx;
+  color: #cbd5e1;
+  margin: 0 6rpx;
 }
 
-.card-category {
+.card-bottom {
   display: flex;
   align-items: center;
-  margin-top: 20rpx;
-  gap: 16rpx;
+  justify-content: space-between;
+  margin-top: 16rpx;
+  gap: 12rpx;
+}
+
+.category-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
 }
 
 .category-input {
   flex: 1;
-  height: 64rpx;
-  background: #f8fafc;
+  height: 52rpx;
+  background: $bg;
   border: 2rpx solid $primary;
-  border-radius: 12rpx;
-  padding: 0 20rpx;
-  font-size: 26rpx;
+  border-radius: 10rpx;
+  padding: 0 16rpx;
+  font-size: 24rpx;
+  min-width: 0;
 }
 
-.category-actions {
-  display: flex;
-  gap: 12rpx;
-}
-
-.category-btn {
-  width: 56rpx;
-  height: 56rpx;
-  border-radius: 12rpx;
+.cat-act {
+  width: 52rpx;
+  height: 52rpx;
+  border-radius: 10rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28rpx;
+  flex-shrink: 0;
 
-  &.confirm {
-    background: $success;
-    color: #fff;
-  }
-
-  &.cancel {
-    background: #f1f5f9;
-    color: $text-muted;
-  }
+  &.confirm { background: $primary; }
+  &.cancel { background: #f1f5f9; }
 }
 
-.category-tag {
-  display: inline-block;
-  padding: 8rpx 20rpx;
+.cat-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6rpx;
+  padding: 6rpx 16rpx;
   background: rgba($primary, 0.08);
   color: $primary;
-  border-radius: 8rpx;
-  font-size: 24rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
 
   &.empty {
     background: #f1f5f9;
@@ -1003,70 +923,110 @@ onMounted(() => {
 
 .card-actions {
   display: flex;
-  gap: 16rpx;
-  padding-top: 20rpx;
-  border-top: 1rpx solid #f1f5f9;
+  align-items: center;
+  gap: 8rpx;
+  flex-shrink: 0;
 }
 
-.action-btn {
-  flex: 1;
-  height: 64rpx;
+.icon-action {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 12rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f8fafc;
-  border-radius: 12rpx;
-  font-size: 24rpx;
-  color: $text-secondary;
+  background: $bg;
 
-  &.danger {
-    background: rgba($danger, 0.08);
-    color: $danger;
+  &:active {
+    background: #e2e8f0;
   }
-}
-
-.card-footer {
-  margin-top: 16rpx;
-}
-
-.update-time {
-  font-size: 22rpx;
-  color: $text-muted;
 }
 
 .loading-more {
   text-align: center;
-  padding: 32rpx;
-  font-size: 26rpx;
+  padding: 24rpx;
+  font-size: 24rpx;
   color: $text-muted;
 }
 
-// 创建按钮
-.create-btn {
+// ===== FAB =====
+.fab {
   position: fixed;
-  bottom: 60rpx;
-  left: 50%;
-  transform: translateX(-50%);
+  right: 40rpx;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 48rpx);
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12rpx;
-  width: 280rpx;
-  height: 88rpx;
-  background: linear-gradient(135deg, $primary, $primary-light);
-  border-radius: 44rpx;
-  box-shadow: 0 8rpx 32rpx rgba($primary, 0.35);
-  color: white;
-  font-size: 30rpx;
-  font-weight: 600;
+  box-shadow: 0 8rpx 24rpx rgba($primary, 0.4);
+  z-index: 100;
 
-  .icon-add {
-    font-size: 36rpx;
-    font-weight: 700;
+  &:active {
+    transform: scale(0.95);
   }
 }
 
-// 弹窗样式
+// ===== 多选栏 =====
+.selection-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 20rpx 32rpx calc(env(safe-area-inset-bottom, 0px) + 20rpx);
+  background: $card-bg;
+  box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 99;
+}
+
+.sel-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.sel-count {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.sel-clear {
+  font-size: 22rpx;
+  color: $text-muted;
+  margin-top: 2rpx;
+}
+
+.sel-actions {
+  display: flex;
+  gap: 16rpx;
+}
+
+.sel-btn {
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+  padding: 16rpx 28rpx;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  font-weight: 500;
+
+  &.ghost {
+    background: $bg;
+    color: $text-secondary;
+  }
+
+  &.primary {
+    background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
+    color: #fff;
+  }
+}
+
+// ===== 弹窗 =====
 .modal-mask {
   position: fixed;
   inset: 0;
@@ -1074,51 +1034,39 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 200;
+  padding: 48rpx;
 }
 
 .modal-content {
-  width: 600rpx;
-  background: white;
+  width: 100%;
+  max-width: 600rpx;
+  background: $card-bg;
   border-radius: 24rpx;
   overflow: hidden;
-  box-shadow: 0 20rpx 60rpx rgba(0, 0, 0, 0.2);
-
-  &.delete-modal {
-    .modal-body {
-      padding: 40rpx 32rpx;
-    }
-  }
 }
 
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 32rpx;
-  border-bottom: 1rpx solid #f0f0f0;
+  padding: 32rpx 32rpx 16rpx;
 }
 
 .modal-title {
   font-size: 32rpx;
-  font-weight: 600;
+  font-weight: 700;
   color: $text-primary;
 }
 
 .modal-close {
-  font-size: 32rpx;
-  color: $text-muted;
   padding: 8rpx;
+  display: flex;
+  align-items: center;
 }
 
 .modal-body {
-  padding: 32rpx;
-}
-
-.delete-message {
-  font-size: 28rpx;
-  color: $text-secondary;
-  line-height: 1.6;
+  padding: 16rpx 32rpx;
 }
 
 .form-item {
@@ -1127,173 +1075,97 @@ onMounted(() => {
 
 .form-label {
   display: block;
-  font-size: 26rpx;
+  font-size: 24rpx;
   color: $text-secondary;
   margin-bottom: 12rpx;
-  font-weight: 500;
 }
 
 .form-input {
   width: 100%;
   height: 80rpx;
-  background: #f8fafc;
-  border: 2rpx solid #e2e8f0;
-  border-radius: 16rpx;
   padding: 0 24rpx;
+  background: $bg;
+  border-radius: 12rpx;
   font-size: 28rpx;
   color: $text-primary;
   box-sizing: border-box;
+}
 
-  &:focus {
-    border-color: $primary;
-    background: white;
-  }
+.form-ph {
+  color: $text-muted;
 }
 
 .file-upload {
   width: 100%;
-  height: 160rpx;
-  background: #f8fafc;
+  min-height: 80rpx;
+  padding: 20rpx 24rpx;
+  background: $bg;
   border: 2rpx dashed #cbd5e1;
-  border-radius: 16rpx;
+  border-radius: 12rpx;
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-direction: column;
   gap: 12rpx;
+  box-sizing: border-box;
+}
+
+.fu-icon {
+  display: flex;
+  align-items: center;
 }
 
 .file-name {
   font-size: 26rpx;
-  color: $primary;
-  font-weight: 500;
-  text-align: center;
-  padding: 0 20rpx;
-  word-break: break-all;
+  color: $text-primary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
 }
 
-.file-placeholder {
-  font-size: 24rpx;
+.file-ph {
+  font-size: 26rpx;
   color: $text-muted;
-  text-align: center;
+}
+
+.delete-msg {
+  font-size: 28rpx;
+  color: $text-secondary;
+  line-height: 1.6;
 }
 
 .modal-footer {
   display: flex;
-  border-top: 1rpx solid #f0f0f0;
+  gap: 16rpx;
+  padding: 24rpx 32rpx 32rpx;
 }
 
 .btn-cancel,
 .btn-confirm {
   flex: 1;
-  height: 96rpx;
+  height: 84rpx;
+  border-radius: 12rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 30rpx;
+  font-size: 28rpx;
   font-weight: 500;
 }
 
 .btn-cancel {
+  background: $bg;
   color: $text-secondary;
-  border-right: 1rpx solid #f0f0f0;
 }
 
 .btn-confirm {
-  color: $primary;
-  font-weight: 600;
+  background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
+  color: #fff;
 
   &.danger {
-    color: $danger;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   }
 
   &.loading {
-    opacity: 0.6;
-  }
-}
-
-// 选择框样式
-.card-checkbox {
-  position: absolute;
-  left: 32rpx;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
-  padding: 16rpx 0;
-}
-
-// 知识库卡片（多选模式）
-.knowledge-card {
-  position: relative;
-  padding-left: 80rpx;
-}
-
-// 多选底部栏
-.selection-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: #fff;
-  padding: 24rpx 32rpx;
-  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0, 0.08);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.selection-info {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-}
-
-.selection-count {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: $text-primary;
-}
-
-.selection-clear {
-  font-size: 26rpx;
-  color: $text-muted;
-  padding: 8rpx 16rpx;
-}
-
-.selection-actions {
-  display: flex;
-  gap: 16rpx;
-}
-
-.selection-btn {
-  height: 72rpx;
-  padding: 0 32rpx;
-  border-radius: 36rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28rpx;
-  font-weight: 500;
-
-  &.secondary {
-    background: #f1f5f9;
-    color: $text-secondary;
-  }
-
-  &.primary {
-    background: linear-gradient(135deg, $primary, $primary-light);
-    color: #fff;
-    box-shadow: 0 4rpx 16rpx rgba($primary, 0.3);
-  }
-}
-
-// 卡片选中状态
-.knowledge-card.selected {
-  .card-main {
-    background: rgba($primary, 0.04);
-    border-color: $primary;
+    opacity: 0.7;
   }
 }
 </style>

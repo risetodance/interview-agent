@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import Icon from '../../components/common/Icon.vue'
 import { uploadResume, reanalyzeResume, type UploadResumeResult } from '../../api/resume'
 import { apiBaseUrl } from '../../utils/env'
 
@@ -252,7 +253,7 @@ const goBack = () => {
         @click="chooseFile"
       >
         <view class="upload-icon">
-          <text class="iconfont">&#xe60d;</text>
+          <Icon name="upload" :size="56" color="#0ea5e9" />
         </view>
         <text class="upload-text">点击选择简历文件</text>
         <text class="upload-hint">支持 PDF、DOC、DOCX 格式，最大 10MB</text>
@@ -262,7 +263,7 @@ const goBack = () => {
       <view v-else class="file-card">
         <view class="file-info">
           <view class="file-icon" :class="selectedFile.type.toLowerCase()">
-            <text class="iconfont">&#xe614;</text>
+            <Icon name="file-text" :size="28" color="#0ea5e9" />
           </view>
           <view class="file-detail">
             <text class="file-name">{{ selectedFile.name }}</text>
@@ -301,7 +302,7 @@ const goBack = () => {
     <!-- 上传成功 -->
     <view v-if="uploadStatus === 'success'" class="success-section">
       <view class="success-icon">
-        <text class="iconfont">&#xe617;</text>
+        <Icon name="check-circle" :size="64" color="#22c55e" />
       </view>
       <text class="success-text">上传成功！</text>
       <text class="success-hint">正在跳转到简历详情...</text>
@@ -310,7 +311,7 @@ const goBack = () => {
     <!-- 上传错误 -->
     <view v-if="uploadStatus === 'error'" class="error-section">
       <view class="error-icon">
-        <text class="iconfont">&#xe616;</text>
+        <Icon name="x-circle" :size="64" color="#ef4444" />
       </view>
       <text class="error-text">上传失败</text>
       <text class="error-hint">{{ errorMessage }}</text>

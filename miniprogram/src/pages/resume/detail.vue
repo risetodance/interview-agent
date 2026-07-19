@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import Icon from '../../components/common/Icon.vue'
 import {
   getResumeDetail,
   reanalyzeResume,
@@ -527,14 +528,14 @@ const formatDate = (date: string): string => {
 }
 
 // 面试状态中文映射（后端返回 CREATED/IN_PROGRESS/COMPLETED/EVALUATED 等英文枚举）
-const interviewStatusText = (status: string): string => {
+const interviewStatusText = (status: string | undefined | null): string => {
   const map: Record<string, string> = {
     CREATED: '待面试',
     IN_PROGRESS: '进行中',
     COMPLETED: '已完成',
     EVALUATED: '已评估'
   }
-  return map[status] || status || '进行中'
+  return (status && map[status]) || status || '进行中'
 }
 
 // 格式化分析时间（格式：2026/03/21 01:43）
@@ -803,15 +804,15 @@ const formatAnalysisItem = (item: any): string => {
     <!-- 底部操作栏 -->
     <view v-if="resumeDetail" class="action-bar">
       <view class="action-item" @click="handleReupload">
-        <text class="iconfont">&#xe60d;</text>
+        <Icon name="upload" :size="20" color="#0ea5e9" />
         <text>重新上传</text>
       </view>
       <view class="action-item" @click="handleReanalyze" :class="{ disabled: analyzing }">
-        <text class="iconfont" :class="{ spinning: analyzing }">&#xe61a;</text>
+        <view :class="{ spinning: analyzing }"><Icon name="refresh" :size="20" color="#0ea5e9" /></view>
         <text>{{ analyzing ? '分析中' : '重分析' }}</text>
       </view>
       <view class="action-item" @click="handleDownload">
-        <text class="iconfont">&#xe61b;</text>
+        <Icon name="download" :size="20" color="#0ea5e9" />
         <text>导出</text>
       </view>
     </view>
@@ -1166,38 +1167,6 @@ const formatAnalysisItem = (item: any): string => {
   }
 
   .match-rate {
-    display: flex;
-    align-items: center;
-    gap: 20rpx;
-    margin-bottom: 24rpx;
-
-    .match-label {
-      font-size: 28rpx;
-      color: #333;
-      min-width: 140rpx;
-    }
-
-    .match-bar {
-      flex: 1;
-      height: 16rpx;
-      background-color: #f5f5f5;
-      border-radius: 8rpx;
-      overflow: hidden;
-    }
-
-    .match-inner {
-      height: 100%;
-      background: linear-gradient(90deg, #0ea5e9, #38bdf8);
-      border-radius: 8rpx;
-    }
-
-    .match-value {
-      font-size: 28rpx;
-      color: #0ea5e9;
-      font-weight: 500;
-      min-width: 80rpx;
-      text-align: right;
-    }
   }
 
   .item-label {
@@ -1377,12 +1346,17 @@ const formatAnalysisItem = (item: any): string => {
       font-weight: 600;
       color: #1e293b;
       line-height: 1.5;
+      // 长英文单词（技术名词/URL）在行尾需能在单词内断行，否则会溢出卡片边框
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .recommendation-text {
       font-size: 26rpx;
       color: #64748b;
       line-height: 1.6;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
   }
 }

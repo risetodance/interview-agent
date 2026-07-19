@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import Icon from '../../components/common/Icon.vue'
 import { getInterviewDetail, getAbilityProfile, getComprehensiveReport, getSessionPerspectives, getPerspectiveDetail, type ComprehensiveReportDTO, type PerspectiveScoreDTO, type PerspectiveDetailDTO, type AbilityProfile, type CategoryScore } from '../../api/interview'
 import { renderMarkdown } from '../../utils/marked'
 
@@ -208,17 +209,33 @@ const abilityCategoryList = computed<CategoryScore[]>(() => {
 
 // 视角图标映射
 const perspectiveIcons: Record<string, string> = {
-  '技术面试官': '💻',
-  'HR面试官': '👔',
-  '技术总监': '📋',
-  'code': '💻',
-  'user': '👔',
-  'admin': '📋'
+  // 值改为 Icon 组件 name（替代 emoji）
+  '技术面试官': 'code',
+  'HR面试官': 'users',
+  '技术总监': 'briefcase',
+  'code': 'code',
+  'user': 'users',
+  'admin': 'briefcase'
+}
+
+// 视角图标强调色（配合 Icon 组件上色）
+const perspectiveIconColors: Record<string, string> = {
+  '技术面试官': '#0ea5e9',
+  'HR面试官': '#f59e0b',
+  '技术总监': '#6366f1',
+  'code': '#0ea5e9',
+  'user': '#f59e0b',
+  'admin': '#6366f1'
 }
 
 // 获取视角图标
 const getPerspectiveIcon = (nameOrIcon: string) => {
-  return perspectiveIcons[nameOrIcon] || '👤'
+  return perspectiveIcons[nameOrIcon] || 'user'
+}
+
+// 获取视角图标颜色
+const getPerspectiveColor = (nameOrIcon: string) => {
+  return perspectiveIconColors[nameOrIcon] || '#94a3b8'
 }
 
 // 格式化学权重
@@ -256,7 +273,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
 
     <!-- 错误状态 -->
     <view v-else-if="!interview" class="error-container">
-      <text class="error-icon">!</text>
+      <view class="error-icon"><Icon name="alert-circle" :size="48" color="#ef4444" /></view>
       <text class="error-text">加载报告失败</text>
     </view>
 
@@ -264,8 +281,8 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
     <view v-else class="report-content">
       <!-- 页面标题 -->
       <view class="page-header">
-        <view class="header-left">
-          <view class="header-icon">📊</view>
+          <view class="header-left">
+          <view class="header-icon"><Icon name="bar-chart" :size="24" color="#fff" /></view>
           <view class="header-info">
             <text class="header-title">面试报告</text>
             <text class="header-subtitle">多视角评估综合报告</text>
@@ -284,7 +301,20 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
               :class="{ active: currentTabIndex === index }"
               @click="switchTab(index); onTabChange(index)"
             >
-              <text class="tab-icon">{{ index === 0 ? '📊' : (perspectives[index - 1]?.perspectiveIcon || '👤') }}</text>
+              <view class="tab-icon">
+                <Icon
+                  v-if="index === 0"
+                  name="bar-chart"
+                  :size="16"
+                  :color="currentTabIndex === index ? '#0ea5e9' : '#94a3b8'"
+                />
+                <Icon
+                  v-else
+                  :name="getPerspectiveIcon(perspectives[index - 1]?.perspectiveIcon || perspectives[index - 1]?.perspectiveName || '')"
+                  :size="16"
+                  :color="currentTabIndex === index ? getPerspectiveColor(perspectives[index - 1]?.perspectiveIcon || perspectives[index - 1]?.perspectiveName || '') : '#94a3b8'"
+                />
+              </view>
               <text class="tab-text">{{ tab }}</text>
               <!-- 视角状态标签 -->
               <view v-if="index > 0" class="tab-status" :class="getStatusColor(perspectives[index - 1]?.status || 'PENDING')">
@@ -312,7 +342,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
           <!-- 各视角得分 -->
           <view class="card perspectives-card">
             <view class="card-header">
-              <text class="card-icon">📈</text>
+              <view class="card-icon"><Icon name="trending-up" :size="18" color="#0ea5e9" /></view>
               <text class="card-title">各视角得分</text>
             </view>
             <view class="perspectives-list">
@@ -322,7 +352,13 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
                 class="perspective-item"
               >
                 <view class="perspective-info">
-                  <text class="perspective-icon">{{ p.perspectiveIcon || getPerspectiveIcon(p.perspectiveName) }}</text>
+                  <view class="perspective-icon">
+                    <Icon
+                      :name="getPerspectiveIcon(p.perspectiveIcon || p.perspectiveName || '')"
+                      :size="16"
+                      :color="getPerspectiveColor(p.perspectiveIcon || p.perspectiveName || '')"
+                    />
+                  </view>
                   <text class="perspective-name">{{ p.perspectiveName }}</text>
                   <text v-if="p.weight !== undefined" class="perspective-weight">权重 {{ formatWeight(p.weight) }}</text>
                 </view>
@@ -348,26 +384,26 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
           <!-- 评估统计 -->
           <view class="card stats-card">
             <view class="card-header">
-              <text class="card-icon">📋</text>
+              <view class="card-icon"><Icon name="list" :size="18" color="#0ea5e9" /></view>
               <text class="card-title">评估统计</text>
             </view>
             <view class="stats-list">
               <view class="stat-item">
-                <view class="stat-icon good">✓</view>
+                <view class="stat-icon good"><Icon name="check" :size="18" color="#16a34a" /></view>
                 <view class="stat-info">
                   <text class="stat-label">优势数量</text>
                   <text class="stat-value">{{ comprehensiveReport?.strengths?.length || 0 }}</text>
                 </view>
               </view>
               <view class="stat-item">
-                <view class="stat-icon warn">!</view>
+                <view class="stat-icon warn"><Icon name="alert-circle" :size="18" color="#f59e0b" /></view>
                 <view class="stat-info">
                   <text class="stat-label">改进建议</text>
                   <text class="stat-value">{{ comprehensiveReport?.improvements?.length || 0 }}</text>
                 </view>
               </view>
-              <view class="stat-item">
-                <view class="stat-icon info">💬</view>
+             <view class="stat-item">
+                <view class="stat-icon info"><Icon name="users" :size="18" color="#0ea5e9" /></view>
                 <view class="stat-info">
                   <text class="stat-label">视角数量</text>
                   <text class="stat-value">{{ comprehensiveReport?.perspectives?.length || 0 }}</text>
@@ -380,20 +416,20 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
         <!-- 综合评价（父容器） -->
         <view v-if="comprehensiveReport?.evaluation || comprehensiveReport?.developmentSuggestions" class="card">
           <view class="card-header">
-            <text class="card-icon">💬</text>
+            <view class="card-icon"><Icon name="message" :size="18" color="#0ea5e9" /></view>
             <text class="card-title">综合评价</text>
           </view>
           <view class="evaluation-content">
             <view v-if="comprehensiveReport?.evaluation" class="eval-section">
               <view class="eval-subheader">
-                <text class="eval-subicon">📝</text>
+                <view class="eval-subicon"><Icon name="file-text" :size="14" color="#0ea5e9" /></view>
                 <text class="eval-subtitle">评价</text>
               </view>
               <text class="eval-text">{{ comprehensiveReport.evaluation }}</text>
             </view>
             <view v-if="comprehensiveReport?.developmentSuggestions" class="eval-section">
               <view class="eval-subheader">
-                <text class="eval-subicon">💡</text>
+                <view class="eval-subicon"><Icon name="lightbulb" :size="14" color="#f59e0b" /></view>
                 <text class="eval-subtitle">发展建议</text>
               </view>
               <text class="eval-text">{{ comprehensiveReport.developmentSuggestions }}</text>
@@ -404,7 +440,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
         <!-- 综合优势 -->
         <view v-if="comprehensiveReport?.strengths?.length" class="card strengths-card">
           <view class="card-header">
-            <text class="card-icon good">✓</text>
+            <view class="card-icon good"><Icon name="check" :size="18" color="#16a34a" /></view>
             <text class="card-title">综合优势</text>
           </view>
           <view class="list-content">
@@ -418,7 +454,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
         <!-- 综合改进建议 -->
         <view v-if="comprehensiveReport?.improvements?.length" class="card improvements-card">
           <view class="card-header">
-            <text class="card-icon warn">!</text>
+            <view class="card-icon warn"><Icon name="alert-circle" :size="18" color="#f59e0b" /></view>
             <text class="card-title">改进建议</text>
           </view>
           <view class="list-content">
@@ -432,7 +468,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
         <!-- 能力画像（N1：原 getAbilityProfile 返回值被丢弃，现绑定渲染） -->
         <view v-if="abilityProfile" class="card ability-profile-card">
           <view class="card-header">
-            <text class="card-icon info">🎯</text>
+            <view class="card-icon info"><Icon name="target" :size="18" color="#0ea5e9" /></view>
             <text class="card-title">能力画像</text>
           </view>
           <view class="ability-overall">
@@ -440,15 +476,19 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
             <text class="ability-score" :style="{ color: getScoreColor(abilityProfile.overallScore || 0) }">{{ abilityProfile.overallScore ?? 0 }}</text>
           </view>
           <view v-if="abilityCategoryList.length" class="ability-categories">
-            <view v-for="cat in abilityCategoryList" :key="cat.category" class="ability-cat-item">
-              <view class="ability-cat-info">
-                <text class="ability-cat-name">{{ cat.category }}</text>
-                <text class="ability-cat-meta">{{ cat.count ?? 0 }} 题</text>
+           <view v-for="cat in abilityCategoryList" :key="cat.category" class="ability-cat-item">
+              <!-- 名称行：左=分类名+题数，右=分数，两端对齐，文字完整不截断 -->
+              <view class="ability-cat-head">
+                <view class="ability-cat-label">
+                  <text class="ability-cat-name">{{ cat.category }}</text>
+                  <text class="ability-cat-meta">{{ cat.count ?? 0 }} 题</text>
+                </view>
+                <text class="ability-cat-score">{{ cat.avgScore ?? 0 }}</text>
               </view>
+              <!-- 进度条独占一行，满宽，所有项起点天然对齐 -->
               <view class="ability-cat-bar">
                 <view class="ability-cat-bar-fill" :style="{ width: getProgressWidth(cat.avgScore) }"></view>
               </view>
-              <text class="ability-cat-score">{{ cat.avgScore ?? 0 }}</text>
             </view>
           </view>
           <view v-if="abilityProfile.strengths?.length" class="ability-sub">
@@ -472,7 +512,13 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
           <!-- 视角信息卡片 -->
           <view class="perspective-score-card">
             <view class="perspective-header-info">
-              <text class="perspective-icon-large">{{ getPerspectiveIcon(currentPerspectiveDetail.perspectiveIcon || currentPerspectiveDetail.roleName) }}</text>
+              <view class="perspective-icon-large">
+                <Icon
+                  :name="getPerspectiveIcon(currentPerspectiveDetail.perspectiveIcon || currentPerspectiveDetail.roleName || '')"
+                  :size="36"
+                  color="#fff"
+                />
+              </view>
               <view class="perspective-info">
                 <text class="perspective-name">{{ currentPerspectiveDetail.roleName }}</text>
                 <view class="perspective-meta">
@@ -493,7 +539,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
           <!-- 综合评价 -->
           <view v-if="currentPerspectiveDetail.feedback" class="card perspective-feedback">
             <view class="card-header">
-              <text class="card-icon">💬</text>
+              <view class="card-icon"><Icon name="message" :size="18" color="#0ea5e9" /></view>
               <text class="card-title">综合评价</text>
             </view>
             <text class="feedback-content">{{ currentPerspectiveDetail.feedback }}</text>
@@ -502,7 +548,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
           <!-- 优势 -->
           <view v-if="currentPerspectiveDetail.strengths?.length" class="card strengths-card">
             <view class="card-header">
-              <text class="card-icon good">✓</text>
+              <view class="card-icon good"><Icon name="check" :size="18" color="#16a34a" /></view>
               <text class="card-title">优势</text>
             </view>
             <view class="list-content">
@@ -516,7 +562,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
           <!-- 改进建议 -->
           <view v-if="currentPerspectiveDetail.improvements?.length" class="card improvements-card">
             <view class="card-header">
-              <text class="card-icon warn">!</text>
+              <view class="card-icon warn"><Icon name="alert-circle" :size="18" color="#f59e0b" /></view>
               <text class="card-title">改进建议</text>
             </view>
             <view class="list-content">
@@ -530,7 +576,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
           <!-- 该视角的问答记录 -->
           <view v-if="currentPerspectiveDetail.questionScores?.length" class="card questions-card">
             <view class="card-header">
-              <text class="card-icon">❓</text>
+              <view class="card-icon"><Icon name="help-circle" :size="18" color="#0ea5e9" /></view>
               <text class="card-title">问题详情</text>
             </view>
             <view class="questions-list">
@@ -862,7 +908,9 @@ $text-secondary: #64748b;  // slate-500
 // 两列网格布局
 .grid-2col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  // 手机端改为单列堆叠：原 1fr 1fr 会让"各视角得分"与"评估统计"挤在同一行，
+  // 导致各视角的进度条和文字被压缩成一团。单列给每个卡片满宽，进度条有足够空间。
+  grid-template-columns: 1fr;
   gap: 24rpx;
   margin-bottom: 24rpx;
 }
@@ -881,12 +929,13 @@ $text-secondary: #64748b;  // slate-500
   }
 
   .card-icon {
-    font-size: 32rpx;
+    // 统一为无边框、无背景、纯彩色线性图标（与 stat-icon 风格一致，更干净）
+    display: flex;
+    align-items: center;
+    justify-content: center;
     margin-right: 12rpx;
-
-    &.good { color: $success; }
-    &.warn { color: $warning; }
-    &.info { color: $primary; }
+    flex-shrink: 0;
+    // 实际颜色由 Icon 组件的 color 属性传入，这里不再设背景，避免浅底浅图导致不显示
   }
 
   .card-title {
@@ -914,7 +963,9 @@ $text-secondary: #64748b;  // slate-500
     display: flex;
     align-items: center;
     gap: 8rpx;
-    min-width: 160rpx;
+    // 固定宽度 + 不收缩：视角名/权重长短不一会让 info 区宽度变化，导致进度条起点不齐
+    width: 220rpx;
+    flex-shrink: 0;
 
     .perspective-icon {
       font-size: 28rpx;
@@ -924,11 +975,13 @@ $text-secondary: #64748b;  // slate-500
       font-size: 26rpx;
       color: $text-primary;
       font-weight: 500;
+      // 不截断：手机端要能看到完整视角名。固定宽度的 info 区容纳不下时允许折行
     }
 
     .perspective-weight {
       font-size: 20rpx;
       color: $text-secondary;
+      flex-shrink: 0;
     }
   }
 
@@ -983,7 +1036,8 @@ $text-secondary: #64748b;  // slate-500
     }
 
     .ability-score {
-      font-size: 48rpx;
+      // 与评估统计 stat-value (32rpx) 对齐，避免能力画像内数字明显大于其他模块
+      font-size: 32rpx;
       font-weight: 700;
     }
   }
@@ -996,18 +1050,35 @@ $text-secondary: #64748b;  // slate-500
   }
 
   .ability-cat-item {
+    // 纵向布局：名称行在上（完整显示不截断），进度条在下（满宽，起点天然对齐）
+    // 替代原来的横排 min-width 方案——横排时文字长短不一会让进度条起点参差不齐，
+    // 而固定宽度截断又会吞掉手机端用户需要看到的完整分类名
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 12rpx;
   }
 
-  .ability-cat-info {
+  .ability-cat-head {
     display: flex;
-    flex-direction: column;
-    min-width: 140rpx;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16rpx;
+  }
 
+  .ability-cat-label {
+    display: flex;
+    align-items: baseline;
+    gap: 12rpx;
+    flex: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  // 模板用的是 .ability-cat-label（重构后改的名），样式必须跟随，否则字号不生效文字偏大
+  .ability-cat-label {
     .ability-cat-name {
-      font-size: 26rpx;
+      // 与卡片正文（eval-text/feedback-content 28rpx）一致
+      font-size: 28rpx;
       color: $text-primary;
       font-weight: 500;
     }
@@ -1019,7 +1090,9 @@ $text-secondary: #64748b;  // slate-500
   }
 
   .ability-cat-bar {
-    flex: 1;
+    // 注意：父级 ability-cat-item 是 flex column，flex:1 只影响高度不影响宽度，
+    // 进度条会塌陷为 0 宽度导致只有文字看不到条。必须显式 width:100% 撑满。
+    width: 100%;
     height: 12rpx;
     background: #f0f0f0;
     border-radius: 6rpx;
@@ -1090,28 +1163,10 @@ $text-secondary: #64748b;  // slate-500
     gap: 16rpx;
 
     .stat-icon {
-      width: 64rpx;
-      height: 64rpx;
-      border-radius: 16rpx;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 28rpx;
-
-      &.good {
-        background: rgba($success, 0.1);
-        color: $success;
-      }
-
-      &.warn {
-        background: rgba($warning, 0.1);
-        color: $warning;
-      }
-
-      &.info {
-        background: rgba($primary, 0.1);
-        color: $primary;
-      }
+      // 去掉彩色背景方块（原浅色背景上的浅色图标会不显示），改纯彩色线性图标，与 card-icon 统一
     }
 
     .stat-info {
@@ -1163,6 +1218,9 @@ $text-secondary: #64748b;  // slate-500
       color: $text-regular;
       line-height: 1.8;
       white-space: pre-wrap;
+      // 长英文单词（技术名词/URL）需能在单词内断行，pre-wrap 只管换行符不管超长单词
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
   }
 }
@@ -1195,6 +1253,8 @@ $text-secondary: #64748b;  // slate-500
     color: $text-regular;
     line-height: 1.6;
     flex: 1;
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
 }
 
@@ -1347,7 +1407,14 @@ $text-secondary: #64748b;  // slate-500
     margin-bottom: 30rpx;
 
     .perspective-icon-large {
-      font-size: 72rpx;
+      width: 88rpx;
+      height: 88rpx;
+      border-radius: 24rpx;
+      background: rgba(255, 255, 255, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
       margin-right: 24rpx;
     }
 
@@ -1402,6 +1469,8 @@ $text-secondary: #64748b;  // slate-500
     color: $text-regular;
     line-height: 1.6;
     white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
 }
 

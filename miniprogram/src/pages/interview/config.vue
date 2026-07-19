@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import Icon from '../../components/common/Icon.vue'
 import { getResumeDetail } from '../../api/resume'
 import { createSession, getPerspectives, findUnfinishedSession, type InterviewerRoleDTO } from '../../api/interview'
 
@@ -32,10 +33,19 @@ const perspectiveWeights = ref<Record<number, number>>({})
 
 // 视角图标映射
 const perspectiveIcons: Record<string, string> = {
-  'TECH_INTERVIEWER': '💻',
-  'HR_INTERVIEWER': '👔',
-  'TECH_DIRECTOR': '📋'
+  'TECH_INTERVIEWER': 'code',
+  'HR_INTERVIEWER': 'users',
+  'TECH_DIRECTOR': 'briefcase'
 }
+
+// 视角图标强调色（替代 emoji 的彩色字符，用品牌色线性图标更克制）
+const perspectiveIconColor: Record<string, string> = {
+  'TECH_INTERVIEWER': '#0ea5e9',
+  'HR_INTERVIEWER': '#f59e0b',
+  'TECH_DIRECTOR': '#6366f1'
+}
+const fallbackIcon = 'user'
+const fallbackColor = '#94a3b8'
 
 // 计算已选择的视角详情
 const selectedPerspectivesDetail = computed(() => {
@@ -372,11 +382,15 @@ onMounted(() => {
           @click="togglePerspective(perspective.id)"
         >
           <view class="perspective-header">
-            <text class="perspective-icon">{{ perspectiveIcons[perspective.roleCode] || '👤' }}</text>
+            <view class="perspective-icon">
+              <Icon
+                :name="perspectiveIcons[perspective.roleCode] || fallbackIcon"
+                :size="28"
+                :color="perspectiveIconColor[perspective.roleCode] || fallbackColor"
+              />
+            </view>
             <view class="perspective-check" v-if="isPerspectiveSelected(perspective.id)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
+              <Icon name="check" :size="14" color="#fff" />
             </view>
           </view>
           <text class="perspective-name">{{ perspective.roleName }}</text>
@@ -583,7 +597,13 @@ onMounted(() => {
   }
 
   .perspective-icon {
-    font-size: 40rpx;
+    width: 64rpx;
+    height: 64rpx;
+    border-radius: 16rpx;
+    background: $bg;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .perspective-check {

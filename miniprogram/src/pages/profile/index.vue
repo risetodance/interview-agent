@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useUserStore } from '../../stores/user'
 
 // 用户 Store
 const userStore = useUserStore()
-const { userInfo, points, isLoggedIn } = userStore
+const { userInfo, points, isLoggedIn } = storeToRefs(userStore)
+
+// 跳转登录（模板里不能直接用全局 uni，TS 不识别，抽成方法）
+const goToLogin = () => {
+  uni.navigateTo({ url: '/pages/auth/login' })
+}
 
 // 加载状态
 const isLoading = ref(false)
@@ -260,7 +266,7 @@ const handleMenuClick = (item: any) => {
 
     <!-- 未登录状态 -->
     <view v-else class="login-section">
-      <button class="login-btn" @click="uni.navigateTo({ url: '/pages/auth/login' })">
+      <button class="login-btn" @click="goToLogin">
         <text class="login-btn-text">立即登录</text>
       </button>
     </view>

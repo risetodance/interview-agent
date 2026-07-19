@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import Icon from '../../components/common/Icon.vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useInterviewStore, type Interview } from '../../stores/interview'
 
@@ -187,7 +188,7 @@ onUnmounted(() => {
 
       <!-- 创建面试按钮 -->
       <view class="create-btn" @click="goToCreate">
-        <text class="iconfont">+</text>
+        <Icon name="plus" :size="18" color="#fff" />
         <text>创建面试</text>
       </view>
     </view>
@@ -214,7 +215,7 @@ onUnmounted(() => {
       @refresherrefresh="onRefresh"
     >
       <view v-if="interviewList.length === 0 && !loading" class="empty">
-        <text class="empty-icon">&#xe60c;</text>
+        <view class="empty-icon"><Icon name="mic" :size="48" color="#cbd5e1" /></view>
         <text class="empty-text">暂无面试记录</text>
         <text class="empty-desc">点击上方按钮创建你的第一场 AI 模拟面试</text>
       </view>
@@ -381,13 +382,6 @@ onUnmounted(() => {
     transform: scale(0.97);
   }
 
-  .iconfont {
-    font-size: 32rpx;
-    margin: 0;
-    padding: 0;
-    flex-shrink: 0;
-  }
-
   text {
     margin: 0;
     padding: 0;
@@ -495,8 +489,11 @@ onUnmounted(() => {
   padding: 120rpx 0;
 
   .empty-icon {
-    font-size: 160rpx;
-    color: #e2e8f0;
+    width: 160rpx;
+    height: 160rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     margin-bottom: 32rpx;
   }
 

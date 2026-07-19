@@ -2,7 +2,17 @@
 import { ref, computed, toRef, onMounted, onUnmounted, nextTick } from 'vue'
 import { onUnload, onHide } from '@dcloudio/uni-app'
 import { useInterviewStore } from '../../stores/interview'
-import { getCurrentQuestion, getSessionProgress, connectInterviewStream, SSE_EVENT_TYPES, PROGRESS_LABELS, submitAnswerAdaptive, endInterview, type StreamCurrentQuestionDTO } from '../../api/interview'
+import { getCurrentQuestion, getSessionProgress, PROGRESS_LABELS, submitAnswerAdaptive, endInterview, type StreamCurrentQuestionDTO } from '../../api/interview'
+
+// 进度阶段 key（对应 PROGRESS_LABELS 的 key，用于轮询时显示"正在评分/正在决策..."等节点）
+const STAGE_SCORING = 'progress_scoring'
+const STAGE_GENERATING = 'progress_generating'
+// 专用阶段：题目都答完了，等后端生成评估报告（不污染共享 PROGRESS_LABELS）
+const STAGE_REPORT = 'progress_report'
+const PROGRESS_LABELS_LOCAL: Record<string, string> = {
+  ...PROGRESS_LABELS,
+  [STAGE_REPORT]: '正在生成评估报告...'
+}
 
 // 路由参数
 const pageId = ref<string>('')
@@ -37,16 +47,8 @@ const scrollViewRef = ref<any>(null)
 const interviewStatus = ref<'idle' | 'connected' | 'answering' | 'evaluating' | 'completed'>('idle')
 // 跳转报告页面时的加载蒙版
 const showReportLoading = ref(false)
-// SSE 连接清理函数
-const sseCleanup = ref<(() => void) | null>(null)
 // 是否正在加载下一题（显示遮罩）
 const isLoadingNextQuestion = ref(false)
-// SSE 重连：H5 的 EventSource / 小程序 chunked request 在弱网或后端 broken pipe 后会断开，
-// 不自动重连会导致后续提交答案收不到实时事件、只能反复走 healFromServer。这里在非提交态延迟重连。
-const sseReconnectTimer = ref<number | null>(null)
-const SSE_RECONNECT_DELAY = 2000
-const SSE_RECONNECT_MAX = 5
-let sseReconnectAttempts = 0
 // 进度阶段状态（用于显示不同的加载提示）
 const progressStage = ref<string | null>(null)
 
@@ -96,7 +98,8 @@ const messages = ref<MessageItem[]>([])
 // 会话进度信息
 const sessionTotalQuestions = ref(0) // 从会话进度中获取的总题数
 const totalQuestions = computed(() => sessionTotalQuestions.value || interview.value?.totalQuestions || 0)
-const currentQuestionIndex = computed(() => restoredCurrentQuestion.value?.questionIndex ?? 0)
+// 当前题号：单独维护 ref，在初始化/恢复/applyNextQuestion 时显式更新，避免计算属性响应式断链导致进度不刷新
+const currentQuestionIndex = ref(0)
 const progressPercent = computed(() => {
   if (!totalQuestions.value || currentQuestionIndex.value == null) return 0
   return Math.round(((currentQuestionIndex.value + 1) / totalQuestions.value) * 100)
@@ -169,6 +172,13 @@ onMounted(() => {
 
 // 初始化面试
 const initInterview = async () => {
+  // 重置页面状态：上一次会话残留的 isSubmitting/isLoadingNextQuestion/progressStage
+  // 会导致恢复进入页面时按钮显示"提交中"，即使后端早已就绪
+  isSubmitting.value = false
+  isLoadingNextQuestion.value = false
+  progressStage.value = null
+  interviewStatus.value = 'idle'
+
   try {
 
     // 如果是结果模式，获取面试结果
@@ -202,6 +212,7 @@ const initInterview = async () => {
           createdByPerspectiveId: firstQuestion.createdByPerspectiveId,
           createdByPerspectiveName: firstQuestion.createdByPerspectiveName
         }
+        currentQuestionIndex.value = firstQuestion.questionIndex
         renderedQuestionIndices.value.add(firstQuestion.questionIndex)
 
         // 添加第一题到消息列表
@@ -230,8 +241,6 @@ const initInterview = async () => {
       // 开始面试状态
       interviewStatus.value = 'answering'
 
-      // 建立 SSE 连接
-      setupSSEConnection()
     } else {
       // 恢复已有面试：获取会话进度（包括历史记录和当前问题）
       const progress = await getSessionProgress(pageId.value)
@@ -280,9 +289,10 @@ const initInterview = async () => {
           difficulty: progress.currentQuestion.difficulty,
           knowledgeBaseName: progress.currentQuestion.knowledgeBaseName,
           createdByPerspectiveId: progress.currentQuestion.createdByPerspectiveId,
-          createdByPerspectiveName: progress.currentQuestion.createdByPerspectiveName
-        }
-        renderedQuestionIndices.value.add(progress.currentQuestion.questionIndex)
+        createdByPerspectiveName: progress.currentQuestion.createdByPerspectiveName
+      }
+      currentQuestionIndex.value = progress.currentQuestion.questionIndex
+      renderedQuestionIndices.value.add(progress.currentQuestion.questionIndex)
         // 添加当前问题到消息列表
         messages.value.push({
           id: Date.now() + Math.random(),
@@ -299,10 +309,31 @@ const initInterview = async () => {
       }
 
       // 开始面试状态
-      interviewStatus.value = 'answering'
+      // 恢复时如果后端正在处理（评分/出题中），需要区分两种情况：
+      // a) 已有新题就绪（currentQuestion 存在且是新题）→ 直接渲染，不进"提交中"
+      // b) 真正没有新题（currentQuestion 为 null 或还是旧题）→ 显示"提交中"并恢复轮询
+      if (progress.processingStatus === 'PROCESSING') {
+        // 已答的最大题号 = history 最后一条的 questionIndex（没有 history 则 -1）
+        const lastAnsweredIndex = progress.history?.length
+          ? progress.history[progress.history.length - 1].questionIndex
+          : -1
+        // currentQuestion 存在且 questionIndex > lastAnsweredIndex → 新题已就绪，直接渲染
+        if (progress.currentQuestion && progress.currentQuestion.questionIndex > lastAnsweredIndex) {
+          // 新题已生成，上面 if(progress.currentQuestion) 分支已经渲染了，这里只需确保状态正确
+          interviewStatus.value = 'answering'
+        } else {
+          // 没有新题，后端还在评分/出题中 → 显示"提交中"并恢复轮询
+          currentQuestionIndex.value = progress.currentQuestionIndex
+          isLoadingNextQuestion.value = true
+          isSubmitting.value = true
+          progressStage.value = STAGE_SCORING
+          interviewStatus.value = 'evaluating'
+          pollForNextQuestion(progress.currentQuestionIndex)
+        }
+      } else {
+        interviewStatus.value = 'answering'
+      }
 
-      // 建立 SSE 连接
-      setupSSEConnection()
     }
   } catch (error) {
     uni.showToast({
@@ -334,6 +365,7 @@ const applyNextQuestion = (question: StreamCurrentQuestionDTO) => {
     createdByPerspectiveId: question.createdByPerspectiveId,
     createdByPerspectiveName: question.createdByPerspectiveName
   }
+  currentQuestionIndex.value = question.questionIndex
   // 添加问题到消息列表
   messages.value.push({
     id: Date.now() + Math.random(),
@@ -369,163 +401,75 @@ const handleComplete = () => {
 // NC1 兜底：后端 submitAnswerAdaptive 硬编码返回 hasNextQuestion=true / nextQuestion=null（注释"SSE 推送下一题"），
 // 会话推进实际依赖 SSE。而 SSE 在小程序端可能因弱网 / 后台回收失效，导致"提交后等不到下一题"永久卡死。
 // 故在 SSE 之外加一道兜底：超时或 SSE 报错时，用 getSessionProgress 拉后端真实进度自愈推进。
-const submitGuardTimer = ref<number | null>(null)
+// 提交答案后轮询拉取下一题（替代原来依赖 SSE 推送 + healFromServer 多路竞态的复杂逻辑）。
+// 后端 submitAnswerAdaptive 同步返回 hasNextQuestion=true / nextQuestion=null，实际下一题由异步工作流生成，
+// 且 currentIndex 在工作流跑完（评分+Decider+检索+出题，实测可达 48s+）后才推进。
+// SSE 在 H5 下极易 broken pipe，onError/healFromServer/startSubmitTimeoutGuard 三路并发竞态导致状态错乱。
+// 改为单一轮询：提交后每隔 3s 拉一次 getSessionProgress，拿到新题就渲染，最多等 150s。
+const POLL_INTERVAL = 3000
+const POLL_MAX = 50
+let pollTimer: ReturnType<typeof setTimeout> | null = null
+let pollCount = 0
 
-// heal 重试：后端处于 PROCESSING（已提交、尚未评分）时 currentQuestion 为 null，
-// 不能当作"已答完"，需保持遮罩并轮询，直到拿到下一题或真正完成；
-// 否则会误触发 handleComplete → redirectTo('/pages/interview/list')，即用户看到的"闪退到列表页"。
-// 间隔 3s；后端完整工作流（评分 + Decider + 检索 + 出题）实测可达 48s+，
-// 故总时长给到 120s（40 次），避免 currentIndex 推进前就放弃 → "收不到下一题"。
-const HEAL_RETRY_INTERVAL = 3000
-const HEAL_MAX_RETRIES = 40
-const healRetryCount = ref(0)
-const healRetryTimer = ref<number | null>(null)
+const stopPolling = () => {
+  if (pollTimer) { clearTimeout(pollTimer); pollTimer = null }
+  pollCount = 0
+}
 
-const healFromServer = async (submittedIndex: number) => {
-  // 已被 SSE 正常推进（applyNextQuestion / handleComplete 已复位 isLoadingNextQuestion）则不干预
-  if (!isLoadingNextQuestion.value) return
+const pollForNextQuestion = async (submittedIndex: number) => {
+  // 已被 applyNextQuestion / handleComplete 推进（isLoadingNextQuestion 复位）则停止轮询
+  if (!isLoadingNextQuestion.value) { stopPolling(); return }
   try {
     const progress = await getSessionProgress(pageId.value)
     const q = progress.currentQuestion
-    const isProcessing = progress.processingStatus === 'PROCESSING'
 
-    // 后端已生成下一题但 SSE 推送丢失 → 直接渲染（applyNextQuestion 内部按 questionIndex 去重）
+    // 场景1：后端已生成下一题（currentIndex 推进 + 新题 entity 存在）→ 渲染新题
     if (q && q.questionIndex > submittedIndex) {
-      healRetryCount.value = 0
+      stopPolling()
       applyNextQuestion(q)
       return
     }
 
-    // 无当前题：必须区分"处理中"和"已答完"
-    if (!q) {
-      if (isProcessing) {
-        // 工作流仍在评分/生成下一题，currentQuestion 暂为 null——正是原 !q 误判为"已完成"导致闪退的根因
-        // 保持遮罩并有限次轮询，等下一题就绪或评分完成，绝不在此进入完成流程
-        // 仅在上一轮定时器已触发完（healRetryTimer 为空）时才启动下一轮并累加计数；
-        // 否则 submitGuardTimer / 反复 onError 并发调用会让计数涨太快、提前耗尽重试次数。
-        if (healRetryCount.value >= HEAL_MAX_RETRIES) {
-          // 超过重试上限仍无结果 → 释放锁并提示，避免永久卡 loading（用户可手动重试）
-          healRetryCount.value = 0
-          isLoadingNextQuestion.value = false
-          isSubmitting.value = false
-          interviewStatus.value = 'answering'
-          uni.showToast({ title: 'AI 处理超时，请重试', icon: 'none' })
-        } else if (!healRetryTimer.value) {
-          healRetryCount.value++
-          progressStage.value = SSE_EVENT_TYPES.PROGRESS_SCORING
-          healRetryTimer.value = setTimeout(() => {
-            healRetryTimer.value = null
-            healFromServer(submittedIndex)
-          }, HEAL_RETRY_INTERVAL) as unknown as number
-        }
-        // 已有定时器在等待：直接返回，让递归轮询的节奏保持稳定（不额外累加计数）
-      } else if (progress.currentQuestionIndex >= progress.totalQuestions) {
-        // 真正答完所有题 → 进入完成流程（保留原兜底）
-        healRetryCount.value = 0
-        handleComplete()
-      } else {
-        // 既无当前题、又非处理中、且未到末题：后端状态异常，释放锁让用户重试
-        healRetryCount.value = 0
-        isLoadingNextQuestion.value = false
-        isSubmitting.value = false
-        interviewStatus.value = 'answering'
-      }
+    // 场景2：面试完成——后端 sessionStatus 变成 COMPLETED/EVALUATED（待出分）才退出
+    // 不能用 processingStatus 或 historySize 判断完成：它们在 FinalReporterNode 跑完前就满足条件了，
+    // 但此时 session 状态还是 IN_PROGRESS，列表会显示"答题中"。必须等 session 状态变成已完成才退出。
+    const sessionDone = progress.sessionStatus === 'COMPLETED' || progress.sessionStatus === 'EVALUATED'
+    if (sessionDone) {
+      stopPolling()
+      handleComplete()
+      return
     }
-    // q 存在但 questionIndex <= submittedIndex：仍是当前题（恢复场景），不推进，保持现状
+
+    // 场景3：题目都答完了但 session 还没变成 COMPLETED（评估报告生成中）→ 继续轮询，显示"生成报告中..."
+    const answeredCount = progress.history?.length ?? 0
+    if (answeredCount >= progress.totalQuestions) {
+      progressStage.value = STAGE_REPORT
+    }
+
+    // 场景4：还在处理中（评分/出题），继续轮询
+    pollCount++
+    if (pollCount >= POLL_MAX) {
+      // 超时仍未拿到结果 → 释放锁让用户手动重试
+      stopPolling()
+      isLoadingNextQuestion.value = false
+      isSubmitting.value = false
+      interviewStatus.value = 'answering'
+      uni.showToast({ title: 'AI 处理超时，请重试', icon: 'none' })
+    } else {
+      // 设默认进度文字（PROCESSING 时显示"正在评分..."，答完等报告时显示"生成报告中..."）
+      if (!progressStage.value) {
+        progressStage.value = STAGE_SCORING
+      }
+      pollTimer = setTimeout(() => pollForNextQuestion(submittedIndex), POLL_INTERVAL)
+    }
   } catch (e) {
-    console.error('[NC1 兜底] 拉取会话进度失败:', e)
-    healRetryCount.value = 0
-    // 自愈也失败时释放锁，避免永久卡在 loading（用户可手动重试）
+    console.error('[轮询] 拉取会话进度失败:', e)
+    stopPolling()
     isLoadingNextQuestion.value = false
     isSubmitting.value = false
     interviewStatus.value = 'answering'
   }
 }
-
-const startSubmitTimeoutGuard = (submittedIndex: number) => {
-  if (submitGuardTimer.value) clearTimeout(submitGuardTimer.value)
-  submitGuardTimer.value = setTimeout(() => {
-    submitGuardTimer.value = null
-    healFromServer(submittedIndex)
-  }, 30000) as unknown as number
-}
-
-// 建立 SSE 连接
-const setupSSEConnection = () => {
-  // 清理之前的连接
-  if (sseCleanup.value) {
-    sseCleanup.value()
-    sseCleanup.value = null
-  }
-
-  // 建立 SSE 连接
-  sseCleanup.value = connectInterviewStream(pageId.value, {
-    onConnected: () => {
-      interviewStatus.value = 'connected'
-      // 连接已通，重置重连计数
-      sseReconnectAttempts = 0
-    },
-    onProgress: (stage: string) => {
-      progressStage.value = stage
-      // B11: 修正常量大小写（原 'QUESTION_GENERATING' 不存在，永不命中）
-      if (stage === SSE_EVENT_TYPES.PROGRESS_GENERATING) {
-        isLoadingNextQuestion.value = true
-      }
-    },
-    onQuestion: (question) => {
-      // NC1: SSE 推送的下一题作为补充（applyNextQuestion 内部按 questionIndex 去重）
-      applyNextQuestion(question)
-    },
-    onEvaluation: (evaluation) => {
-      // B14: 实时展示本题评分反馈（与 Web 端一致）
-      if (evaluation && typeof evaluation.score === 'number') {
-        messages.value.push({
-          id: Date.now() + Math.random(),
-          type: 'evaluation',
-          content: evaluation.feedback || `本题得分：${evaluation.score} 分`,
-          questionIndex: evaluation.questionIndex,
-          evaluation: {
-            score: evaluation.score,
-            strength: [],
-            improvements: []
-          },
-          timestamp: Date.now()
-        })
-        scrollToBottom()
-      }
-    },
-    onComplete: () => {
-      handleComplete()
-    },
-    onError: (errorMsg) => {
-      progressStage.value = null
-      // NC1 兜底：SSE 断开时若仍在等下一题，立即用后端进度自愈，避免晾在当前题
-      if (isLoadingNextQuestion.value && restoredCurrentQuestion.value) {
-        // 提交中：靠 healFromServer 轮询自愈；H5 下 SSE 在评分窗口断开属预期，不再弹错误 toast 打扰用户
-        healFromServer(restoredCurrentQuestion.value.questionIndex)
-      } else {
-        // 非提交态：SSE 意外断开，延迟重连以恢复实时性（避免下一轮提交再次完全依赖轮询）
-        isLoadingNextQuestion.value = false
-        scheduleSseReconnect()
-      }
-    }
-  })
-}
-
-// SSE 延迟重连（带指数退避 + 上限，避免 broken pipe 风暴）
-const scheduleSseReconnect = () => {
-  if (sseReconnectTimer.value) return
-  if (sseReconnectAttempts >= SSE_RECONNECT_MAX) return
-  if (interviewStatus.value === 'completed') return
-  sseReconnectAttempts++
-  sseReconnectTimer.value = setTimeout(() => {
-    sseReconnectTimer.value = null
-    if (interviewStatus.value !== 'completed' && interviewStatus.value !== 'idle') {
-      setupSSEConnection()
-    }
-  }, SSE_RECONNECT_DELAY * sseReconnectAttempts) as unknown as number
-}
-
 // 添加回答消息
 const addAnswerMessage = (answer: string, questionIndex: number) => {
   messages.value.push({
@@ -587,13 +531,12 @@ const submitAnswer = async () => {
     // NC1: 用 submitAnswerAdaptive 的同步返回值驱动下一题（不再丢弃返回值依赖 SSE）
     const res = await submitAnswerAdaptive(pageId.value, questionIndex, submittedAnswer)
     if (res?.hasNextQuestion && res.nextQuestion) {
-      // 后端同步返回了下一题 → 直接渲染
+      // 后端同步返回了下一题 → 直接渲染（当前后端契约不会走这里）
       applyNextQuestion(res.nextQuestion)
     } else if (res?.hasNextQuestion) {
-      // 有下一题但返回值未携带（后端异步生成，当前后端契约恒如此）→ 保留遮罩，等 SSE onQuestion 推送
-      // isLoadingNextQuestion / isSubmitting 保持 true，由 applyNextQuestion 在收到推送时释放
-      // NC1 兜底：SSE 在小程序端可能失效，启动 30s 超时自愈（拉 getSessionProgress 推进），避免永久卡死
-      startSubmitTimeoutGuard(questionIndex)
+      // 后端异步生成下一题（当前后端契约恒如此）→ 启动单一轮询拉取，不再依赖 SSE 推送
+      // SSE 在 H5 下极易 broken pipe，之前依赖 onQuestion + healFromServer + startSubmitTimeoutGuard 三路竞态，状态错乱
+      pollForNextQuestion(questionIndex)
     } else {
       // 没有下一题 → 进入完成流程
       handleComplete()
@@ -689,29 +632,22 @@ const finishInterview = () => {
   })
 }
 
-// 清理页面资源（N10）：兜底定时器 + 录音定时器 + SSE 连接
+// 清理页面资源：停止轮询 + 录音定时器
 const cleanupResources = () => {
-  if (submitGuardTimer.value) {
-    clearTimeout(submitGuardTimer.value)
-    submitGuardTimer.value = null
-  }
-  if (healRetryTimer.value) {
-    clearTimeout(healRetryTimer.value)
-    healRetryTimer.value = null
-  }
-  if (sseReconnectTimer.value) {
-    clearTimeout(sseReconnectTimer.value)
-    sseReconnectTimer.value = null
-  }
-  healRetryCount.value = 0
-  sseReconnectAttempts = 0
+  // 停止下一题轮询 + 录音定时器（页面真正销毁时调用）
+  stopPolling()
   if (recordingTimer.value) {
     clearInterval(recordingTimer.value)
     recordingTimer.value = null
   }
-  if (sseCleanup.value) {
-    sseCleanup.value()
-    sseCleanup.value = null
+}
+
+// 切后台只清理录音定时器，不停止轮询
+// 轮询是拿下一题的唯一手段，onHide 杀掉它会导致提交后永久卡在当前题（H5 失焦也会触发 onHide）
+const cleanupBackgroundResources = () => {
+  if (recordingTimer.value) {
+    clearInterval(recordingTimer.value)
+    recordingTimer.value = null
   }
 }
 
@@ -721,8 +657,8 @@ onUnload(() => {
 })
 
 onHide(() => {
-  // 切后台：清理录音定时器与 SSE 连接，避免后台泄漏
-  cleanupResources()
+  // 切后台：只清理录音定时器，保留轮询（否则提交后切回会永久卡住）
+  cleanupBackgroundResources()
 })
 
 // 组件卸载时（H5 兜底）
@@ -842,7 +778,7 @@ onUnmounted(() => {
             <view class="dot"></view>
             <view class="dot"></view>
           </view>
-          <text class="loading-text">{{ progressStage ? PROGRESS_LABELS[progressStage] || progressStage : (isLoadingNextQuestion ? '正在出题中...' : 'AI 正在分析你的回答...') }}</text>
+          <text class="loading-text">{{ progressStage ? PROGRESS_LABELS_LOCAL[progressStage] || progressStage : (isLoadingNextQuestion ? '正在出题中...' : 'AI 正在分析你的回答...') }}</text>
         </view>
       </scroll-view>
 
@@ -863,7 +799,7 @@ onUnmounted(() => {
               :class="{ disabled: !answerText.trim() || interviewStatus === 'evaluating' || isSubmitting || !!progressStage }"
               @click="submitAnswer"
             >
-              <text v-if="progressStage">{{ PROGRESS_LABELS[progressStage] || progressStage }}</text>
+              <text v-if="progressStage">{{ PROGRESS_LABELS_LOCAL[progressStage] || progressStage }}</text>
               <text v-else-if="isSubmitting || interviewStatus === 'evaluating'">提交中...</text>
               <text v-else>提交</text>
             </view>
