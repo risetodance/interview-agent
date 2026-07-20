@@ -209,6 +209,9 @@ const handleCheckIn = async () => {
     // 刷新任务列表
     await loadPointsTasks()
 
+    // 刷新积分记录列表（签到后历史积分要及时更新）
+    await loadPointsRecords()
+
     uni.showToast({
       title: `签到成功，获得 ${result.points} 积分`,
       icon: 'success'
@@ -618,7 +621,9 @@ onMounted(() => {
 
 .tab-item {
   flex: 1;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20rpx 0;
   position: relative;
   z-index: 1;
@@ -637,16 +642,19 @@ onMounted(() => {
 .tab-indicator {
   position: absolute;
   top: 8rpx;
+  // 宽度 = 父容器宽度 / 2 - 左右各留 8rpx padding 的一半
+  // 修正：原 calc(50% - 8rpx) + translateX(100%) 位移不准，换成基于父容器的精确计算
   left: 8rpx;
-  width: calc(50% - 8rpx);
+  width: calc(50% - 12rpx);
   height: calc(100% - 16rpx);
-  background: rgba(102, 126, 234, 0.1);
+  background: rgba($primary, 0.1);
   border-radius: 12rpx;
   transition: all 0.3s ease;
 }
 
 .tab-indicator.right {
-  transform: translateX(100%);
+  // 右移到第二个 tab 位置：父容器宽度的 50%
+  transform: translateX(calc(100% + 8rpx));
 }
 
 .records-section,

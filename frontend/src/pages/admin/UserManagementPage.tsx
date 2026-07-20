@@ -4,7 +4,6 @@ import {
   Users,
   Search,
   Check,
-  X,
   Ban,
   Play,
   Loader2,
@@ -18,16 +17,14 @@ import {
 
 // 状态标签组件
 function StatusBadge({ status }: { status: AdminUser['status'] }) {
+  // 对齐后端 UserStatus（user 模块）：仅 ACTIVE / INACTIVE / BANNED
   const config: Record<string, { label: string; className: string }> = {
     ACTIVE: { label: '正常', className: 'bg-green-100 text-green-700' },
+    INACTIVE: { label: '未激活', className: 'bg-amber-100 text-amber-700' },
     BANNED: { label: '已禁用', className: 'bg-slate-100 text-slate-700' },
-    PENDING: { label: '待审核', className: 'bg-amber-100 text-amber-700' },
-    APPROVED: { label: '已通过', className: 'bg-green-100 text-green-700' },
-    REJECTED: { label: '已拒绝', className: 'bg-red-100 text-red-700' },
-    DISABLED: { label: '已禁用', className: 'bg-slate-100 text-slate-700' },
   };
 
-  const { label, className } = config[status] || config.PENDING;
+  const { label, className } = config[status] || config.INACTIVE;
 
   return (
     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${className}`}>
@@ -117,19 +114,6 @@ export default function UserManagementPage() {
     }
   };
 
-  // 审核拒绝
-  const handleReject = async (userId: number) => {
-    try {
-      setActionLoading(userId);
-      await adminApi.rejectUser(userId);
-      await loadUsers();
-    } catch (error) {
-      console.error('审核拒绝失败:', error);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   // 禁用用户
   const handleDisable = async (userId: number) => {
     try {
@@ -206,11 +190,8 @@ export default function UserManagementPage() {
             >
               <option value="">全部状态</option>
               <option value="ACTIVE">正常</option>
-              <option value="PENDING">待审核</option>
-              <option value="APPROVED">已通过</option>
-              <option value="REJECTED">已拒绝</option>
+              <option value="INACTIVE">未激活</option>
               <option value="BANNED">已禁用</option>
-              <option value="DISABLED">已禁用(旧)</option>
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
@@ -294,7 +275,7 @@ export default function UserManagementPage() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <AnimatePresence mode="wait">
-                          {user.status === 'PENDING' && (
+                          {user.status === 'INACTIVE' && (
                             <>
                               <button
                                 onClick={() => handleApprove(user.id)}
@@ -310,17 +291,21 @@ export default function UserManagementPage() {
                                 <span>通过</span>
                               </button>
                               <button
-                                onClick={() => handleReject(user.id)}
+                                onClick={() => handleDisable(user.id)}
                                 disabled={actionLoading === user.id}
-                                className="flex items-center gap-1 px-2.5 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                                title="审核拒绝"
+                                className="flex items-center gap-1 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                                title="禁用用户"
                               >
-                                <X className="w-4 h-4" />
-                                <span>拒绝</span>
+                                {actionLoading === user.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Ban className="w-4 h-4" />
+                                )}
+                                <span>禁用</span>
                               </button>
                             </>
                           )}
-                          {(user.status === 'ACTIVE' || user.status === 'APPROVED') && (
+                          {user.status === 'ACTIVE' && (
                             <button
                               onClick={() => handleDisable(user.id)}
                               disabled={actionLoading === user.id}
@@ -335,7 +320,7 @@ export default function UserManagementPage() {
                               <span>禁用</span>
                             </button>
                           )}
-                          {(user.status === 'REJECTED' || user.status === 'DISABLED' || user.status === 'BANNED') && (
+                          {user.status === 'BANNED' && (
                             <button
                               onClick={() => handleEnable(user.id)}
                               disabled={actionLoading === user.id}

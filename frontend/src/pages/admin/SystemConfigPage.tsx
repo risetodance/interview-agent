@@ -27,7 +27,7 @@ export default function SystemConfigPage() {
       // 初始化编辑状态
       const initialValues: Record<string, string> = {};
       data.forEach((config) => {
-        initialValues[config.key] = config.value;
+        initialValues[config.configKey] = config.configValue;
       });
       setEditedConfigs(initialValues);
     } catch (err) {
@@ -70,8 +70,12 @@ export default function SystemConfigPage() {
 
   // 获取配置类型
   const getConfigType = (key: string): string => {
-    const config = configs.find((c) => c.key === key);
-    return config?.type || 'text';
+    const config = configs.find((c) => c.configKey === key);
+    const t = (config?.configType || '').toUpperCase();
+    if (t === 'BOOLEAN') return 'boolean';
+    if (t === 'INTEGER' || t === 'NUMBER' || t === 'LONG') return 'number';
+    if (t === 'JSON' || t === 'TEXT') return 'textarea';
+    return 'text';
   };
 
   if (loading) {
@@ -135,23 +139,23 @@ export default function SystemConfigPage() {
       <div className="space-y-6">
         {configs.map((config, index) => (
           <motion.div
-            key={config.key}
+            key={config.configKey}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
             className="bg-white rounded-xl p-6 shadow-sm border border-slate-100"
           >
             <div className="mb-4">
-              <h3 className="text-lg font-semibold text-slate-800">{config.key}</h3>
+              <h3 className="text-lg font-semibold text-slate-800">{config.configKey}</h3>
               <p className="text-sm text-slate-500 mt-1">{config.description}</p>
             </div>
 
-            {getConfigType(config.key) === 'boolean' ? (
+            {getConfigType(config.configKey) === 'boolean' ? (
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => handleConfigChange(config.key, 'true')}
+                  onClick={() => handleConfigChange(config.configKey, 'true')}
                   className={`flex-1 py-3 px-4 rounded-lg border-2 transition-colors ${
-                    editedConfigs[config.key] === 'true'
+                    editedConfigs[config.configKey] === 'true'
                       ? 'border-primary-500 bg-primary-50 text-primary-700'
                       : 'border-slate-200 text-slate-600 hover:border-slate-300'
                   }`}
@@ -159,9 +163,9 @@ export default function SystemConfigPage() {
                   开启
                 </button>
                 <button
-                  onClick={() => handleConfigChange(config.key, 'false')}
+                  onClick={() => handleConfigChange(config.configKey, 'false')}
                   className={`flex-1 py-3 px-4 rounded-lg border-2 transition-colors ${
-                    editedConfigs[config.key] === 'false'
+                    editedConfigs[config.configKey] === 'false'
                       ? 'border-red-500 bg-red-50 text-red-700'
                       : 'border-slate-200 text-slate-600 hover:border-slate-300'
                   }`}
@@ -169,18 +173,18 @@ export default function SystemConfigPage() {
                   关闭
                 </button>
               </div>
-            ) : getConfigType(config.key) === 'number' ? (
+            ) : getConfigType(config.configKey) === 'number' ? (
               <input
                 type="number"
-                value={editedConfigs[config.key] || ''}
-                onChange={(e) => handleConfigChange(config.key, e.target.value)}
+                value={editedConfigs[config.configKey] || ''}
+                onChange={(e) => handleConfigChange(config.configKey, e.target.value)}
                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder="请输入数值"
               />
-            ) : getConfigType(config.key) === 'textarea' ? (
+            ) : getConfigType(config.configKey) === 'textarea' ? (
               <textarea
-                value={editedConfigs[config.key] || ''}
-                onChange={(e) => handleConfigChange(config.key, e.target.value)}
+                value={editedConfigs[config.configKey] || ''}
+                onChange={(e) => handleConfigChange(config.configKey, e.target.value)}
                 rows={4}
                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                 placeholder="请输入内容"
@@ -188,8 +192,8 @@ export default function SystemConfigPage() {
             ) : (
               <input
                 type="text"
-                value={editedConfigs[config.key] || ''}
-                onChange={(e) => handleConfigChange(config.key, e.target.value)}
+                value={editedConfigs[config.configKey] || ''}
+                onChange={(e) => handleConfigChange(config.configKey, e.target.value)}
                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder="请输入内容"
               />

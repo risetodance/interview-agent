@@ -3,6 +3,9 @@ package interview.guide.modules.admin.controller;
 import interview.guide.common.result.Result;
 import interview.guide.modules.admin.model.AuditLogEntity;
 import interview.guide.modules.admin.service.AuditLogService;
+import interview.guide.modules.interview.repository.InterviewSessionRepository;
+import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
+import interview.guide.modules.resume.repository.ResumeRepository;
 import interview.guide.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +31,9 @@ public class DashboardController {
 
     private final UserRepository userRepository;
     private final AuditLogService auditLogService;
+    private final InterviewSessionRepository interviewSessionRepository;
+    private final ResumeRepository resumeRepository;
+    private final KnowledgeBaseRepository knowledgeBaseRepository;
 
     /**
      * 获取仪表盘统计数据
@@ -41,14 +46,16 @@ public class DashboardController {
         long totalUsers = userRepository.count();
         long activeUsers = userRepository.count() - userRepository.countByStatus(
             interview.guide.modules.user.model.UserStatus.BANNED);
+        long pendingUsers = userRepository.countByStatus(
+            interview.guide.modules.user.model.UserStatus.INACTIVE);
 
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalUsers", totalUsers);
         stats.put("activeUsers", activeUsers);
-        stats.put("pendingUsers", 0L);
-        stats.put("totalInterviews", 0L);
-        stats.put("totalResumes", 0L);
-        stats.put("totalKnowledgeBases", 0L);
+        stats.put("pendingUsers", pendingUsers);
+        stats.put("totalInterviews", interviewSessionRepository.count());
+        stats.put("totalResumes", resumeRepository.count());
+        stats.put("totalKnowledgeBases", knowledgeBaseRepository.count());
 
         return Result.success(stats);
     }

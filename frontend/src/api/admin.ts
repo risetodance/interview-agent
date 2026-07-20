@@ -10,13 +10,11 @@ export interface AdminUser {
   nickname: string;
   avatar: string;
   role: string;
-  status: 'ACTIVE' | 'BANNED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DISABLED';
+  // 对齐后端 UserStatus（user 模块）：仅 ACTIVE/INACTIVE/BANNED
+  status: 'ACTIVE' | 'INACTIVE' | 'BANNED';
   membership: string;
   points: number;
   createdAt: string;
-  approvedAt?: string;
-  rejectedAt?: string;
-  disabledAt?: string;
 }
 
 /**
@@ -41,28 +39,36 @@ export interface PageResponse<T> {
 }
 
 /**
- * 系统配置
+ * 系统配置（对齐后端 SystemConfigEntity）
  */
 export interface SystemConfig {
-  key: string;
-  value: string;
+  id?: number;
+  configKey: string;
+  configValue: string;
   description: string;
-  type: string;
+  configType: string; // STRING / INTEGER / BOOLEAN / JSON
+  editable?: boolean;
 }
 
 /**
- * 审计日志
+ * 审计日志（对齐后端 AuditLogEntity）
  */
 export interface AuditLog {
   id: number;
-  userId: number;
-  username: string;
-  action: string;
-  resource: string;
-  method: string;
-  ip: string;
-  userAgent: string;
-  details: string;
+  operationType: string;
+  operatorId: number;
+  operatorUsername: string;
+  operatorRole?: string;
+  targetType?: string;
+  targetId?: number;
+  details?: string;
+  ipAddress?: string;
+  method?: string;
+  requestUrl?: string;
+  userAgent?: string;
+  result?: string;
+  errorMessage?: string;
+  duration?: number;
   createdAt: string;
 }
 
@@ -80,12 +86,19 @@ export interface DashboardStats {
 
 /**
  * 仪表盘最近活动
+ * 后端 /dashboard/activities 返回 List<AuditLogEntity>，故字段与 AuditLog 同源
  */
 export interface RecentActivity {
   id: number;
-  type: 'USER' | 'INTERVIEW' | 'RESUME' | 'KNOWLEDGEBASE';
-  action: string;
-  description: string;
+  operationType: string;
+  operatorId: number;
+  operatorUsername?: string;
+  operatorRole?: string;
+  targetType?: string;
+  targetId?: number;
+  details?: string;
+  ipAddress?: string;
+  method?: string;
   createdAt: string;
 }
 
@@ -145,9 +158,9 @@ export const adminApi = {
   async getAuditLogs(params?: {
     page?: number;
     size?: number;
-    startDate?: string;
-    endDate?: string;
-    action?: string;
+    startDate?: string; // ISO datetime，如 2026-07-20T00:00:00
+    endDate?: string; // ISO datetime，如 2026-07-20T23:59:59
+    operationType?: string;
   }): Promise<PageResponse<AuditLog>> {
     return request.get<PageResponse<AuditLog>>('/api/admin/audit-logs', { params });
   },

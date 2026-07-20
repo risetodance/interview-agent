@@ -69,19 +69,20 @@ export default function AuditLogPage() {
         size: number;
         startDate?: string;
         endDate?: string;
-        action?: string;
+        operationType?: string;
       } = {
         page: currentPage,
         size: pageSize,
       };
       if (startDate) {
-        params.startDate = startDate;
+        // 补全为 ISO datetime，后端为 LocalDateTime（ISO_DATE_TIME）解析
+        params.startDate = `${startDate}T00:00:00`;
       }
       if (endDate) {
-        params.endDate = endDate;
+        params.endDate = `${endDate}T23:59:59`;
       }
       if (actionFilter) {
-        params.action = actionFilter;
+        params.operationType = actionFilter;
       }
       const data = await adminApi.getAuditLogs(params);
       setLogs(data.content);
@@ -265,14 +266,14 @@ export default function AuditLogPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm text-slate-800">{log.username}</span>
+                        <span className="text-sm text-slate-800">{log.operatorUsername || '-'}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <ActionBadge action={log.action} />
+                      <ActionBadge action={log.operationType} />
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-600">
-                      {log.resource}
+                      {log.targetType || '-'}
                     </td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs font-mono">
@@ -282,7 +283,7 @@ export default function AuditLogPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Globe className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm text-slate-600 font-mono">{log.ip}</span>
+                        <span className="text-sm text-slate-600 font-mono">{log.ipAddress || '-'}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">

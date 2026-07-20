@@ -58,8 +58,8 @@ function StatCard({
 }
 
 // 活动类型图标
-function getActivityIcon(type: RecentActivity['type']) {
-  switch (type) {
+function getActivityIcon(targetType?: string) {
+  switch (targetType) {
     case 'USER':
       return Users;
     case 'INTERVIEW':
@@ -192,7 +192,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             activities.map((activity, index) => {
-              const Icon = getActivityIcon(activity.type);
+              const Icon = getActivityIcon(activity.targetType);
               return (
                 <motion.div
                   key={activity.id}
@@ -205,9 +205,9 @@ export default function DashboardPage() {
                     <Icon className="w-5 h-5 text-slate-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-slate-800 truncate">{activity.description}</p>
+                    <p className="text-sm text-slate-800 truncate">{activity.details || activity.operationType}</p>
                     <p className="text-xs text-slate-400">
-                      {activity.action} · {activity.type}
+                      {activity.operationType} · {activity.targetType || '-'}
                     </p>
                   </div>
                   <div className="text-sm text-slate-400 whitespace-nowrap">

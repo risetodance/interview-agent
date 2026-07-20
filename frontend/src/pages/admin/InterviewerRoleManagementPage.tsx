@@ -56,9 +56,9 @@ export default function InterviewerRoleManagementPage() {
       setLoading(true);
       setError(null);
       const data = await interviewerRoleApi.getRoles();
-      // 按 sortOrder 排序
-      data.sort((a, b) => a.sortOrder - b.sortOrder);
-      setRoles(data);
+      // 按 sortOrder 排序（不修改原数组）
+      const sorted = [...data].sort((a, b) => a.sortOrder - b.sortOrder);
+      setRoles(sorted);
     } catch (err) {
       console.error('加载角色列表失败:', err);
       setError('加载角色列表失败');
@@ -174,9 +174,22 @@ export default function InterviewerRoleManagementPage() {
   };
 
   // 切换启用/禁用
+  // 后端 updateRole 接收 @Valid CreateInterviewerRoleRequest，roleName/roleCode/scoringPrompt 标注 @NotBlank，
+  // 故切换状态时必须带上完整字段，否则校验失败 400
   const handleToggleStatus = async (role: InterviewerRole) => {
     try {
-      await interviewerRoleApi.updateRole(role.id, { status: !role.status });
+      await interviewerRoleApi.updateRole(role.id, {
+        roleName: role.roleName,
+        roleCode: role.roleCode,
+        description: role.description,
+        questionPrompt: role.questionPrompt,
+        scoringPrompt: role.scoringPrompt,
+        weight: role.weight,
+        icon: role.icon ?? undefined,
+        sortOrder: role.sortOrder,
+        status: !role.status,
+        defaultTemplate: role.defaultTemplate,
+      });
       await loadRoles();
     } catch (err) {
       console.error('更新状态失败:', err);
@@ -354,7 +367,7 @@ export default function InterviewerRoleManagementPage() {
               ))}
               {roles.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                     暂无角色，点击"添加角色"创建第一个面试官角色
                   </td>
                 </tr>
@@ -487,7 +500,7 @@ export default function InterviewerRoleManagementPage() {
                 {/* 权重滑块 */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    权重：{(formData.weight ?? 0) * 100}%
+                    权重：{((formData.weight ?? 0) * 100).toFixed(0)}%
                   </label>
                   <input
                     type="range"
