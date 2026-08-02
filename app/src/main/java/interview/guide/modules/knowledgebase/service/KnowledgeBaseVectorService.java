@@ -188,7 +188,7 @@ public class KnowledgeBaseVectorService {
             return result;
 
         } catch (Exception e) {
-            log.warn("Parent-Child 检索失败: {}", e.getMessage());
+            log.error("Parent-Child 检索失败: {}", e.getMessage(), e);
             throw e;
         }
     }
@@ -217,7 +217,7 @@ public class KnowledgeBaseVectorService {
 
             return vectorStore.similaritySearch(builder.build());
         } catch (Exception e) {
-            log.warn("向量搜索失败: {}", e.getMessage(), e);
+            log.error("向量搜索失败: {}", e.getMessage(), e);
             return List.of();
         }
     }

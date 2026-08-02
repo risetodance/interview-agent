@@ -19,6 +19,7 @@ import UserManagementPage from './pages/admin/UserManagementPage';
 import SystemConfigPage from './pages/admin/SystemConfigPage';
 import AuditLogPage from './pages/admin/AuditLogPage';
 import InterviewerRoleManagementPage from './pages/admin/InterviewerRoleManagementPage';
+import AiModelConfigPage from './pages/admin/AiModelConfigPage';
 import InterviewReportPage from './pages/InterviewReportPage';
 import { historyApi } from './api/history';
 import type { UploadKnowledgeBaseResponse } from './api/knowledgebase';
@@ -275,6 +276,7 @@ function App() {
             <Route path="config" element={<SystemConfigPage />} />
             <Route path="audit-logs" element={<AuditLogPage />} />
             <Route path="interviewer-roles" element={<InterviewerRoleManagementPage />} />
+            <Route path="ai-models" element={<AiModelConfigPage />} />
           </Route>
         </Routes></Suspense>
     </BrowserRouter>

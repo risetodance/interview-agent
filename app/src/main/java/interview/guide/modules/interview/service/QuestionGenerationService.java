@@ -92,7 +92,7 @@ public class QuestionGenerationService {
                         knowledgeBaseName = kbOpt.get().getName();
                     }
                 } catch (Exception e) {
-                    log.warn("获取知识库信息失败: {}", e.getMessage());
+                    log.error("获取知识库信息失败: {}", e.getMessage(), e);
                 }
             }
 
@@ -183,7 +183,7 @@ public class QuestionGenerationService {
             return generateDefaultQuestion();
 
         } catch (Exception e) {
-            log.warn("AI问题生成失败，使用默认问题: {}", e.getMessage());
+            log.error("AI问题生成失败，使用默认问题: {}", e.getMessage(), e);
             return generateDefaultQuestion();
         }
     }
@@ -331,7 +331,7 @@ public class QuestionGenerationService {
             return objectMapper.readValue(knowledgeBaseIdsJson, new TypeReference<>() {
             });
         } catch (Exception e) {
-            log.warn("解析知识库ID失败: {}", e.getMessage());
+            log.error("解析知识库ID失败: {}", e.getMessage(), e);
             return Collections.emptyList();
         }
     }

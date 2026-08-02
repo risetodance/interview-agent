@@ -78,18 +78,22 @@ spring:
           timeout: 10000          # Redis 操作超时：10秒
 
   # Spring AI
+  # chat 模型由 AiModelRegistry 从 ai_model_config 表动态构建（支持热替换），故禁用 chat 自动配置；
+  # ChatClient.Builder bean 由 AiModelRegistry 提供（@Primary），业务代码 10+ 注入点零改动。
+  # embedding 继续走 yml 写死（spec 决策 4：不支持切换，向量维度不兼容）。
   ai:
+    # 禁用 OpenAI chat / audio / image / moderation 自动配置：
+    # chat 由 AiModelRegistry 从 ai_model_config 表动态构建；其余本项目未使用，
+    # 删除 spring.ai.openai.api-key 后这些 auto-config 会因缺 key 报错，故一并禁用（embedding 保留）。
+    model:
+      chat: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
     openai:
-      base-url: https://api.minimaxi.com/
-      api-key: ${MINIMAX_API_KEY}
-      # HTTP 请求超时配置（毫秒）
-      connect-timeout: 120000    # 2分钟
-      read-timeout: 120000       # 2分钟
-      chat:
-        options:
-          model: ${AI_MODEL:MiniMax-M2.7}
-          temperature: 0.2
-      # Embedding模型配置 - 使用text-embedding-v3
+      # Embedding模型配置 - 使用text-embedding-v4（chat 段已删除，由 ai_model_config 表接管）
       embedding:
         base-url: ${EMBEDDING_API_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
         api-key: ${EMBEDDING_API_KEY:${MINIMAX_API_KEY}}
@@ -160,11 +164,6 @@ app:
     structured-max-attempts: ${APP_AI_STRUCTURED_MAX_ATTEMPTS:3}
     # 重试时是否将上次错误原因注入提示词，帮助模型定向修复输出
     structured-include-last-error: ${APP_AI_STRUCTURED_INCLUDE_LAST_ERROR:true}
-    # 小模型配置（用于轻量级任务如相关性打分）
-    small-model:
-      enabled: ${APP_AI_SMALL_MODEL_ENABLED:true}
-      model: ${APP_AI_SMALL_MODEL:MiniMax-M2.5}
-      temperature: 0.1
     rag:
       rewrite:
         enabled: ${APP_AI_RAG_REWRITE_ENABLED:true}

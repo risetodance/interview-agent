@@ -223,7 +223,7 @@ public class KnowledgeBaseQueryService {
             log.info("Query rewrite: origin='{}', rewritten='{}'", question, normalized);
             return normalized;
         } catch (Exception e) {
-            log.warn("Query rewrite 失败，使用原问题继续检索: {}", e.getMessage(), e);
+            log.error("Query rewrite 失败，使用原问题继续检索: {}", e.getMessage(), e);
             return question;
         }
     }

@@ -33,7 +33,7 @@ public class ContentTypeDetectionService {
         try (InputStream inputStream = file.getInputStream()) {
             return tika.detect(inputStream, file.getOriginalFilename());
         } catch (IOException e) {
-            log.warn("无法检测文件类型，使用 Content-Type 头部: {}", e.getMessage());
+            log.error("无法检测文件类型，使用 Content-Type 头部: {}", e.getMessage(), e);
             return file.getContentType();
         }
     }
@@ -49,7 +49,7 @@ public class ContentTypeDetectionService {
         try {
             return tika.detect(inputStream, fileName);
         } catch (IOException e) {
-            log.warn("无法检测文件类型: {}", e.getMessage());
+            log.error("无法检测文件类型: {}", e.getMessage(), e);
             return "application/octet-stream";
         }
     }

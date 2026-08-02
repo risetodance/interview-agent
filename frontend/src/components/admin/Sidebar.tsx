@@ -7,6 +7,7 @@ import {
   LogOut,
   Sparkles,
   UserCog,
+  Cpu,
 } from 'lucide-react';
 import { useUser } from '../../store/user';
 
@@ -49,6 +50,13 @@ export default function AdminSidebar() {
       label: '面试官角色',
       icon: UserCog,
       description: '管理面试官角色模板'
+    },
+    {
+      id: 'ai-models',
+      path: '/admin/ai-models',
+      label: 'AI 模型配置',
+      icon: Cpu,
+      description: '配置面试大模型'
     },
     {
       id: 'config',

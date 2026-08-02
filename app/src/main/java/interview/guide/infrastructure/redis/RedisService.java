@@ -260,7 +260,7 @@ public class RedisService {
         } catch (Exception e) {
             // 组已存在，忽略
             if (!e.getMessage().contains("BUSYGROUP")) {
-                log.warn("创建消费者组失败: {}", e.getMessage());
+                log.error("创建消费者组失败: {}", e.getMessage(), e);
             }
         }
     }

@@ -84,7 +84,14 @@ public enum ErrorCode {
 
     // ========== 管理模块错误 11xxx ==========
     CONFIG_NOT_FOUND(11001, "配置不存在"),
-    ADMIN_UNAUTHORIZED(11002, "无管理员权限");
+    ADMIN_UNAUTHORIZED(11002, "无管理员权限"),
+    AI_MODEL_CONFIG_NOT_FOUND(11003, "AI 模型配置不存在"),
+    AI_MODEL_CONFIG_EMPTY(11004, "AI 模型配置为空，请先配置模型"),
+    AI_MODEL_CONFIG_TEST_FAILED(11005, "AI 模型连接测试失败"),
+    AI_MODEL_PROBE_FAILED(11006, "拉取模型列表失败"),
+    AI_MODEL_CONFIG_IN_USE(11007, "配置正被角色引用，请先取消指派"),
+    AI_MODEL_ROLE_CHAT_REQUIRED(11008, "主模型角色不能为空"),
+    AI_MODEL_NOT_CONFIGURED(11009, "AI 模型未配置，请联系管理员配置模型");
     
     private final Integer code;
     private final String message;

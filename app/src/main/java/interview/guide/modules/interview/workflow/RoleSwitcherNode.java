@@ -73,7 +73,7 @@ public class RoleSwitcherNode {
                         session.getSelectedPerspectives(), new TypeReference<>() {
                         });
             } catch (Exception e) {
-                log.warn("解析 selectedPerspectives 失败: {}", e.getMessage());
+                log.error("解析 selectedPerspectives 失败: {}", e.getMessage(), e);
                 return state;
             }
 

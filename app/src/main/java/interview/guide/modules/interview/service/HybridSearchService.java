@@ -10,13 +10,13 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.Resource;
@@ -57,8 +57,6 @@ public class HybridSearchService {
     @Value("${app.interview.hybrid-search.topk:3}")
     private int hybridSearchTopK;
 
-    private boolean smallModelEnabled;
-
     @Value("classpath:prompts/reranker-scoring-system.st")
     private Resource rerankerSystemPromptResource;
 
@@ -76,24 +74,17 @@ public class HybridSearchService {
             @Autowired(required = false) ToolCallbackProvider toolCallbackProvider,
             StructuredOutputInvoker structuredOutputInvoker,
             ChatClient.Builder chatClientBuilder,
-            @Value("${app.ai.small-model.model:MiniMax-M2.5}") String smallModelName,
-            @Value("${app.ai.small-model.enabled:true}") boolean smallModelEnabled,
-            @Value("${app.ai.small-model.temperature:0.1}") double smallModelTemperature) {
+            @Qualifier("smallModelChatClientBuilder") ChatClient.Builder smallModelBuilder) {
         this.questionRepository = questionRepository;
         this.knowledgeBaseRepository = knowledgeBaseRepository;
         this.knowledgeBaseVectorService = knowledgeBaseVectorService;
         this.toolCallbackProvider = toolCallbackProvider;
         this.structuredOutputInvoker = structuredOutputInvoker;
+        // 主模型 / 小模型 ChatClient 由 AiModelRegistry 提供的委托 builder 构造，
+        // 持有的是 DelegatingChatModel 单例，配置热替换时自动生效。
+        // 小模型无配置或禁用时 Registry 已退化指向主模型，故此处始终可用。
         this.chatClient = chatClientBuilder.build();
-        this.smallModelEnabled = smallModelEnabled;
-        this.smallModelChatClient = smallModelEnabled
-                ? chatClientBuilder.defaultOptions(
-                        ChatOptions.builder()
-                                .model(smallModelName)
-                                .temperature(smallModelTemperature)
-                                .build())
-                .build()
-                : chatClient;
+        this.smallModelChatClient = smallModelBuilder.build();
     }
 
     /**
@@ -234,7 +225,7 @@ public class HybridSearchService {
             }
             return CompletableFuture.completedFuture(results);
         } catch (Exception e) {
-            log.warn("题库全文搜索失败: {}", e.getMessage());
+            log.error("题库全文搜索失败: {}", e.getMessage(), e);
             return CompletableFuture.completedFuture(List.of());
         }
     }
@@ -253,7 +244,7 @@ public class HybridSearchService {
             List<Document> results = knowledgeBaseVectorService.similaritySearch(keywords, kbIds, topK, 0.5);
             return CompletableFuture.completedFuture(results);
         } catch (Exception e) {
-            log.warn("知识库向量搜索失败: {}", e.getMessage());
+            log.error("知识库向量搜索失败: {}", e.getMessage(), e);
             return CompletableFuture.completedFuture(List.of());
         }
     }
@@ -311,7 +302,7 @@ public class HybridSearchService {
             return CompletableFuture.completedFuture(results);
 
         } catch (Exception e) {
-            log.warn("Web 搜索失败: {}", e.getMessage());
+            log.error("Web 搜索失败: {}", e.getMessage(), e);
             return CompletableFuture.completedFuture(List.of());
         }
     }
@@ -357,8 +348,8 @@ public class HybridSearchService {
             pendingItems.add(new RerankedItem("webSearch", w, 0, 0.0));
         }
 
-        // 如果启用了小模型且小模型可用，则使用小模型打分
-        if (smallModelEnabled && smallModelChatClient != null) {
+        // 小模型 ChatClient 由 Registry 保证可用（无配置 / 禁用时 Registry 已退化到主模型），直接使用
+        if (smallModelChatClient != null) {
             try {
                 List<RerankerScoreResult> scores = scoreWithSmallModel(candidatesBuilder.toString());
                 // 应用分数到对应项
@@ -372,7 +363,7 @@ public class HybridSearchService {
                 }
                 log.info("小模型打分完成: 共 {} 条结果", scores.size());
             } catch (Exception e) {
-                log.warn("小模型打分失败，使用默认 RRF 分数: {}", e.getMessage());
+                log.error("小模型打分失败，使用默认 RRF 分数: {}", e.getMessage(), e);
                 // 打分失败时使用默认 RRF 分数
                 applyDefaultRrfScores(pendingItems, allItems);
             }

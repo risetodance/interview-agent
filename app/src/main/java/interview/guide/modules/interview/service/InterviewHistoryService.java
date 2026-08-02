@@ -85,7 +85,7 @@ public class InterviewHistoryService {
             return objectMapper.readValue(categoryScoresJson,
                 new TypeReference<Map<String, CategoryScoreDTO>>() {});
         } catch (Exception e) {
-            log.warn("解析分类得分失败: {}", e.getMessage());
+            log.error("解析分类得分失败: {}", e.getMessage(), e);
             return null;
         }
     }

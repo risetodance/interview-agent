@@ -62,7 +62,7 @@ public class InterviewSessionService {
             try {
                 knowledgeBaseIdsJson = objectMapper.writeValueAsString(request.knowledgeBaseIds());
             } catch (Exception e) {
-                log.warn("序列化知识库ID失败: {}", e.getMessage());
+                log.error("序列化知识库ID失败: {}", e.getMessage(), e);
             }
         }
 
@@ -72,7 +72,7 @@ public class InterviewSessionService {
             try {
                 selectedPerspectivesJson = objectMapper.writeValueAsString(request.selectedPerspectives());
             } catch (Exception e) {
-                log.warn("序列化选择视角失败: {}", e.getMessage());
+                log.error("序列化选择视角失败: {}", e.getMessage(), e);
             }
         }
 
@@ -82,7 +82,7 @@ public class InterviewSessionService {
             try {
                 perspectiveWeightsJson = objectMapper.writeValueAsString(request.perspectiveWeights());
             } catch (Exception e) {
-                log.warn("序列化视角权重失败: {}", e.getMessage());
+                log.error("序列化视角权重失败: {}", e.getMessage(), e);
             }
         }
 
@@ -264,7 +264,7 @@ public class InterviewSessionService {
                     cachedSession.setKnowledgeBaseIds(objectMapper.readValue(entity.getKnowledgeBaseIds(), new TypeReference<>() {
                     }));
                 } catch (Exception e) {
-                    log.warn("解析知识库ID失败: {}", e.getMessage());
+                    log.error("解析知识库ID失败: {}", e.getMessage(), e);
                 }
             }
 
@@ -306,7 +306,7 @@ public class InterviewSessionService {
             // 设置评估状态为 PENDING
             persistenceService.updateEvaluateStatus(sessionId, AsyncTaskStatus.PENDING, null);
         } catch (Exception e) {
-            log.warn("更新会话状态失败: {}", e.getMessage());
+            log.error("更新会话状态失败: {}", e.getMessage(), e);
         }
 
         // 发送评估任务到 Redis Stream
@@ -364,7 +364,7 @@ public class InterviewSessionService {
         try {
             persistenceService.saveReport(sessionId, report);
         } catch (Exception e) {
-            log.warn("保存报告到数据库失败: {}", e.getMessage());
+            log.error("保存报告到数据库失败: {}", e.getMessage(), e);
         }
 
         return report;

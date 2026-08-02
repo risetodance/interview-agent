@@ -140,7 +140,7 @@ public class FileStorageService {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (S3Exception e) {
-            log.warn("检查文件存在性失败: {} - {}", fileKey, e.getMessage());
+            log.error("检查文件存在性失败: {} - {}", fileKey, e.getMessage(), e);
             return false;
         }
     }

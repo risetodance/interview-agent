@@ -142,7 +142,7 @@ public class RateLimitAspect {
             try {
                 return Long.parseLong((String) obj);
             } catch (NumberFormatException e) {
-                log.warn("无法将字符串转换为Long: {}", obj);
+                log.error("无法将字符串转换为Long: {}", obj, e);
                 return null;
             }
         }
@@ -226,8 +226,8 @@ public class RateLimitAspect {
                 method.setAccessible(true);
                 return method;
             } catch (NoSuchMethodException ex) {
-                log.warn("未找到降级方法: {}.{} (需无参或参数列表一致)",
-                        targetClass.getSimpleName(), fallbackName);
+                log.error("未找到降级方法: {}.{} (需无参或参数列表一致)",
+                        targetClass.getSimpleName(), fallbackName, ex, e);
                 return null;
             }
         }

@@ -97,7 +97,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             log.debug("JWT认证成功: userId={}, username={}, role={}", userId, username, role);
         } catch (Exception e) {
             // Token 解析失败，记录日志但不放行（让 SecurityConfig 处理）
-            log.warn("JWT Token解析失败: {}", e.getMessage());
+            log.error("JWT Token解析失败: {}", e.getMessage(), e);
         }
 
         filterChain.doFilter(request, response);

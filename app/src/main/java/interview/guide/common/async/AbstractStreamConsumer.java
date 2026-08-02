@@ -38,7 +38,7 @@ public abstract class AbstractStreamConsumer<T> {
             redisService.createStreamGroup(streamKey(), groupName());
             log.info("Redis Stream 消费者组已创建或已存在: {}", groupName());
         } catch (Exception e) {
-            log.warn("创建消费者组时发生异常（可能已存在）: {}", e.getMessage());
+            log.error("创建消费者组时发生异常（可能已存在）: {}", e.getMessage(), e);
         }
 
         this.executorService = Executors.newSingleThreadExecutor(r -> {

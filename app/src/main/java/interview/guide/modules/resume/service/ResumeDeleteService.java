@@ -41,7 +41,7 @@ public class ResumeDeleteService {
         try {
             storageService.deleteResume(resume.getStorageKey());
         } catch (Exception e) {
-            log.warn("删除存储文件失败，继续删除数据库记录: {}", e.getMessage());
+            log.error("删除存储文件失败，继续删除数据库记录: {}", e.getMessage(), e);
         }
         
         // 2. 删除面试会话（会自动删除面试答案）

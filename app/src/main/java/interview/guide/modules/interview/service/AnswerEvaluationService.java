@@ -315,7 +315,7 @@ public class AnswerEvaluationService {
             log.debug("二次汇总评估完成: sessionId={}", sessionId);
             return new FinalSummaryDTO(overallFeedback, strengths, improvements);
         } catch (Exception e) {
-            log.warn("二次汇总评估失败，降级到批次聚合结果: sessionId={}, error={}", sessionId, e.getMessage());
+            log.error("二次汇总评估失败，降级到批次聚合结果: sessionId={}, error={}", sessionId, e.getMessage(), e);
             return new FinalSummaryDTO(
                 fallbackOverallFeedback,
                 fallbackStrengths,

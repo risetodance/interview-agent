@@ -56,7 +56,7 @@ public class InterviewStreamController {
             // 验证会话所有权
             sessionService.validateSessionOwnership(userId, sessionId);
         } catch (Exception e) {
-            log.warn("SSE stream unauthorized: sessionId={}, error={}", sessionId, e.getMessage());
+            log.error("SSE stream unauthorized: sessionId={}, error={}", sessionId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 

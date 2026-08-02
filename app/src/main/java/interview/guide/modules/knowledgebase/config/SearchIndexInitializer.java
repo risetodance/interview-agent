@@ -27,7 +27,7 @@ public class SearchIndexInitializer {
             createQuestionsFtsIndex();
             createVectorStoreBm25Index();
         } catch (Exception e) {
-            log.warn("初始化搜索索引失败: {}", e.getMessage());
+            log.error("初始化搜索索引失败: {}", e.getMessage(), e);
         }
     }
 
@@ -55,7 +55,7 @@ public class SearchIndexInitializer {
                 return;
             }
         } catch (Exception e) {
-            log.warn("检查 questions 表失败: {}", e.getMessage());
+            log.error("检查 questions 表失败: {}", e.getMessage(), e);
             return;
         }
 
@@ -72,7 +72,7 @@ public class SearchIndexInitializer {
             if (e.getMessage() != null && e.getMessage().contains("already exists")) {
                 log.debug("题库 BM25 搜索索引已存在");
             } else {
-                log.warn("创建题库 BM25 索引失败: {}", e.getMessage());
+                log.error("创建题库 BM25 索引失败: {}", e.getMessage(), e);
             }
         }
     }
@@ -100,7 +100,7 @@ public class SearchIndexInitializer {
                 return;
             }
         } catch (Exception e) {
-            log.warn("检查 vector_store 表失败: {}", e.getMessage());
+            log.error("检查 vector_store 表失败: {}", e.getMessage(), e);
             return;
         }
 
@@ -117,7 +117,7 @@ public class SearchIndexInitializer {
             if (e.getMessage() != null && e.getMessage().contains("already exists")) {
                 log.debug("知识库 BM25 索引已存在");
             } else {
-                log.warn("创建知识库 BM25 索引失败: {}", e.getMessage());
+                log.error("创建知识库 BM25 索引失败: {}", e.getMessage(), e);
             }
         }
     }

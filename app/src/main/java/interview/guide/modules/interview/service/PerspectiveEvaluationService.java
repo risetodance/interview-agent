@@ -176,7 +176,7 @@ public class PerspectiveEvaluationService {
         try {
             return objectMapper.readValue(selectedPerspectivesJson, new TypeReference<List<Long>>() {});
         } catch (Exception e) {
-            log.warn("解析视角ID列表失败: {}", e.getMessage());
+            log.error("解析视角ID列表失败: {}", e.getMessage(), e);
             return List.of();
         }
     }
@@ -191,7 +191,7 @@ public class PerspectiveEvaluationService {
         try {
             return objectMapper.readValue(perspectiveWeightsJson, new TypeReference<Map<Long, Double>>() {});
         } catch (Exception e) {
-            log.warn("解析视角权重配置失败: {}", e.getMessage());
+            log.error("解析视角权重配置失败: {}", e.getMessage(), e);
             return Map.of();
         }
     }
@@ -325,7 +325,7 @@ public class PerspectiveEvaluationService {
                     log
             );
         } catch (Exception e) {
-            log.warn("AI批量评估解析失败，使用默认评分: {}", e.getMessage());
+            log.error("AI批量评估解析失败，使用默认评分: {}", e.getMessage(), e);
             // 从已有答案计算默认分
             int avgScore = (int) questions.stream()
                     .mapToInt(q -> q.score())
@@ -573,7 +573,7 @@ public class PerspectiveEvaluationService {
             );
 
         } catch (Exception e) {
-            log.warn("AI综合评语生成失败: {}", e.getMessage());
+            log.error("AI综合评语生成失败: {}", e.getMessage(), e);
             return new ComprehensiveFeedbackDTO("综合评价生成失败，请稍后重试。", "综合评价生成失败，请稍后重试。");
         }
     }

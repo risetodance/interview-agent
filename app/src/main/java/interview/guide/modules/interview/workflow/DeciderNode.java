@@ -218,7 +218,7 @@ public class DeciderNode {
                     session.getSelectedPerspectives(), new TypeReference<List<Long>>() {
                     });
         } catch (Exception e) {
-            log.warn("解析 selectedPerspectives 失败: {}", e.getMessage());
+            log.error("解析 selectedPerspectives 失败: {}", e.getMessage(), e);
             return List.of();
         }
     }
@@ -314,7 +314,7 @@ public class DeciderNode {
                 }
                 log.info("availablePerspectives: {}", availablePerspectivesBuilder);
             } catch (Exception e) {
-                log.warn("解析 selectedPerspectives 失败: {}", e.getMessage());
+                log.error("解析 selectedPerspectives 失败: {}", e.getMessage(), e);
             }
         }
 
@@ -323,6 +323,13 @@ public class DeciderNode {
         variables.put("currentPerspective", currentPerspectiveName);
         variables.put("currentQuestionIndex", questionIndex + 1);
         variables.put("totalQuestions", session.getTotalQuestions() != null ? session.getTotalQuestions() : 10);
+        // 已答总题数（所有视角已出题数之和，含追问），让模型对绝对进度有认知，避免误判提前结束
+        int totalAnswered = answersByPerspective.values().stream()
+                .mapToInt(List::size)
+                .sum();
+        variables.put("totalAnswered", totalAnswered);
+        variables.put("remainingQuestions",
+                (session.getTotalQuestions() != null ? session.getTotalQuestions() : 10) - totalAnswered);
         variables.put("score", score);
         variables.put("feedback", feedback != null ? feedback : "无");
         variables.put("difficulty", difficulty);

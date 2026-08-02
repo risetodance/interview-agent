@@ -104,7 +104,7 @@ public class QuestionGeneratorNode {
                             hybridResult.getWebSearchContext().length());
                 } catch (Exception e) {
                     log.error("<UNK>", e);
-                    log.warn("混合检索失败: sessionId={}, error={}", sessionId, e.getMessage());
+                    log.error("混合检索失败: sessionId={}, error={}", sessionId, e.getMessage(), e);
                     mergedSearchContext = "";
                 }
             }
@@ -172,7 +172,7 @@ public class QuestionGeneratorNode {
                                 sessionId, selectedPerspectiveId, selectedPerspectiveName, session.getCurrentDifficulty());
                     }
                 } catch (Exception e) {
-                    log.warn("解析selectedPerspectives失败: {}", e.getMessage(), e);
+                    log.error("解析selectedPerspectives失败: {}", e.getMessage(), e);
                 }
             } else {
                 log.warn("session.getSelectedPerspectives() 为空: sessionId={}", sessionId);

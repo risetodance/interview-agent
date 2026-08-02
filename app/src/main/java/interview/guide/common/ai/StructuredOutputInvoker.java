@@ -94,6 +94,14 @@ public class StructuredOutputInvoker {
             OutputValidator<T> validator,
             ToolCallback... toolCallbacks
     ) {
+        // 过滤掉 toolCallbacks 中的 null 元素：某些调用方（如 SingleAnswerEvaluationService）
+        // 在 web_search 工具不可用（MCP 未启用 / provider 无此工具）时会传 null，
+        // Spring AI 的 toolCallbacks() 会因 null 元素抛 IllegalArgumentException，这里统一兜底。
+        ToolCallback[] effectiveToolCallbacks = toolCallbacks == null ? new ToolCallback[0]
+                : java.util.Arrays.stream(toolCallbacks)
+                        .filter(java.util.Objects::nonNull)
+                        .toArray(ToolCallback[]::new);
+
         Exception lastError = null;
         String lastValidationMessage = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -104,7 +112,7 @@ public class StructuredOutputInvoker {
                 T result = chatClient.prompt()
                         .system(attemptSystemPrompt)
                         .user(userPrompt)
-                        .toolCallbacks(toolCallbacks)
+                        .toolCallbacks(effectiveToolCallbacks)
                         .call()
                         .entity(outputConverter);
 
@@ -119,7 +127,7 @@ public class StructuredOutputInvoker {
                 }
             } catch (Exception e) {
                 lastError = e;
-                log.warn("{}结构化解析失败，准备重试: attempt={}, error={}", logContext, attempt, e.getMessage());
+                log.error("{}结构化解析失败，准备重试: attempt={}, error={}", logContext, attempt, e.getMessage(), e);
             }
         }
 
