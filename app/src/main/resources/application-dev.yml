@@ -6,7 +6,7 @@ spring:
     # 开发环境 MCP Client 配置
     mcp:
       client:
-        enabled: true
+        enabled: false
         toolcallback:
           enabled: true
         stdio:

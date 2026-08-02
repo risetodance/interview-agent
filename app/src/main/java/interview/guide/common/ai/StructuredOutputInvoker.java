@@ -43,6 +43,7 @@ public class StructuredOutputInvoker {
     public interface OutputValidator<T> {
         /**
          * 校验输出是否有效
+         *
          * @param result AI 返回的结果
          * @return 校验结果，包含是否通过及具体信息
          */
@@ -99,8 +100,8 @@ public class StructuredOutputInvoker {
         // Spring AI 的 toolCallbacks() 会因 null 元素抛 IllegalArgumentException，这里统一兜底。
         ToolCallback[] effectiveToolCallbacks = toolCallbacks == null ? new ToolCallback[0]
                 : java.util.Arrays.stream(toolCallbacks)
-                        .filter(java.util.Objects::nonNull)
-                        .toArray(ToolCallback[]::new);
+                .filter(java.util.Objects::nonNull)
+                .toArray(ToolCallback[]::new);
 
         Exception lastError = null;
         String lastValidationMessage = null;
@@ -110,8 +111,9 @@ public class StructuredOutputInvoker {
                     : buildRetrySystemPrompt(systemPromptWithFormat, lastError, lastValidationMessage);
             try {
                 T result = chatClient.prompt()
-                        .system(attemptSystemPrompt)
-                        .user(userPrompt)
+                        .system(attemptSystemPrompt + PromptSecurityConstants.ANTI_INJECTION_INSTRUCTION)
+                        .user(PromptSecurityConstants.wrap(
+                                PromptSecurityConstants.stripBoundaryTags(userPrompt)))
                         .toolCallbacks(effectiveToolCallbacks)
                         .call()
                         .entity(outputConverter);

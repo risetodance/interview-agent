@@ -1,8 +1,16 @@
 package interview.guide.modules.aimodel.util;
 
+import org.springframework.http.HttpRequest;
+import org.springframework.http.client.ClientHttpRequestExecution;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import java.io.IOException;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
 
@@ -81,6 +89,68 @@ public final class AiHttpClientFactory {
                 .build();
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(readTimeout);
-        return RestClient.builder().requestFactory(requestFactory);
+        return RestClient.builder()
+                .requestFactory(requestFactory)
+                .requestInterceptor(SsrfGuardInterceptor.INSTANCE);
+    }
+
+    // ========== SSRF 防护 ==========
+
+    /**
+     * SSRF 防护拦截器：请求发出前解析目标 host 的所有 IP 地址，
+     * 任一落入禁止段即拒绝连接。
+     * <p>允许：公网地址 + 回环地址（本地开发连 ollama / lmstudio）。
+     * <p>拒绝：RFC 1918 私网（10/8、172.16/12、192.168/16）、链路本地（169.254/16，
+     * 含云元数据 169.254.169.254）、IPv6 ULA（fc00::/7）、IPv6 链路本地（fe80::/10）、
+     * 任意本地（0.0.0.0）。
+     * <p>挂在 restClientBuilder 上，ProbeService（probe / test）与 Registry
+     * （buildChatModel → OpenAiApi）的所有出网点零侵入覆盖。
+     */
+    private static final class SsrfGuardInterceptor implements ClientHttpRequestInterceptor {
+        private static final SsrfGuardInterceptor INSTANCE = new SsrfGuardInterceptor();
+
+        @Override
+        public ClientHttpResponse intercept(HttpRequest request, byte[] body,
+                                            ClientHttpRequestExecution execution) throws IOException {
+            URI uri = request.getURI();
+            String host = uri.getHost();
+            if (host == null || host.isBlank()) {
+                throw new IOException("SSRF 防护：请求缺少 host (" + uri + ")");
+            }
+            for (InetAddress addr : InetAddress.getAllByName(host)) {
+                if (isForbiddenAddress(addr)) {
+                    throw new IOException("SSRF 防护：目标地址被拦截 (" + host
+                            + " -> " + addr.getHostAddress() + ")");
+                }
+            }
+            return execution.execute(request, body);
+        }
+    }
+
+    /**
+     * 判断 IP 是否落入禁止段（私网 / 链路本地 / ULA）。
+     * <p>回环地址返回 false（本地开发需连 ollama / lmstudio）。
+     */
+    static boolean isForbiddenAddress(InetAddress addr) {
+        if (addr.isAnyLocalAddress()) {
+            return true;
+        }
+        if (addr.isLoopbackAddress()) {
+            return false;
+        }
+        if (addr.isLinkLocalAddress()) {
+            return true;
+        }
+        if (addr.isSiteLocalAddress()) {
+            return true;
+        }
+        // IPv6 ULA（fc00::/7），JDK InetAddress.isSiteLocalAddress() 不覆盖此段
+        if (addr instanceof Inet6Address ipv6) {
+            byte[] b = ipv6.getAddress();
+            if (b.length >= 2 && (b[0] & 0xFE) == 0xFC) {
+                return true;
+            }
+        }
+        return false;
     }
 }
