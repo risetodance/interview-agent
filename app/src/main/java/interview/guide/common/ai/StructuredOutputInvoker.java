@@ -109,11 +109,13 @@ public class StructuredOutputInvoker {
             String attemptSystemPrompt = attempt == 1
                     ? systemPromptWithFormat
                     : buildRetrySystemPrompt(systemPromptWithFormat, lastError, lastValidationMessage);
+            // 每次调用（含重试）生成不可预测的 boundaryId，攻击者无法提前构造闭合标签
+            String boundaryId = PromptSecurityConstants.generateBoundaryId();
             try {
                 T result = chatClient.prompt()
-                        .system(attemptSystemPrompt + PromptSecurityConstants.ANTI_INJECTION_INSTRUCTION)
+                        .system(attemptSystemPrompt + PromptSecurityConstants.buildAntiInjectionInstruction(boundaryId))
                         .user(PromptSecurityConstants.wrap(
-                                PromptSecurityConstants.stripBoundaryTags(userPrompt)))
+                                PromptSecurityConstants.stripBoundaryTags(userPrompt), boundaryId))
                         .toolCallbacks(effectiveToolCallbacks)
                         .call()
                         .entity(outputConverter);
