@@ -24,6 +24,7 @@ import InterviewReportPage from './pages/InterviewReportPage';
 import { historyApi } from './api/history';
 import type { UploadKnowledgeBaseResponse } from './api/knowledgebase';
 import {UserProvider, useUser} from './store/user';
+import { ToastProvider } from './components/Toast';
 
 // 通用登录路由守卫（用于需要登录才能访问的页面）
 function AuthRouteGuard() {
@@ -211,6 +212,7 @@ function InterviewWrapper() {
 function App() {
   return (
     <UserProvider>
+    <ToastProvider>
       <BrowserRouter>
         <Suspense fallback={<Loading />}>
         <Routes>
@@ -280,6 +282,7 @@ function App() {
           </Route>
         </Routes></Suspense>
     </BrowserRouter>
+    </ToastProvider>
     </UserProvider>
   );
 }

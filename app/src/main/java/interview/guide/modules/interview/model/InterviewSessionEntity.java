@@ -21,7 +21,7 @@ public class InterviewSessionEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+   
     // 会话ID (UUID)
     @Column(nullable = false, unique = true, length = 36)
     private String sessionId;
@@ -135,20 +135,34 @@ public class InterviewSessionEntity {
     @Column(name = "last_question_perspective_id")
     private Long lastQuestionPerspectiveId;
 
-    // 各视角权重配置（JSON格式，存储如: {"1": 0.6, "2": 0.4}）
-    @Column(name = "perspective_weights", columnDefinition = "TEXT")
-    private String perspectiveWeights;
+   // 各视角权重配置（JSON格式，存储如: {"1": 0.6, "2": 0.4}）
+   @Column(name = "perspective_weights", columnDefinition = "TEXT")
+   private String perspectiveWeights;
 
-    // 用户ID（用于数据隔离）
+    // 工作流状态（用于断点重跑：AWAITING_ANSWER 等待答题 / PROCESSING 工作流执行中）
+    @Enumerated(EnumType.STRING)
+    @Column(name = "workflow_status", length = 30)
+    private WorkflowStatus workflowStatus;
+
+   // 用户ID（用于数据隔离）
     @Column(name = "user_id")
     private Long userId;
 
-    public enum SessionStatus {
-        CREATED,      // 会话已创建
-        IN_PROGRESS,  // 面试进行中
-        COMPLETED,    // 面试已完成
-        EVALUATED     // 已生成评估报告
-    }
+   public enum SessionStatus {
+       CREATED,      // 会话已创建
+       IN_PROGRESS,  // 面试进行中
+       COMPLETED,    // 面试已完成
+       EVALUATED     // 已生成评估报告
+   }
+ 
+    /**
+     * 工作流状态（用于断点重跑）
+     */
+   public enum WorkflowStatus {
+       AWAITING_ANSWER,  // 工作流中断在 question_generator 之后，等待用户答题
+        PROCESSING,       // 工作流正在执行（scorer→decider→...），重启后需要恢复
+        DONE              // 工作流已完成（走到 END），不再需要恢复
+   }
     
     @PrePersist
     protected void onCreate() {
@@ -159,11 +173,11 @@ public class InterviewSessionEntity {
     public Long getId() {
         return id;
     }
-    
+   
     public void setId(Long id) {
-        this.id = id;
+       this.id = id;
     }
-    
+
     public String getSessionId() {
         return sessionId;
     }
@@ -405,11 +419,19 @@ public class InterviewSessionEntity {
         return perspectiveWeights;
     }
 
-    public void setPerspectiveWeights(String perspectiveWeights) {
-        this.perspectiveWeights = perspectiveWeights;
+   public void setPerspectiveWeights(String perspectiveWeights) {
+       this.perspectiveWeights = perspectiveWeights;
+   }
+
+    public WorkflowStatus getWorkflowStatus() {
+        return workflowStatus;
     }
 
-    public Long getUserId() {
+    public void setWorkflowStatus(WorkflowStatus workflowStatus) {
+        this.workflowStatus = workflowStatus;
+    }
+
+   public Long getUserId() {
         return userId;
     }
 

@@ -2,8 +2,10 @@ package interview.guide.modules.interview.repository;
 
 import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.interview.model.InterviewSessionEntity.SessionStatus;
+import interview.guide.modules.interview.model.InterviewSessionEntity.WorkflowStatus;
 import interview.guide.modules.resume.model.ResumeEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -106,9 +108,23 @@ public interface InterviewSessionRepository extends JpaRepository<InterviewSessi
      * 查询即将开始的面试（用于提醒）
      */
     @Query("SELECT s FROM InterviewSessionEntity s JOIN FETCH s.resume r WHERE s.status = :status AND s.scheduledTime IS NOT NULL AND s.scheduledTime <= :beforeTime AND (s.reminderSent IS NULL OR s.reminderSent = false)")
-    List<InterviewSessionEntity> findByStatusAndScheduledTimeBefore(
-        @Param("status") SessionStatus status,
-        @Param("beforeTime") LocalDateTime beforeTime
-    );
+   List<InterviewSessionEntity> findByStatusAndScheduledTimeBefore(
+       @Param("status") SessionStatus status,
+       @Param("beforeTime") LocalDateTime beforeTime
+   );
+
+    /**
+     * 根据 workflow_status 查找需要恢复的会话
+    */
+    @Query("SELECT s.sessionId FROM InterviewSessionEntity s WHERE s.workflowStatus = :status")
+    List<String> findSessionIdsByWorkflowStatus(@Param("status") WorkflowStatus status);
+
+    /**
+     * 悲观行锁查询（用于 CAS 并发控制）
+     * SELECT ... FOR UPDATE，事务内锁定该行，防止并发修改
+     */
+    @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM InterviewSessionEntity s WHERE s.sessionId = :sessionId")
+    Optional<InterviewSessionEntity> findBySessionIdForUpdate(@Param("sessionId") String sessionId);
 
 }

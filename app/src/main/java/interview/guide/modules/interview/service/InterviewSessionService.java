@@ -702,6 +702,16 @@ public class InterviewSessionService {
             throw new BusinessException(ErrorCode.INTERVIEW_ALREADY_COMPLETED, "面试已结束，无法提交答案");
         }
 
+        // 并发校验：CAS 式抢占 workflow_status（AWAITING_ANSWER → PROCESSING）
+        // 防止用户快速双击或网络重试导致工作流重复执行
+        boolean acquired = persistenceService.casUpdateWorkflowStatus(
+                sessionId,
+                InterviewSessionEntity.WorkflowStatus.AWAITING_ANSWER,
+                InterviewSessionEntity.WorkflowStatus.PROCESSING);
+        if (!acquired) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "当前问题正在处理中，请勿重复提交");
+        }
+
         // 获取当前问题
         List<InterviewAnswerEntity> existingAnswers = persistenceService.findAnswersBySessionId(sessionId);
         InterviewAnswerEntity currentAnswer = existingAnswers.stream()

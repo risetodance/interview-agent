@@ -1,11 +1,7 @@
 package interview.guide.modules.interview.workflow;
 
 import com.alibaba.cloud.ai.graph.OverAllState;
-import interview.guide.modules.interview.model.AnswerHistoryDTO;
-import interview.guide.modules.interview.model.CurrentQuestionDTO;
-import interview.guide.modules.interview.model.InterviewAnswerEntity;
-import interview.guide.modules.interview.model.InterviewerRoleEntity;
-import interview.guide.modules.interview.model.SseEventType;
+import interview.guide.modules.interview.model.*;
 import interview.guide.modules.interview.repository.InterviewerRoleRepository;
 import interview.guide.modules.interview.service.HybridSearchService;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
@@ -13,11 +9,11 @@ import interview.guide.modules.interview.service.InterviewStreamService;
 import interview.guide.modules.interview.service.QuestionGenerationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,11 +76,32 @@ public class QuestionGeneratorNode {
             if (session.getResume() != null) {
                 resumeText = session.getResume().getResumeText();
             }
-            if (resumeText == null || resumeText.isBlank()) {
-                resumeText = "通用面试，无特定简历内容";
+           if (resumeText == null || resumeText.isBlank()) {
+               resumeText = "通用面试，无特定简历内容";
+           }
+
+            // 幂等守卫：如果该 questionIndex 已生成过题目，跳过重新生成，直接推 SSE
+            List<InterviewAnswerEntity> existingAnswers = persistenceService.findAnswersBySessionId(sessionId);
+            Optional<InterviewAnswerEntity> existingQOpt = existingAnswers.stream()
+                    .filter(a -> a.getQuestionIndex().equals(questionIndex) && a.getQuestion() != null && !a.getQuestion().isBlank())
+                    .findFirst();
+            if (existingQOpt.isPresent()) {
+                InterviewAnswerEntity existingQ = existingQOpt.get();
+                log.info("Question generator node: 该题目已生成，跳过重复生成 (幂等): sessionId={}, questionIndex={}",
+                        sessionId, questionIndex);
+                // 用已有题目更新 state 并推 SSE
+                state.updateState(Map.of(
+                        InterviewWorkflowState.CURRENT_QUESTION_INDEX, questionIndex,
+                        InterviewWorkflowState.CURRENT_QUESTION, existingQ.getQuestion(),
+                        InterviewWorkflowState.CURRENT_CATEGORY, existingQ.getCategory() != null ? existingQ.getCategory() : "",
+                        InterviewWorkflowState.CURRENT_DIFFICULTY, existingQ.getDifficulty() != null ? existingQ.getDifficulty() : "BASIC"
+                ));
+                Map<String, Object> questionData = getQuestionData(sessionId, questionIndex, existingQ);
+                interviewStreamService.publishQuestion(sessionId, questionData);
+                return state;
             }
 
-            // 执行混合检索
+           // 执行混合检索
             String mergedSearchContext = "";
             if (keywords != null && !keywords.isBlank()) {
                 try {
@@ -243,18 +260,21 @@ public class QuestionGeneratorNode {
             // 更新会话的当前问题索引
             persistenceService.updateCurrentQuestionIndex(sessionId, questionIndex);
 
-            // 更新已生成问题数量
-            int generated = session.getQuestionsGenerated() != null ? session.getQuestionsGenerated() : 0;
-            persistenceService.updateQuestionsGenerated(sessionId, generated + 1);
+            // 更新已生成问题数量（幂等：统计 DB 中 question IS NOT NULL 的行数）
+            long generatedCount = persistenceService.countGeneratedQuestions(sessionId);
+            persistenceService.updateQuestionsGenerated(sessionId, (int) generatedCount);
 
             // 更新状态，以便 SSE 推送和 checkpoint 恢复
             Map<String, Object> updatedState = new HashMap<>();
             updatedState.put(InterviewWorkflowState.CURRENT_QUESTION_INDEX, questionIndex);
             updatedState.put(InterviewWorkflowState.CURRENT_QUESTION, questionDTO.question());
             updatedState.put(InterviewWorkflowState.CURRENT_CATEGORY, questionDTO.category());
-            updatedState.put(InterviewWorkflowState.CURRENT_DIFFICULTY, questionDTO.difficulty() != null ? questionDTO.difficulty() : "BASIC");
-            updatedState.put(InterviewWorkflowState.KNOWLEDGE_BASE_ID, questionDTO.knowledgeBaseId() != null ? questionDTO.knowledgeBaseId() : 0L);
-            updatedState.put(InterviewWorkflowState.KNOWLEDGE_BASE_NAME, questionDTO.knowledgeBaseName() != null ? questionDTO.knowledgeBaseName() : "");
+            String difficulty = questionDTO.difficulty() != null ? questionDTO.difficulty() : "BASIC";
+            updatedState.put(InterviewWorkflowState.CURRENT_DIFFICULTY, difficulty);
+            long knowledgeBaseId = questionDTO.knowledgeBaseId() != null ? questionDTO.knowledgeBaseId() : 0L;
+            updatedState.put(InterviewWorkflowState.KNOWLEDGE_BASE_ID, knowledgeBaseId);
+            String knowledgeBaseName = questionDTO.knowledgeBaseName() != null ? questionDTO.knowledgeBaseName() : "";
+            updatedState.put(InterviewWorkflowState.KNOWLEDGE_BASE_NAME, knowledgeBaseName);
             updatedState.put(InterviewWorkflowState.CREATED_BY_PERSPECTIVE_ID, selectedPerspectiveId != null ? selectedPerspectiveId : 0L);
             updatedState.put(InterviewWorkflowState.CREATED_BY_PERSPECTIVE_NAME, selectedPerspectiveName != null ? selectedPerspectiveName : "");
             updatedState.put(InterviewWorkflowState.CURRENT_PERSPECTIVE_ID, selectedPerspectiveId != null ? selectedPerspectiveId : 0L);
@@ -262,7 +282,8 @@ public class QuestionGeneratorNode {
             updatedState.put(InterviewWorkflowState.SEARCH_RESULT, "");
             updatedState.put(InterviewWorkflowState.SEARCH_ENABLED, false);
             // 追问相关字段也需要放入状态，以便 checkpoint 恢复后 SSE 推送
-            updatedState.put(InterviewWorkflowState.IS_FOLLOW_UP, questionDTO.isFollowUp() != null ? questionDTO.isFollowUp() : false);
+            boolean isFollowUp = questionDTO.isFollowUp() != null ? questionDTO.isFollowUp() : false;
+            updatedState.put(InterviewWorkflowState.IS_FOLLOW_UP, isFollowUp);
             updatedState.put(InterviewWorkflowState.RELATED_INDEX, questionDTO.relatedIndex());
             updatedState.put(InterviewWorkflowState.RELATED_QUESTION, questionDTO.relatedQuestion());
             state.updateState(updatedState);
@@ -277,12 +298,12 @@ public class QuestionGeneratorNode {
             questionData.put("questionIndex", questionIndex);
             questionData.put("question", questionDTO.question());
             questionData.put("category", questionDTO.category());
-            questionData.put("difficulty", questionDTO.difficulty() != null ? questionDTO.difficulty() : "BASIC");
-            questionData.put("knowledgeBaseId", questionDTO.knowledgeBaseId() != null ? questionDTO.knowledgeBaseId() : 0L);
-            questionData.put("knowledgeBaseName", questionDTO.knowledgeBaseName() != null ? questionDTO.knowledgeBaseName() : "");
+            questionData.put("difficulty", difficulty);
+            questionData.put("knowledgeBaseId", knowledgeBaseId);
+            questionData.put("knowledgeBaseName", knowledgeBaseName);
             questionData.put("createdByPerspectiveId", selectedPerspectiveId != null ? selectedPerspectiveId : 0L);
             questionData.put("createdByPerspectiveName", selectedPerspectiveName != null ? selectedPerspectiveName : "");
-            questionData.put("isFollowUp", questionDTO.isFollowUp() != null ? questionDTO.isFollowUp() : false);
+            questionData.put("isFollowUp", isFollowUp);
             questionData.put("relatedIndex", questionDTO.relatedIndex());
             questionData.put("relatedQuestion", questionDTO.relatedQuestion());
             interviewStreamService.publishQuestion(sessionId, questionData);
@@ -292,5 +313,22 @@ public class QuestionGeneratorNode {
         }
 
         return state;
+    }
+
+    private static @NotNull Map<String, Object> getQuestionData(String sessionId, Integer questionIndex, InterviewAnswerEntity existingQ) {
+        Map<String, Object> questionData = new HashMap<>();
+        questionData.put("sessionId", sessionId);
+        questionData.put("questionIndex", questionIndex);
+        questionData.put("question", existingQ.getQuestion());
+        questionData.put("category", existingQ.getCategory());
+        questionData.put("difficulty", existingQ.getDifficulty() != null ? existingQ.getDifficulty() : "BASIC");
+        questionData.put("knowledgeBaseId", existingQ.getKnowledgeBaseId() != null ? existingQ.getKnowledgeBaseId() : 0L);
+        questionData.put("knowledgeBaseName", "");
+        questionData.put("createdByPerspectiveId", existingQ.getCreatedByPerspectiveId() != null ? existingQ.getCreatedByPerspectiveId() : 0L);
+        questionData.put("createdByPerspectiveName", existingQ.getCreatedByPerspectiveName() != null ? existingQ.getCreatedByPerspectiveName() : "");
+        questionData.put("isFollowUp", existingQ.getIsFollowUp() != null ? existingQ.getIsFollowUp() : false);
+        questionData.put("relatedIndex", existingQ.getRelatedIndex());
+        questionData.put("relatedQuestion", existingQ.getRelatedQuestion());
+        return questionData;
     }
 }

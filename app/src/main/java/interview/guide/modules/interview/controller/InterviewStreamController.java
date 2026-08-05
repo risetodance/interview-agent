@@ -1,8 +1,8 @@
 package interview.guide.modules.interview.controller;
 
 import interview.guide.common.security.JwtTokenProvider;
-import interview.guide.modules.interview.service.InterviewStreamService;
 import interview.guide.modules.interview.service.InterviewSessionService;
+import interview.guide.modules.interview.service.InterviewStreamService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -10,8 +10,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
-
-import java.io.IOException;
 import reactor.core.publisher.Flux;
 
 /**

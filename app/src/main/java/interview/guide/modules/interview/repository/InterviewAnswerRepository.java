@@ -60,8 +60,13 @@ public interface InterviewAnswerRepository extends JpaRepository<InterviewAnswer
 
     /**
      * 获取指定会话和视角下的最新答案（按问题索引倒序，取第一条）
-     */
-    @Query("SELECT a FROM InterviewAnswerEntity a WHERE a.session.sessionId = :sessionId AND a.createdByPerspectiveId = :perspectiveId ORDER BY a.questionIndex DESC LIMIT 1")
-    Optional<InterviewAnswerEntity> findLastAnswerBySessionAndPerspective(@Param("sessionId") String sessionId, @Param("perspectiveId") Long perspectiveId);
+    */
+   @Query("SELECT a FROM InterviewAnswerEntity a WHERE a.session.sessionId = :sessionId AND a.createdByPerspectiveId = :perspectiveId ORDER BY a.questionIndex DESC LIMIT 1")
+   Optional<InterviewAnswerEntity> findLastAnswerBySessionAndPerspective(@Param("sessionId") String sessionId, @Param("perspectiveId") Long perspectiveId);
 
+    /**
+     * 统计已生成的问题数量（幂等：question IS NOT NULL 的行数）
+     */
+    @Query("SELECT COUNT(a) FROM InterviewAnswerEntity a WHERE a.session.sessionId = :sessionId AND a.question IS NOT NULL")
+    long countGeneratedQuestions(@Param("sessionId") String sessionId);
 }

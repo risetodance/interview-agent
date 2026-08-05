@@ -7,6 +7,7 @@ import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewQuestionDTO;
 import interview.guide.modules.interview.model.InterviewReportDTO;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
+import interview.guide.modules.interview.model.InterviewSessionEntity.WorkflowStatus;
 import interview.guide.modules.interview.repository.InterviewAnswerRepository;
 import interview.guide.modules.interview.repository.InterviewSessionRepository;
 import interview.guide.modules.resume.model.ResumeEntity;
@@ -16,7 +17,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
@@ -31,19 +31,19 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class InterviewPersistenceService {
-    
+
     private final InterviewSessionRepository sessionRepository;
     private final InterviewAnswerRepository answerRepository;
     private final ResumeRepository resumeRepository;
     private final ObjectMapper objectMapper;
-    
+
     /**
      * 保存新的面试会话（无简历模式）
      */
     @Transactional(rollbackFor = Exception.class)
     public InterviewSessionEntity saveSessionWithoutResume(Long userId, String sessionId,
-                                              int totalQuestions,
-                                              List<InterviewQuestionDTO> questions) {
+                                                           int totalQuestions,
+                                                           List<InterviewQuestionDTO> questions) {
         try {
             InterviewSessionEntity session = new InterviewSessionEntity();
             session.setSessionId(sessionId);
@@ -68,80 +68,13 @@ public class InterviewPersistenceService {
     }
 
     /**
-     * 保存新的面试会话（简历模式）
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public InterviewSessionEntity saveSession(Long userId, String sessionId, Long resumeId,
-                                              int totalQuestions,
-                                              List<InterviewQuestionDTO> questions) {
-        try {
-            // 如果没有简历ID，使用无简历模式
-            if (resumeId == null) {
-                return saveSessionWithoutResume(userId, sessionId, totalQuestions, questions);
-            }
-
-            Optional<ResumeEntity> resumeOpt = resumeRepository.findById(resumeId);
-            if (resumeOpt.isEmpty()) {
-                throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
-            }
-
-            ResumeEntity resume = resumeOpt.get();
-            // 验证简历属于当前用户
-            if (!userId.equals(resume.getUserId())) {
-                throw new BusinessException(ErrorCode.FORBIDDEN, "无权使用该简历");
-            }
-
-            InterviewSessionEntity session = new InterviewSessionEntity();
-            session.setSessionId(sessionId);
-            session.setUserId(userId);
-            session.setResume(resume);
-            session.setTotalQuestions(totalQuestions);
-            session.setCurrentQuestionIndex(0);
-            session.setStatus(InterviewSessionEntity.SessionStatus.CREATED);
-            session.setQuestionsJson(objectMapper.writeValueAsString(questions));
-            // 初始化自适应难度字段
-            session.setCurrentDifficulty("BASIC");
-            session.setCategoryScores("{}");
-            session.setQuestionsGenerated(0);
-
-            InterviewSessionEntity saved = sessionRepository.save(session);
-            log.info("面试会话已保存: userId={}, sessionId={}, resumeId={}", userId, sessionId, resumeId);
-
-            return saved;
-        } catch (JacksonException e) {
-            log.error("序列化问题列表失败: {}", e.getMessage(), e);
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "保存会话失败");
-        }
-    }
-
-    /**
-     * 保存自适应面试会话（不生成问题，问题在 getCurrentQuestionForAdaptive 中实时生成）
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public InterviewSessionEntity saveAdaptiveSession(Long userId, String sessionId, Long resumeId,
-                                                     int totalQuestions, String knowledgeBaseIdsJson) {
-        return saveAdaptiveSession(userId, sessionId, resumeId, totalQuestions, knowledgeBaseIdsJson, null, null);
-    }
-
-    /**
-     * 保存自适应面试会话（支持多视角）
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public InterviewSessionEntity saveAdaptiveSession(Long userId, String sessionId, Long resumeId,
-                                                     int totalQuestions, String knowledgeBaseIdsJson,
-                                                     String selectedPerspectivesJson) {
-        return saveAdaptiveSession(userId, sessionId, resumeId, totalQuestions, knowledgeBaseIdsJson,
-                selectedPerspectivesJson, null);
-    }
-
-    /**
      * 保存自适应面试会话（支持多视角 + 会话级权重配置）
      */
     @Transactional(rollbackFor = Exception.class)
     public InterviewSessionEntity saveAdaptiveSession(Long userId, String sessionId, Long resumeId,
-                                                     int totalQuestions, String knowledgeBaseIdsJson,
-                                                     String selectedPerspectivesJson,
-                                                     String perspectiveWeightsJson) {
+                                                      int totalQuestions, String knowledgeBaseIdsJson,
+                                                      String selectedPerspectivesJson,
+                                                      String perspectiveWeightsJson) {
         try {
             InterviewSessionEntity session = new InterviewSessionEntity();
             session.setSessionId(sessionId);
@@ -188,7 +121,7 @@ public class InterviewPersistenceService {
             InterviewSessionEntity session = sessionOpt.get();
             session.setStatus(status);
             if (status == InterviewSessionEntity.SessionStatus.COMPLETED ||
-                status == InterviewSessionEntity.SessionStatus.EVALUATED) {
+                    status == InterviewSessionEntity.SessionStatus.EVALUATED) {
                 session.setCompletedAt(LocalDateTime.now());
             }
             sessionRepository.save(session);
@@ -213,7 +146,7 @@ public class InterviewPersistenceService {
             log.debug("评估状态已更新: sessionId={}, status={}", sessionId, status);
         }
     }
-    
+
     /**
      * 更新当前问题索引
      */
@@ -228,59 +161,6 @@ public class InterviewPersistenceService {
         }
     }
 
-    /**
-     * 更新会话的问题列表（切换知识库时使用）
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public void updateQuestions(String sessionId, List<InterviewQuestionDTO> questions) {
-        try {
-            Optional<InterviewSessionEntity> sessionOpt = sessionRepository.findBySessionId(sessionId);
-            if (sessionOpt.isPresent()) {
-                InterviewSessionEntity session = sessionOpt.get();
-                session.setQuestionsJson(objectMapper.writeValueAsString(questions));
-                sessionRepository.save(session);
-                log.info("会话问题列表已更新: sessionId={}, questionCount={}", sessionId, questions.size());
-            }
-        } catch (JacksonException e) {
-            log.error("序列化问题列表失败: {}", e.getMessage(), e);
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "更新问题列表失败");
-        }
-    }
-
-    /**
-     * 保存面试答案
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public InterviewAnswerEntity saveAnswer(String sessionId, int questionIndex,
-                                            String question, String category,
-                                            String userAnswer, int score, String feedback) {
-        Optional<InterviewSessionEntity> sessionOpt = sessionRepository.findBySessionId(sessionId);
-        if (sessionOpt.isEmpty()) {
-            throw new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND);
-        }
-
-        InterviewAnswerEntity answer = answerRepository
-            .findBySession_SessionIdAndQuestionIndex(sessionId, questionIndex)
-            .orElseGet(() -> {
-                InterviewAnswerEntity created = new InterviewAnswerEntity();
-                created.setSession(sessionOpt.get());
-                created.setQuestionIndex(questionIndex);
-                return created;
-            });
-
-        answer.setQuestion(question);
-        answer.setCategory(category);
-        answer.setUserAnswer(userAnswer);
-        answer.setScore(score);
-        answer.setFeedback(feedback);
-
-        InterviewAnswerEntity saved = answerRepository.save(answer);
-        log.info("面试答案已保存: sessionId={}, questionIndex={}, score={}", 
-                sessionId, questionIndex, score);
-        
-        return saved;
-    }
-    
     /**
      * 保存面试报告
      */
@@ -307,19 +187,19 @@ public class InterviewPersistenceService {
             // 查询已存在的答案，建立索引
             List<InterviewAnswerEntity> existingAnswers = answerRepository.findBySession_SessionIdOrderByQuestionIndex(sessionId);
             java.util.Map<Integer, InterviewAnswerEntity> answerMap = existingAnswers.stream()
-                .collect(java.util.stream.Collectors.toMap(
-                    InterviewAnswerEntity::getQuestionIndex,
-                    a -> a,
-                    (a1, a2) -> a1
-                ));
+                    .collect(java.util.stream.Collectors.toMap(
+                            InterviewAnswerEntity::getQuestionIndex,
+                            a -> a,
+                            (a1, a2) -> a1
+                    ));
 
             // 建立参考答案索引
             java.util.Map<Integer, InterviewReportDTO.ReferenceAnswer> refAnswerMap = report.referenceAnswers().stream()
-                .collect(java.util.stream.Collectors.toMap(
-                    InterviewReportDTO.ReferenceAnswer::questionIndex,
-                    r -> r,
-                    (r1, r2) -> r1
-                ));
+                    .collect(java.util.stream.Collectors.toMap(
+                            InterviewReportDTO.ReferenceAnswer::questionIndex,
+                            r -> r,
+                            (r1, r2) -> r1
+                    ));
 
             List<InterviewAnswerEntity> answersToSave = new java.util.ArrayList<>();
 
@@ -356,13 +236,13 @@ public class InterviewPersistenceService {
 
             answerRepository.saveAll(answersToSave);
             log.info("面试报告已保存: sessionId={}, score={}, 答案数={}",
-                sessionId, report.overallScore(), answersToSave.size());
+                    sessionId, report.overallScore(), answersToSave.size());
 
         } catch (JacksonException e) {
             log.error("序列化报告失败: {}", e.getMessage(), e);
         }
     }
-    
+
     /**
      * 根据会话ID获取会话
      */
@@ -390,7 +270,7 @@ public class InterviewPersistenceService {
     public List<InterviewSessionEntity> findAllByUserId(Long userId) {
         return sessionRepository.findAllByUserId(userId);
     }
-    
+
     /**
      * 删除简历的所有面试会话
      * 由于InterviewSessionEntity设置了cascade = CascadeType.ALL, orphanRemoval = true
@@ -404,7 +284,7 @@ public class InterviewPersistenceService {
             log.info("已删除 {} 个面试会话（包含所有答案）", sessions.size());
         }
     }
-    
+
     /**
      * 删除单个面试会话
      * 由于InterviewSessionEntity设置了cascade = CascadeType.ALL, orphanRemoval = true
@@ -420,18 +300,18 @@ public class InterviewPersistenceService {
             throw new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND);
         }
     }
-    
+
     /**
      * 查找未完成的面试会话（CREATED或IN_PROGRESS状态）
      */
     public Optional<InterviewSessionEntity> findUnfinishedSession(Long resumeId) {
         List<InterviewSessionEntity.SessionStatus> unfinishedStatuses = List.of(
-            InterviewSessionEntity.SessionStatus.CREATED,
-            InterviewSessionEntity.SessionStatus.IN_PROGRESS
+                InterviewSessionEntity.SessionStatus.CREATED,
+                InterviewSessionEntity.SessionStatus.IN_PROGRESS
         );
         return sessionRepository.findFirstByResumeIdAndStatusInOrderByCreatedAtDesc(resumeId, unfinishedStatuses);
     }
-    
+
     /**
      * 根据会话ID查找所有答案
      */
@@ -439,39 +319,6 @@ public class InterviewPersistenceService {
         return answerRepository.findBySession_SessionIdOrderByQuestionIndex(sessionId);
     }
 
-    /**
-     * 获取简历的历史提问列表（限制最近的 N 条）
-     * 自适应面试：从答案中提取历史问题
-     */
-    public List<String> getHistoricalQuestionsByResumeId(Long resumeId) {
-        // 只查询最近的 10 个会话，避免加载过多历史数据
-        List<InterviewSessionEntity> sessions = sessionRepository.findTop10ByResumeIdOrderByCreatedAtDesc(resumeId);
-
-        return sessions.stream()
-            .flatMap(session -> {
-                List<InterviewAnswerEntity> answers = findAnswersBySessionId(session.getSessionId());
-                return answers.stream()
-                    .map(InterviewAnswerEntity::getQuestion);
-            })
-            .filter(q -> q != null && !q.isBlank())
-            .distinct()
-            .limit(30) // 只保留最近的 30 道题
-            .toList();
-    }
-
-    /**
-     * 更新会话的当前难度
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public void updateCurrentDifficulty(String sessionId, String difficulty) {
-        Optional<InterviewSessionEntity> sessionOpt = sessionRepository.findBySessionId(sessionId);
-        if (sessionOpt.isPresent()) {
-            InterviewSessionEntity session = sessionOpt.get();
-            session.setCurrentDifficulty(difficulty);
-            sessionRepository.save(session);
-            log.debug("会话难度已更新: sessionId={}, difficulty={}", sessionId, difficulty);
-        }
-    }
 
     /**
      * 更新会话的分类得分
@@ -527,10 +374,10 @@ public class InterviewPersistenceService {
      */
     @Transactional(rollbackFor = Exception.class)
     public InterviewAnswerEntity saveAnswerWithDifficulty(String sessionId, int questionIndex,
-                                                        String question, String category,
-                                                        String userAnswer, String difficulty,
-                                                        Long knowledgeBaseId, String referenceContext,
-                                                        int score, String feedback) {
+                                                          String question, String category,
+                                                          String userAnswer, String difficulty,
+                                                          Long knowledgeBaseId, String referenceContext,
+                                                          int score, String feedback) {
         return saveAnswerWithDifficulty(sessionId, questionIndex, question, category,
                 userAnswer, difficulty, knowledgeBaseId, referenceContext, score, feedback,
                 null, null, null, null, null, null, null);
@@ -541,12 +388,12 @@ public class InterviewPersistenceService {
      */
     @Transactional(rollbackFor = Exception.class)
     public InterviewAnswerEntity saveAnswerWithDifficulty(String sessionId, int questionIndex,
-                                                        String question, String category,
-                                                        String userAnswer, String difficulty,
-                                                        Long knowledgeBaseId, String referenceContext,
-                                                        int score, String feedback,
-                                                        Long createdByPerspectiveId,
-                                                        String createdByPerspectiveName) {
+                                                          String question, String category,
+                                                          String userAnswer, String difficulty,
+                                                          Long knowledgeBaseId, String referenceContext,
+                                                          int score, String feedback,
+                                                          Long createdByPerspectiveId,
+                                                          String createdByPerspectiveName) {
         return saveAnswerWithDifficulty(sessionId, questionIndex, question, category,
                 userAnswer, difficulty, knowledgeBaseId, referenceContext, score, feedback,
                 createdByPerspectiveId, createdByPerspectiveName, null, null, null, null, null);
@@ -557,30 +404,30 @@ public class InterviewPersistenceService {
      */
     @Transactional(rollbackFor = Exception.class)
     public InterviewAnswerEntity saveAnswerWithDifficulty(String sessionId, int questionIndex,
-                                                        String question, String category,
-                                                        String userAnswer, String difficulty,
-                                                        Long knowledgeBaseId, String referenceContext,
-                                                        int score, String feedback,
-                                                        Long createdByPerspectiveId,
-                                                        String createdByPerspectiveName,
-                                                        Boolean isFollowUp,
-                                                        Integer relatedIndex,
-                                                        String relatedQuestion,
-                                                        String referenceAnswer,
-                                                        String keyPointsJson) {
+                                                          String question, String category,
+                                                          String userAnswer, String difficulty,
+                                                          Long knowledgeBaseId, String referenceContext,
+                                                          int score, String feedback,
+                                                          Long createdByPerspectiveId,
+                                                          String createdByPerspectiveName,
+                                                          Boolean isFollowUp,
+                                                          Integer relatedIndex,
+                                                          String relatedQuestion,
+                                                          String referenceAnswer,
+                                                          String keyPointsJson) {
         Optional<InterviewSessionEntity> sessionOpt = sessionRepository.findBySessionId(sessionId);
         if (sessionOpt.isEmpty()) {
             throw new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND);
         }
 
         InterviewAnswerEntity answer = answerRepository
-            .findBySession_SessionIdAndQuestionIndex(sessionId, questionIndex)
-            .orElseGet(() -> {
-                InterviewAnswerEntity created = new InterviewAnswerEntity();
-                created.setSession(sessionOpt.get());
-                created.setQuestionIndex(questionIndex);
-                return created;
-            });
+                .findBySession_SessionIdAndQuestionIndex(sessionId, questionIndex)
+                .orElseGet(() -> {
+                    InterviewAnswerEntity created = new InterviewAnswerEntity();
+                    created.setSession(sessionOpt.get());
+                    created.setQuestionIndex(questionIndex);
+                    return created;
+                });
 
         answer.setQuestion(question);
         answer.setCategory(category);
@@ -660,5 +507,54 @@ public class InterviewPersistenceService {
      */
     public List<InterviewAnswerEntity> findAnswersBySessionAndPerspective(String sessionId, Long perspectiveId) {
         return answerRepository.findBySessionIdForPerspective(sessionId, perspectiveId);
+    }
+
+    /**
+     * 更新工作流状态（用于断点重跑）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateWorkflowStatus(String sessionId, WorkflowStatus status) {
+        Optional<InterviewSessionEntity> sessionOpt = sessionRepository.findBySessionId(sessionId);
+        if (sessionOpt.isPresent()) {
+            InterviewSessionEntity session = sessionOpt.get();
+            session.setWorkflowStatus(status);
+            sessionRepository.save(session);
+            log.debug("工作流状态已更新: sessionId={}, status={}", sessionId, status);
+        }
+    }
+
+    /**
+     * 根据 workflow_status 查找需要恢复的会话
+     */
+    public List<String> findSessionIdsByWorkflowStatus(WorkflowStatus status) {
+        return sessionRepository.findSessionIdsByWorkflowStatus(status);
+    }
+
+    /**
+     * 统计已生成的问题数量（幂等：question IS NOT NULL 的行数）
+     */
+    public long countGeneratedQuestions(String sessionId) {
+        return answerRepository.countGeneratedQuestions(sessionId);
+    }
+
+    /**
+     * CAS 式更新 workflow_status（用于并发控制）
+     * 先查出 entity 校验当前状态 == expected，匹配则更新为 target
+     * 不用 @Modifying JPQL 避免与持久化上下文冲突（StaleObjectStateException）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean casUpdateWorkflowStatus(String sessionId, WorkflowStatus expected, WorkflowStatus target) {
+        // 用悲观行锁（SELECT ... FOR UPDATE）保证并发安全
+        Optional<InterviewSessionEntity> sessionOpt = sessionRepository.findBySessionIdForUpdate(sessionId);
+        if (sessionOpt.isEmpty()) {
+            return false;
+        }
+        InterviewSessionEntity session = sessionOpt.get();
+        if (session.getWorkflowStatus() != expected) {
+            return false;
+        }
+        session.setWorkflowStatus(target);
+        sessionRepository.save(session);
+        return true;
     }
 }

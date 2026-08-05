@@ -3,7 +3,7 @@
 [versions]
 spring-boot = "4.0.1"
 springAi = "2.0.0-M1"
-springAiAlibabaGraph = "1.0.0.3"
+springAiAlibabaGraph = "2.0.0-M1.1"
 tika = "2.9.2"
 lombok = "1.18.36"
 junit-jupiter = "5.12.0"

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { historyApi, InterviewItem, EvaluateStatus } from '../api/history';
 import { formatDate } from '../utils/date';
 import DeleteConfirmDialog from '../components/DeleteConfirmDialog';
+import { useToast } from '../components/Toast';
 import {
   Users,
   Search,
@@ -155,6 +156,7 @@ function getScoreColor(score: number): string {
 }
 
 export default function InterviewHistoryPage({ onBack: _onBack, onViewInterview }: InterviewHistoryPageProps) {
+  const toast = useToast();
   const [interviews, setInterviews] = useState<InterviewWithResume[]>([]);
   const [stats, setStats] = useState<InterviewStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -275,9 +277,10 @@ export default function InterviewHistoryPage({ onBack: _onBack, onViewInterview 
     try {
       await historyApi.deleteInterview(deleteItem.sessionId);
       await loadAllInterviews();
+      toast.success('删除成功');
       setDeleteItem(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : '删除失败，请稍后重试');
+      toast.error(err instanceof Error ? err.message : '删除失败，请稍后重试');
     } finally {
       setDeletingSessionId(null);
     }
@@ -297,7 +300,7 @@ export default function InterviewHistoryPage({ onBack: _onBack, onViewInterview 
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert('导出失败，请重试');
+      toast.error('导出失败，请重试');
     } finally {
       setExporting(null);
     }

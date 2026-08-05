@@ -45,20 +45,35 @@ public class ScorerNode {
         String sessionId = (String) state.value(InterviewWorkflowState.SESSION_ID).orElse(null);
         Integer questionIndex = (Integer) state.value(InterviewWorkflowState.CURRENT_QUESTION_INDEX).orElse(null);
 
-        // 推送进度状态：评分中
-        if (sessionId != null) {
-            interviewStreamService.publishProgress(sessionId, SseEventType.PROGRESS_SCORING);
+       // 推送进度状态：评分中
+       if (sessionId != null) {
+           interviewStreamService.publishProgress(sessionId, SseEventType.PROGRESS_SCORING);
+       }
+
+        // 幂等守卫：如果已评分（score != null && score != 0），跳过
+        if (sessionId != null && questionIndex != null) {
+            List<InterviewAnswerEntity> existingAnswers = persistenceService.findAnswersBySessionId(sessionId);
+            Optional<InterviewAnswerEntity> existingOpt = existingAnswers.stream()
+                    .filter(a -> a.getQuestionIndex().equals(questionIndex))
+                    .findFirst();
+           if (existingOpt.isPresent() && existingOpt.get().getScore() != null
+                    && existingOpt.get().getFeedback() != null) {
+                log.info("Scorer node: 已评分，跳过重复评分 (幂等): sessionId={}, questionIndex={}, score={}",
+                        sessionId, questionIndex, existingOpt.get().getScore());
+                state.updateState(Map.of(
+                        InterviewWorkflowState.SCORE, existingOpt.get().getScore(),
+                        InterviewWorkflowState.FEEDBACK, existingOpt.get().getFeedback() != null ? existingOpt.get().getFeedback() : "",
+                        InterviewWorkflowState.CURRENT_ANSWER, existingOpt.get().getUserAnswer() != null ? existingOpt.get().getUserAnswer() : ""
+                ));
+                return state;
+            }
         }
 
-        // 从 HumanFeedback 获取用户答案
+        // 从 state 直接获取用户答案（2.0.0-M1.1 新范式，不再用 HumanFeedback）
         String userAnswer = null;
-        OverAllState.HumanFeedback humanFeedback = state.humanFeedback();
-        if (humanFeedback != null && humanFeedback.data() != null) {
-            // WorkflowExecutor 传递的是 CURRENT_ANSWER，不是 "userAnswer"
-            Object answerObj = humanFeedback.data().get(InterviewWorkflowState.CURRENT_ANSWER);
-            if (answerObj != null) {
-                userAnswer = answerObj.toString();
-            }
+        Object answerObj = state.value(InterviewWorkflowState.CURRENT_ANSWER).orElse(null);
+        if (answerObj != null) {
+            userAnswer = answerObj.toString();
         }
 
         log.info("Scorer node: sessionId={}, questionIndex={}, hasAnswer={}, fromHumanFeedback={}",

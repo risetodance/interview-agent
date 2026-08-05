@@ -76,6 +76,9 @@ dependencies {
     annotationProcessor "org.mapstruct:mapstruct-processor:${libs.versions.mapstruct.get()}"
     annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 
+    // JetBrains Annotations (被部分代码引用，旧版 graph-core 传递依赖提供)
+    implementation 'org.jetbrains:annotations:26.0.1'
+
     // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation libs.junit.jupiter
