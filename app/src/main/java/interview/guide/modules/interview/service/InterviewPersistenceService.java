@@ -557,4 +557,58 @@ public class InterviewPersistenceService {
         sessionRepository.save(session);
         return true;
     }
+
+    /**
+     * QuestionGeneratorNode 的组合事务：保存题目 + 更新会话状态/索引/计数/视角
+     * 所有 DB 写入在一个事务内，防止部分成功导致数据状态不一致
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void saveQuestionAndUpdateSession(
+            String sessionId, int questionIndex,
+            String question, String category, String difficulty,
+            Long knowledgeBaseId, String referenceContext,
+            Long createdByPerspectiveId, String createdByPerspectiveName,
+            Boolean isFollowUp, Integer relatedIndex, String relatedQuestion,
+            Long lastQuestionPerspectiveId) {
+        // 1. 保存题目
+        saveAnswerWithDifficulty(sessionId, questionIndex, question, category,
+                null, difficulty, knowledgeBaseId, referenceContext,
+                0, null, createdByPerspectiveId, createdByPerspectiveName,
+                isFollowUp, relatedIndex, relatedQuestion, null, null);
+
+        // 2. 更新会话状态（CREATED → IN_PROGRESS）
+        Optional<InterviewSessionEntity> sessionOpt = sessionRepository.findBySessionId(sessionId);
+        if (sessionOpt.isPresent()) {
+            InterviewSessionEntity session = sessionOpt.get();
+            if (session.getStatus() == InterviewSessionEntity.SessionStatus.CREATED) {
+                session.setStatus(InterviewSessionEntity.SessionStatus.IN_PROGRESS);
+            }
+            session.setCurrentQuestionIndex(questionIndex);
+            session.setLastQuestionPerspectiveId(lastQuestionPerspectiveId);
+            long generatedCount = countGeneratedQuestions(sessionId);
+            session.setQuestionsGenerated((int) generatedCount);
+            sessionRepository.save(session);
+        }
+    }
+
+    /**
+     * FinalReporterNode 的组合事务：更新会话状态 + 评估状态 + workflow_status
+     * 所有 DB 写入在一个事务内
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void completeInterview(String sessionId, WorkflowStatus workflowStatus) {
+        Optional<InterviewSessionEntity> sessionOpt = sessionRepository.findBySessionId(sessionId);
+        if (sessionOpt.isPresent()) {
+            InterviewSessionEntity session = sessionOpt.get();
+            // 仅当未完成时更新（幂等）
+            if (session.getStatus() != InterviewSessionEntity.SessionStatus.COMPLETED
+                    && session.getStatus() != InterviewSessionEntity.SessionStatus.EVALUATED) {
+                session.setStatus(InterviewSessionEntity.SessionStatus.COMPLETED);
+                session.setCompletedAt(LocalDateTime.now());
+                session.setEvaluateStatus(AsyncTaskStatus.PENDING);
+            }
+            session.setWorkflowStatus(workflowStatus);
+            sessionRepository.save(session);
+        }
+    }
 }

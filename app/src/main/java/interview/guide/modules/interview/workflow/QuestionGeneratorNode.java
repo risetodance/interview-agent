@@ -175,7 +175,6 @@ public class QuestionGeneratorNode {
 
                         // 更新会话的上一题视角ID
                         session.setLastQuestionPerspectiveId(selectedPerspectiveId);
-                        persistenceService.updateLastQuestionPerspectiveId(sessionId, selectedPerspectiveId);
 
                         // 获取该视角下的最新难度
                         Optional<InterviewAnswerEntity> lastAnswerForPerspective =
@@ -226,43 +225,21 @@ public class QuestionGeneratorNode {
                     selectedPerspectiveId, selectedPerspectivePrompt, selectedPerspectiveName,
                     mergedSearchContext, directionMatch ? questionDirection : null);
 
-            // 保存生成的问题到数据库
+           // 保存生成的问题到数据库
             Integer globalRelatedIndex = null;
             if (Boolean.TRUE.equals(questionDTO.isFollowUp()) && questionDTO.relatedIndex() != null) {
                 globalRelatedIndex = questionDTO.relatedIndex();
             }
-            persistenceService.saveAnswerWithDifficulty(
-                    sessionId,
-                    questionIndex,
-                    questionDTO.question(),
-                    questionDTO.category(),
-                    null, // userAnswer为null，等待用户回答后更新
-                    questionDTO.difficulty(),
-                    questionDTO.knowledgeBaseId(),
+            // 组合事务：保存题目 + 更新会话状态/索引/计数/视角（一个事务内完成）
+            persistenceService.saveQuestionAndUpdateSession(
+                    sessionId, questionIndex,
+                    questionDTO.question(), questionDTO.category(),
+                    questionDTO.difficulty(), questionDTO.knowledgeBaseId(),
                     questionDTO.referenceContext(),
-                    0,  // 初始评分为0
-                    null, // 初始反馈为null
-                    selectedPerspectiveId,
-                    selectedPerspectiveName,
-                    questionDTO.isFollowUp(),
-                    globalRelatedIndex,
-                    questionDTO.relatedQuestion(),
-                    null,
-                    null
+                    selectedPerspectiveId, selectedPerspectiveName,
+                    questionDTO.isFollowUp(), globalRelatedIndex, questionDTO.relatedQuestion(),
+                    selectedPerspectiveId
             );
-
-            // 更新会话状态
-            if (session.getStatus() == interview.guide.modules.interview.model.InterviewSessionEntity.SessionStatus.CREATED) {
-                session.setStatus(interview.guide.modules.interview.model.InterviewSessionEntity.SessionStatus.IN_PROGRESS);
-                persistenceService.updateSessionStatus(sessionId, interview.guide.modules.interview.model.InterviewSessionEntity.SessionStatus.IN_PROGRESS);
-            }
-
-            // 更新会话的当前问题索引
-            persistenceService.updateCurrentQuestionIndex(sessionId, questionIndex);
-
-            // 更新已生成问题数量（幂等：统计 DB 中 question IS NOT NULL 的行数）
-            long generatedCount = persistenceService.countGeneratedQuestions(sessionId);
-            persistenceService.updateQuestionsGenerated(sessionId, (int) generatedCount);
 
             // 更新状态，以便 SSE 推送和 checkpoint 恢复
             Map<String, Object> updatedState = new HashMap<>();

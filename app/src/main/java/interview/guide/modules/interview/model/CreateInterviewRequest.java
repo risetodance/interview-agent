@@ -27,7 +27,7 @@ public record CreateInterviewRequest(
     /**
      * 选择的视角ID列表（最多3个，用于多视角面试）
      */
-    @Size(max = 3, message = "最多选择3个视角")
+    @Size(min = 1, max = 3, message = "至少选择1个、最多3个视角")
     List<Long> selectedPerspectives,
 
     /**

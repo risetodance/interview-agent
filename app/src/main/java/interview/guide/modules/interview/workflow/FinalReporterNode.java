@@ -1,9 +1,9 @@
 package interview.guide.modules.interview.workflow;
 
 import com.alibaba.cloud.ai.graph.OverAllState;
-import interview.guide.common.model.AsyncTaskStatus;
 import interview.guide.modules.interview.listener.EvaluateStreamProducer;
 import interview.guide.modules.interview.model.InterviewSessionEntity;
+import interview.guide.modules.interview.model.InterviewSessionEntity.WorkflowStatus;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
 import interview.guide.modules.interview.service.InterviewStreamService;
 import lombok.RequiredArgsConstructor;
@@ -45,16 +45,15 @@ public class FinalReporterNode {
             }
             InterviewSessionEntity session = sessionOpt.get();
 
+            // 组合事务：更新会话状态 + workflow_status DONE（内部含幂等守卫）
+            persistenceService.completeInterview(sessionId, WorkflowStatus.DONE);
+
             // 幂等守卫：如果会话已完成，跳过重复入队，只推 SSE
             if (session.getStatus() == InterviewSessionEntity.SessionStatus.COMPLETED ||
                 session.getStatus() == InterviewSessionEntity.SessionStatus.EVALUATED) {
                 log.info("Final reporter node: 会话已完成，跳过重复入队 (幂等): sessionId={}", sessionId);
             } else {
-                // 更新会话状态为已完成
-                persistenceService.updateSessionStatus(sessionId, InterviewSessionEntity.SessionStatus.COMPLETED);
-
                 // 发送评估任务到 Redis Stream（让消息队列开始分析面试报告）
-                persistenceService.updateEvaluateStatus(sessionId, AsyncTaskStatus.PENDING, null);
                 evaluateStreamProducer.sendEvaluateTask(sessionId);
                 log.info("Final reporter: 评估任务已入队, sessionId={}", sessionId);
             }

@@ -252,6 +252,10 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
       setSession(tempSession);
       setCurrentQuestion(progress.currentQuestion);
       setMessages(restoredMessages);
+      // 如果后台工作流正在处理（刷新页面时工作流还在跑），禁用提交/交卷按钮
+      if (progress.processingStatus === 'PROCESSING') {
+        setIsSubmitting(true);
+      }
       setStage('interview');
     } catch (err) {
       console.error('恢复会话失败', err);

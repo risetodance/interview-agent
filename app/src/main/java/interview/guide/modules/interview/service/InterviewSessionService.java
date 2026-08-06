@@ -296,6 +296,12 @@ public class InterviewSessionService {
             throw new BusinessException(ErrorCode.INTERVIEW_ALREADY_COMPLETED);
         }
 
+        // 校验工作流状态：如果后台工作流正在执行（scorer→decider→...），不允许交卷
+        Optional<InterviewSessionEntity> entityOpt = persistenceService.findBySessionId(sessionId);
+        if (entityOpt.isPresent() && entityOpt.get().getWorkflowStatus() == InterviewSessionEntity.WorkflowStatus.PROCESSING) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "工作流正在处理中，请稍后再试");
+        }
+
         // 更新 Redis 缓存
         sessionCache.updateSessionStatus(sessionId, SessionStatus.COMPLETED);
 

@@ -78,14 +78,6 @@ public class SingleAnswerEvaluationService {
     }
 
     /**
-     * 评估单个答案（不带视角信息）
-     */
-    public EvaluationResult evaluateAnswer(String question, String category, String difficulty,
-                                          String userAnswer, String resumeText, String referenceContext) {
-        return evaluateAnswer(question, category, difficulty, userAnswer, resumeText, referenceContext, null, null);
-    }
-
-    /**
      * 评估单个答案
      *
      * @param question        问题内容

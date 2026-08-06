@@ -4,12 +4,8 @@ import interview.guide.common.annotation.CurrentUser;
 import interview.guide.common.annotation.RateLimit;
 import interview.guide.common.result.Result;
 import interview.guide.modules.interview.model.*;
-import interview.guide.modules.interview.service.InterviewHistoryService;
-import interview.guide.modules.interview.service.InterviewPersistenceService;
-import interview.guide.modules.interview.service.InterviewSessionService;
-import interview.guide.modules.interview.service.PerspectiveEvaluationService;
-import interview.guide.modules.interview.service.ScoreTrendService;
-import interview.guide.modules.interview.workflow.WorkflowExecutor;
+import interview.guide.modules.interview.service.*;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -43,9 +39,8 @@ public class InterviewController {
     @PostMapping("/api/interview/sessions")
     @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL, RateLimit.Dimension.IP}, count = 5)
     public Result<InterviewSessionBasicDTO> createSession(
-            @CurrentUser Long userId,
-            @RequestBody CreateInterviewRequest request) {
-        log.info("创建面试会话，用户: {}, 题目数量: {}", userId, request.questionCount());
+           @CurrentUser Long userId,
+           @RequestBody @Valid CreateInterviewRequest request) {
         InterviewSessionBasicDTO session = sessionService.createSession(userId, request);
         return Result.success(session);
     }
