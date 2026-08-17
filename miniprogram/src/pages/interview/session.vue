@@ -3,6 +3,7 @@ import { ref, computed, toRef, onMounted, onUnmounted, nextTick } from 'vue'
 import { onUnload, onHide } from '@dcloudio/uni-app'
 import { useInterviewStore } from '../../stores/interview'
 import { getCurrentQuestion, getSessionProgress, PROGRESS_LABELS, submitAnswerAdaptive, endInterview, type StreamCurrentQuestionDTO } from '../../api/interview'
+import Icon from '../../components/common/Icon.vue'
 
 // 进度阶段 key（对应 PROGRESS_LABELS 的 key，用于轮询时显示"正在评分/正在决策..."等节点）
 const STAGE_SCORING = 'progress_scoring'
@@ -456,8 +457,12 @@ const pollForNextQuestion = async (submittedIndex: number) => {
       interviewStatus.value = 'answering'
       uni.showToast({ title: 'AI 处理超时，请重试', icon: 'none' })
     } else {
-      // 设默认进度文字（PROCESSING 时显示"正在评分..."，答完等报告时显示"生成报告中..."）
-      if (!progressStage.value) {
+      // 优先用后端从最新 checkpoint 读取的工作流阶段（与 web 端 SSE progress 事件一致），
+      // 实时显示"评分→决策→检索→出题"推进；无阶段信息时保留已有阶段
+      // （如答完等报告的 STAGE_REPORT），首次无值则回退"正在评分"
+      if (progress.workflowStage) {
+        progressStage.value = progress.workflowStage
+      } else if (!progressStage.value) {
         progressStage.value = STAGE_SCORING
       }
       pollTimer = setTimeout(() => pollForNextQuestion(submittedIndex), POLL_INTERVAL)
@@ -621,6 +626,10 @@ const finishInterviewAndWaitForResult = async () => {
 
 // 结束面试
 const finishInterview = () => {
+  // 与 web 端对齐：提交中 / 等待下一题 / 阶段处理中禁止提前交卷
+  // （view 的 disabled 仅是样式 class，不拦截 tap，必须在此处实际拦截）
+  if (isSubmitting.value || isLoadingNextQuestion.value || progressStage.value) return
+
   uni.showModal({
     title: '确认结束',
     content: '确定要结束这场面试吗？',
@@ -710,11 +719,7 @@ onUnmounted(() => {
         <!-- 欢迎消息 -->
         <view v-if="messages.length === 0" class="welcome-message">
           <view class="welcome-icon-wrapper">
-            <svg class="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <circle cx="12" cy="12" r="6"/>
-              <circle cx="12" cy="12" r="2"/>
-            </svg>
+            <Icon name="target" size="48rpx" color="#ffffff" />
           </view>
           <text class="welcome-text">AI 面试官正在准备问题</text>
           <text class="welcome-desc">请稍候...</text>
@@ -729,10 +734,7 @@ onUnmounted(() => {
         >
           <!-- 面试官消息 -->
           <view v-if="msg.type === 'interviewer'" class="avatar interviewer-avatar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
+            <Icon name="user" size="36rpx" color="#0ea5e9" />
           </view>
           <view v-if="msg.type === 'interviewer'" class="message-body">
             <view class="message-tags">
@@ -752,10 +754,7 @@ onUnmounted(() => {
               <view class="bubble user-bubble">{{ msg.content }}</view>
             </view>
             <view class="avatar user-avatar">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
-              </svg>
+              <Icon name="user" size="36rpx" color="#64748b" />
             </view>
           </view>
 
@@ -805,7 +804,7 @@ onUnmounted(() => {
             </view>
             <view
               class="early-exit-btn"
-              :class="{ disabled: isSubmitting || !!progressStage }"
+              :class="{ disabled: isSubmitting || isLoadingNextQuestion || !!progressStage }"
               @click="finishInterview"
             >
               <text>提前交卷</text>
@@ -1252,6 +1251,10 @@ onUnmounted(() => {
     font-size: 24rpx;
     color: #64748b;
     text-align: center;
+
+    &.disabled {
+      opacity: 0.5;
+    }
   }
 }
 

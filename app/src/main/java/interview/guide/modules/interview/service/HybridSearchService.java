@@ -348,8 +348,8 @@ public class HybridSearchService {
             pendingItems.add(new RerankedItem("webSearch", w, 0, 0.0));
         }
 
-        // 小模型 ChatClient 由 Registry 保证可用（无配置 / 禁用时 Registry 已退化到主模型），直接使用
-        if (smallModelChatClient != null) {
+        // 候选数 ≤ 5 时跳过 reranker，直接用默认 RRF 分数（省一次 LLM 调用）
+        if (smallModelChatClient != null && pendingItems.size() > 5) {
             try {
                 List<RerankerScoreResult> scores = scoreWithSmallModel(candidatesBuilder.toString());
                 // 应用分数到对应项

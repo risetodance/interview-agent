@@ -20,6 +20,15 @@ import {
   type CreateQuestionRequest
 } from '../api/question-bank'
 
+// re-export 题库公共类型，页面统一从 store 导入（与 api/question-bank 保持同源）
+export type {
+  QuestionBankDTO,
+  QuestionDTO,
+  QuestionDifficulty,
+  CreateQuestionBankRequest,
+  CreateQuestionRequest
+} from '../api/question-bank'
+
 export const useQuestionBankStore = defineStore('question-bank', () => {
   // ========== State ==========
   const systemBanks = ref<QuestionBankDTO[]>([])

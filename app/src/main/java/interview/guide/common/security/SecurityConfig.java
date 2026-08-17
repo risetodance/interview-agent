@@ -3,6 +3,7 @@ package interview.guide.common.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -11,6 +12,10 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import java.util.List;
 
@@ -110,9 +115,40 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
+                // 区分两种拒绝场景，返回标准状态码：
+                // 401 未认证（无 token / token 过期无效）——JwtAuthenticationFilter 对无效 token
+                //     不设认证直接放行，匿名请求在此被拒；前端（小程序/web）据 401 登出并跳转登录页
+                // 403 已认证但无权限（如非 ADMIN 访问管理接口）——前端按普通错误提示
+                // 不配置时 Spring Security 默认 Http403ForbiddenEntryPoint 会把未认证也返回 403，
+                // 导致 token 过期后前端无法识别登录态失效（曾引发 profile 页 /users/me 403 卡死）
+                .exceptionHandling(ex -> ex
+                        // 认证入口点：请求"未通过认证"（无 token / token 过期无效 / 匿名访问受保护接口）时被调用。
+                        // 传统表单应用在此跳转登录页；JWT 无状态场景没有页面可跳，直接写 401 JSON
+                        // 让前端识别登录态失效并自行处理登出/跳转
+                        .authenticationEntryPoint((request, response, authException) ->
+                                writeJson(response, HttpServletResponse.SC_UNAUTHORIZED,
+                                        "{\"code\":401,\"message\":\"登录已过期或未登录，请重新登录\",\"data\":null}"))
+                        // 访问拒绝处理器：请求"已通过认证但权限不足"（如 ROLE_USER 访问 /api/admin/** 的
+                        // hasRole("ADMIN") 接口，抛 AccessDeniedException）时被调用，写 403 JSON。
+                        // 与 401 的区别：用户身份有效，只是没资格访问该资源
+                        .accessDeniedHandler((request, response, accessDeniedException) ->
+                                writeJson(response, HttpServletResponse.SC_FORBIDDEN,
+                                        "{\"code\":403,\"message\":\"无权限访问\",\"data\":null}"))
+                )
+
                 // 添加 JWT 认证过滤器
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 
                 .build();
+    }
+
+    /**
+     * 安全拒绝响应统一输出 JSON（与 Result 响应壳结构一致，前端可直接解析 message）
+     */
+    private static void writeJson(HttpServletResponse response, int status, String body) throws IOException {
+        response.setStatus(status);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.getWriter().write(body);
     }
 }

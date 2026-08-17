@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { useQuestionBankStore, type QuestionDTO, type QuestionDifficulty } from '../../stores/question-bank'
+import Icon from '../../components/common/Icon.vue'
 
 // Store
 const questionBankStore = useQuestionBankStore()
@@ -41,7 +42,8 @@ const loadQuestions = async (refresh = false) => {
 
   try {
     const page = refresh ? 0 : pagination.value.page
-    await questionBankStore.fetchQuestions(bankId.value, page, selectedDifficulty.value, searchKeyword.value)
+    // selectedDifficulty 为 null 表示"全部"（不筛选），转为 undefined 匹配 fetchQuestions 可选参数
+    await questionBankStore.fetchQuestions(bankId.value, page, selectedDifficulty.value ?? undefined, searchKeyword.value)
   } catch (error) {
   } finally {
     loading.value = false
@@ -264,10 +266,7 @@ onLoad((options: any) => {
         <view class="detail-header">
           <text class="detail-title">题目详情</text>
           <view class="close-btn" @click="closeDetail">
-            <svg class="close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
+            <Icon name="x" size="28rpx" color="#475569" />
           </view>
         </view>
 

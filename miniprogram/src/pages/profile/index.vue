@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUserStore } from '../../stores/user'
+import Icon from '../../components/common/Icon.vue'
 
 // 用户 Store
 const userStore = useUserStore()
@@ -20,18 +21,15 @@ const displayName = computed(() => {
   return userInfo.value?.nickname || userInfo.value?.username || '未设置昵称'
 })
 
-// 默认头像
-const defaultAvatar = 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lxia07jQodd2SJPG10Lskb46rSE8MP17pnp177hR8sIhLiaG2iafw9mLqQO3M3T2oKfTqicA/0'
-
-// 头像
-const avatarUrl = computed(() => {
-  return userInfo.value?.avatar || defaultAvatar
-})
+// 头像：有真实头像时由模板渲染 <image>；无头像时用昵称首字母 CSS 占位
+// （微信官方默认头像 mmbiz.qpic.cn 直链已失效返回 400，不再依赖远程兜底图，
+// 与首页/简历列表的首字母占位方案保持一致）
 
 // 页面显示时刷新用户信息
 onMounted(() => {
   if (isLoggedIn.value) {
-    userStore.fetchUserInfo()
+    // catch 兜底：token 失效等场景由 request.ts 统一登出跳转，这里只吞掉 rejection 避免 Uncaught promise
+    userStore.fetchUserInfo().catch(() => {})
   }
 })
 
@@ -120,7 +118,7 @@ const menuItems = computed(() => [
   {
     icon: 'points',
     title: '积分记录',
-    subtitle: `当前积分: ${points}`,
+    subtitle: `当前积分: ${points.value}`,
     path: '/pages/points/index'
   },
   {
@@ -143,10 +141,10 @@ const menuItems = computed(() => [
   }
 ])
 
-// 设置项配置
+// 设置项配置（icon 对应 Icon.vue 图标名）
 const settingsItems = [
   {
-    icon: 'notification',
+    icon: 'bell',
     title: '消息通知',
     path: '/pages/notification/list'
   }
@@ -176,10 +174,14 @@ const handleMenuClick = (item: any) => {
         <!-- 头像区域 -->
         <view class="avatar-wrapper" @click="chooseAvatar">
           <image
+            v-if="userInfo?.avatar"
             class="avatar"
-            :src="avatarUrl"
+            :src="userInfo.avatar"
             mode="aspectFill"
           />
+          <view v-else class="avatar avatar-placeholder">
+            <text class="avatar-placeholder-text">{{ displayName.charAt(0) }}</text>
+          </view>
           <view class="avatar-edit-icon">
             <text class="icon">编辑</text>
           </view>
@@ -209,7 +211,7 @@ const handleMenuClick = (item: any) => {
         </view>
         <view class="points-action">
           <text class="points-action-text">签到/兑换</text>
-          <text class="arrow">></text>
+          <Icon name="chevron-right" size="24rpx" color="#94a3b8" />
         </view>
       </view>
     </view>
@@ -249,10 +251,13 @@ const handleMenuClick = (item: any) => {
           class="settings-item"
           @click="handleMenuClick(item)"
         >
-          <text class="settings-item-title">{{ item.title }}</text>
-          <view class="settings-item-arrow">
-            <text class="arrow">></text>
+          <view class="settings-item-left">
+            <view class="settings-item-icon">
+              <Icon :name="item.icon" size="28rpx" color="#fff" />
+            </view>
+            <text class="settings-item-title">{{ item.title }}</text>
           </view>
+          <Icon name="chevron-right" size="24rpx" color="#94a3b8" />
         </view>
       </view>
     </view>
@@ -276,9 +281,6 @@ const handleMenuClick = (item: any) => {
 <style lang="scss" scoped>
 @use '../../styles/variables.scss' as *;
 
-$success: #0ea5e9;
-$info: #38bdf8;
-
 .profile-container {
   min-height: 100vh;
   background-color: $bg;
@@ -287,7 +289,9 @@ $info: #38bdf8;
 
 .profile-header {
   position: relative;
-  padding-bottom: 160rpx;
+  // 底部留白 + menu-section 的 margin-top 共同构成积分卡与"我的功能"的间距（80rpx）；
+  // 渐变背景 header-bg(440rpx) 需覆盖积分卡底边：user-info(284) + 卡底(≈410) < 440 ✓
+  padding-bottom: 40rpx;
 }
 
 .header-bg {
@@ -313,7 +317,10 @@ $info: #38bdf8;
   position: relative;
   display: flex;
   align-items: center;
-  padding: 60rpx 40rpx 40rpx;
+  // 左右边距与积分卡/菜单区统一为 30rpx，对齐全页基准线
+  // 底部 64rpx：预留头像编辑角标(bottom:-10rpx) + 阴影的完整露出空间，
+  // 再叠加积分卡 -44rpx 上浮后不遮头像（60+160+64-44=240 > 头像底 220/角标底 230）
+  padding: 60rpx 30rpx 64rpx;
 }
 
 .avatar-wrapper {
@@ -330,6 +337,19 @@ $info: #38bdf8;
   border-radius: 80rpx;
   border: 6rpx solid #fff;
   box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.15);
+}
+
+.avatar-placeholder {
+  background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-placeholder-text {
+  font-size: 56rpx;
+  font-weight: 600;
+  color: #fff;
 }
 
 .avatar-edit-icon {
@@ -378,10 +398,10 @@ $info: #38bdf8;
 }
 
 .points-card {
-  position: absolute;
-  left: 30rpx;
-  right: 30rpx;
-  bottom: -100rpx;
+  // 改为文档流 + 负 margin 上浮，替代 absolute 悬浮；
+  // 后续区块自动跟随卡片实际底边排布，不再依赖 magic number
+  position: relative;
+  margin: -44rpx 30rpx 0;
   background: #fff;
   border-radius: 24rpx;
   padding: 32rpx;
@@ -431,17 +451,14 @@ $info: #38bdf8;
 
 .points-action-text {
   font-size: 26rpx;
+  line-height: 1;
   color: $primary;
-}
-
-.arrow {
-  margin-left: 8rpx;
-  font-size: 24rpx;
-  color: #ccc;
+  margin-right: 4rpx;
 }
 
 .menu-section {
-  margin-top: 120rpx;
+  // 积分卡改为文档流后自动跟随其后，仅需常规间隙
+  margin-top: 40rpx;
   padding: 0 30rpx;
 }
 
@@ -456,17 +473,17 @@ $info: #38bdf8;
 }
 
 .menu-grid {
-  display: flex;
-  flex-wrap: wrap;
-  margin: 0 -12rpx;
+  // 两列网格：原先 flex + 负 margin + calc(50% - 24rpx) 的写法中 calc 内嵌 rpx
+  // 在 H5 端换算失效导致宽度塌陷成内容宽（单列窄条），改用 grid + gap 双端行为一致
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24rpx;
 }
 
 .menu-item {
-  width: calc(50% - 24rpx);
   background: $card-bg;
   border-radius: 24rpx;
   padding: 36rpx 28rpx;
-  margin: 0 12rpx 24rpx;
   position: relative;
   box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
@@ -524,36 +541,55 @@ $info: #38bdf8;
 }
 
 .settings-section {
-  margin-top: 20rpx;
+  // 与 menu-section 间距节奏统一
+  margin-top: 40rpx;
   padding: 0 30rpx;
 }
 
 .settings-list {
   background: #fff;
-  border-radius: 20rpx;
+  border-radius: 24rpx;
   overflow: hidden;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
 }
 
 .settings-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 32rpx;
+  padding: 28rpx 32rpx;
   border-bottom: 1rpx solid #f0f0f0;
+  transition: all 0.3s ease;
+
+  &:active {
+    background-color: #f8fafc;
+  }
 }
 
 .settings-item:last-child {
   border-bottom: none;
 }
 
+.settings-item-left {
+  display: flex;
+  align-items: center;
+}
+
+// 与 menu-item-icon 同语言的图标容器（尺寸略小，列表行内比例）
+.settings-item-icon {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 14rpx;
+  background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 20rpx;
+}
+
 .settings-item-title {
   font-size: 30rpx;
   color: #333;
-}
-
-.settings-item-arrow {
-  display: flex;
-  align-items: center;
 }
 
 .logout-section,

@@ -73,7 +73,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // 2. 从请求头提取 JWT Token
         String token = extractTokenFromRequest(request);
 
-        // 3. 如果 token 不存在或无效，放行请求（让后续的 SecurityConfig 决定是否需要认证）
+        // 3. 如果 token 不存在或无效（含过期），放行请求但不设置认证信息：
+        //    请求将以匿名身份继续，命中 SecurityConfig 的 anyRequest().authenticated() 后
+        //    由 authenticationEntryPoint 统一返回 401（前端据 401 登出并跳转登录页）。
+        //    注意：不要在此直接拒绝——白名单路径（permitAll，如 /api/auth/**）也经过本过滤器，
+        //    提前写 401/403 会误伤匿名可访问的接口。
         if (!StringUtils.hasText(token) || !jwtTokenProvider.validateToken(token)) {
             filterChain.doFilter(request, response);
             return;
@@ -96,7 +100,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             log.debug("JWT认证成功: userId={}, username={}, role={}", userId, username, role);
         } catch (Exception e) {
-            // Token 解析失败，记录日志但不放行（让 SecurityConfig 处理）
+            // Token 解析失败：仅记录日志，同样以匿名身份放行，
+            // 由 SecurityConfig 的 authenticationEntryPoint 统一返回 401
             log.error("JWT Token解析失败: {}", e.getMessage(), e);
         }
 

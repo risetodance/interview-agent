@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { getResumeList, type Resume } from '../../api/resume'
+import Icon from '../../components/common/Icon.vue'
 
 // 简历列表
 const resumeList = ref<Resume[]>([])
@@ -51,9 +52,7 @@ onMounted(() => {
     <!-- 顶部导航 -->
     <view class="nav-bar">
       <view class="nav-back" @click="goBack">
-        <svg class="back-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="15 18 9 12 15 6"></polyline>
-        </svg>
+        <Icon name="chevron-left" size="36rpx" color="#333333" />
       </view>
       <text class="nav-title">选择简历</text>
       <view class="nav-placeholder"></view>
@@ -74,13 +73,7 @@ onMounted(() => {
         @click="selectResume(resume)"
       >
         <view class="resume-icon">
-          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="16" y1="13" x2="8" y2="13"></line>
-            <line x1="16" y1="17" x2="8" y2="17"></line>
-            <polyline points="10 9 9 9 8 9"></polyline>
-          </svg>
+          <Icon name="file-text" size="40rpx" color="#0ea5e9" />
         </view>
         <view class="resume-info">
           <text class="resume-name">{{ resume.name || '未命名简历' }}</text>
@@ -88,17 +81,13 @@ onMounted(() => {
           <text class="resume-date">上传于 {{ resume.updatedAt || resume.createdAt }}</text>
         </view>
         <view v-if="selectedResume?.id === resume.id" class="check-icon">
-          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
+          <Icon name="check" size="24rpx" color="#ffffff" :stroke-width="3" />
         </view>
       </view>
 
       <!-- 空状态 -->
       <view v-if="resumeList.length === 0" class="empty-state">
-        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-        </svg>
+        <Icon name="folder" size="80rpx" color="#dddddd" :stroke-width="1.5" />
         <text class="empty-text">暂无简历</text>
         <text class="empty-hint">请先上传简历</text>
       </view>

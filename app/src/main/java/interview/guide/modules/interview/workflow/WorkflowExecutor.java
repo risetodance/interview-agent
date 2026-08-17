@@ -10,6 +10,7 @@ import com.alibaba.cloud.ai.graph.checkpoint.savers.postgresql.PostgresSaver;
 import com.alibaba.cloud.ai.graph.exception.GraphStateException;
 import com.alibaba.cloud.ai.graph.state.StateSnapshot;
 import interview.guide.modules.interview.model.InterviewSessionEntity.WorkflowStatus;
+import interview.guide.modules.interview.model.SseEventType;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
 import interview.guide.modules.interview.service.InterviewStreamService;
 import jakarta.annotation.PostConstruct;
@@ -414,6 +415,43 @@ public class WorkflowExecutor {
             persistenceService.updateWorkflowStatus(sessionId, WorkflowStatus.DONE);
         } else {
             persistenceService.updateWorkflowStatus(sessionId, WorkflowStatus.AWAITING_ANSWER);
+        }
+    }
+
+    /**
+     * 查询工作流当前执行阶段（轮询场景替代 SSE progress 事件）
+     * 从最新 checkpoint 读取 next 节点（即正在/即将执行的节点），映射为 SSE progress 事件名，
+     * 前端可直接用 PROGRESS_LABELS 渲染（与 web 端 SSE 阶段提示一致）。
+     * <p>
+     * 注意：next=scorer 兼有"正在评分"与"中断等待答题"两种语义
+     * （interruptAfter(question_generator) 的中断点 next 也是 scorer），
+     * 调用方须结合 workflow_status=PROCESSING 判断，等待答题时不应展示阶段。
+     *
+     * @return 阶段事件名（progress_scoring 等）；无 checkpoint / 已到 END / 未知节点返回 null
+     */
+    public String getWorkflowStage(String sessionId) {
+        try {
+            RunnableConfig config = RunnableConfig.builder().threadId(sessionId).build();
+            Optional<StateSnapshot> snapshotOpt = compiledGraph.stateOf(config);
+            if (snapshotOpt.isEmpty()) {
+                return null;
+            }
+            String nextNode = snapshotOpt.get().next();
+            if (nextNode == null || StateGraph.END.equals(nextNode)) {
+                return null;
+            }
+            return switch (nextNode) {
+                case NODE_SCORER -> SseEventType.PROGRESS_SCORING.getEventName();
+                // decider 已决策（含切换角色分支），SSE 此阶段无独立事件，沿用决策中提示
+                case NODE_DECIDER, NODE_ROLE_SWITCHER -> SseEventType.PROGRESS_DECIDING.getEventName();
+                case NODE_SEARCH_PREPARATOR -> SseEventType.PROGRESS_SEARCH_PREPARING.getEventName();
+                case NODE_QUESTION_GENERATOR -> SseEventType.PROGRESS_GENERATING.getEventName();
+                // final_reporter：答完全部题生成报告中，无对应 SSE 阶段事件，由前端按答题数兜底提示
+                default -> null;
+            };
+        } catch (Exception e) {
+            log.warn("查询工作流阶段失败: sessionId={}, error={}", sessionId, e.getMessage());
+            return null;
         }
     }
 

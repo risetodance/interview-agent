@@ -466,6 +466,10 @@ export interface SessionProgressDTO {
   processingStatus: 'IDLE' | 'PROCESSING'
   // 会话状态：CREATED/IN_PROGRESS/COMPLETED/EVALUATED，前端据此判断面试是否结束
   sessionStatus?: string
+  // 工作流当前阶段（仅 PROCESSING 时返回，与 SSE progress 事件名一致）：
+  // progress_scoring / progress_deciding / progress_search_preparing / progress_generating
+  // 由后端从最新 graph checkpoint 读取，轮询端据此展示与 web 端 SSE 一致的阶段提示
+  workflowStage?: string
 }
 
 /**
@@ -565,10 +569,10 @@ export const SSE_EVENT_TYPES = {
 
 // 进度阶段标签（与前端一致）
 export const PROGRESS_LABELS: Record<string, string> = {
-  'progress_scoring': 'AI 正在评分...',
-  'progress_deciding': '正在决策下一题...',
+  'progress_scoring': '正在评分...',
+  'progress_deciding': '正在决策...',
   'progress_search_preparing': '正在准备搜索...',
-  'progress_generating': '正在出题中...',
+  'progress_generating': '正在出题...',
 }
 
 /**

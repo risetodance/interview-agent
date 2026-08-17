@@ -5,11 +5,13 @@ interface Props {
   name: string
   size?: number | string
   color?: string
+  strokeWidth?: number | string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   size: 20,
-  color: 'currentColor'
+  color: 'currentColor',
+  strokeWidth: 2
 })
 
 // Lucide 图标 SVG 映射（只导入需要的图标，减小体积）
@@ -110,16 +112,30 @@ const iconPaths: Record<string, string> = {
   'check-square': 'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11',
 }
 
-const iconSvg = computed(() => {
+const iconSize = computed(() => (
+  typeof props.size === 'number' ? `${props.size}px` : props.size
+))
+
+const iconColor = computed(() => (
+  props.color === 'currentColor' ? '#333333' : props.color
+))
+
+const iconSrc = computed(() => {
   const path = iconPaths[props.name]
   if (!path) return ''
-  const size = typeof props.size === 'number' ? `${props.size}px` : props.size
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${props.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg>`
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${iconColor.value}" stroke-width="${props.strokeWidth}" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 })
 </script>
 
 <template>
-  <view class="icon" v-html="iconSvg" />
+  <image
+    class="icon"
+    :src="iconSrc"
+    :style="{ width: iconSize, height: iconSize }"
+    mode="aspectFit"
+  />
 </template>
 
 <style scoped>

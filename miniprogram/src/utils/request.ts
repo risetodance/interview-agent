@@ -198,7 +198,8 @@ export const request = <T = any>(options: RequestOptions): Promise<T> => {
   return new Promise((resolve, reject) => {
     uni.request({
       url: apiBaseUrl + processedOptions.url,
-      method: processedOptions.method,
+      // 断言对齐：微信基础库实际支持 PATCH，但 @dcloudio/types 的 method 联合类型未收录
+      method: processedOptions.method as 'GET' | 'POST' | 'PUT' | 'DELETE',
       data: processedOptions.data,
       header: processedOptions.header,
       timeout: processedOptions.timeout,

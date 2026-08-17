@@ -577,8 +577,14 @@ public class InterviewSessionService {
             }
         }
 
-        log.info("获取会话进度: sessionId={}, currentIndex={}, total={}, historySize={}, processingStatus={}",
-                sessionId, currentIndex, totalQuestions, history.size(), processingStatus);
+        // workflow_status=PROCESSING 时从最新 checkpoint 读取工作流当前阶段
+        // （scorer/decider/search_preparator/question_generator），供轮询端展示与 SSE 一致的阶段进度
+        String workflowStage = session.getWorkflowStatus() == InterviewSessionEntity.WorkflowStatus.PROCESSING
+                ? workflowExecutor.getWorkflowStage(sessionId)
+                : null;
+
+        log.info("获取会话进度: sessionId={}, currentIndex={}, total={}, historySize={}, processingStatus={}, workflowStage={}",
+                sessionId, currentIndex, totalQuestions, history.size(), processingStatus, workflowStage);
 
         return new SessionProgressDTO(
                 sessionId,
@@ -587,7 +593,8 @@ public class InterviewSessionService {
                 currentQuestion,
                 history,
                 processingStatus,
-                session.getStatus() != null ? session.getStatus().name() : null
+                session.getStatus() != null ? session.getStatus().name() : null,
+                workflowStage
         );
     }
 

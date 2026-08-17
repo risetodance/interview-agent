@@ -350,11 +350,7 @@ onMounted(() => {
     <!-- 页面标题 -->
     <view class="page-header">
       <view class="header-icon">
-        <svg class="header-icon-svg" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-          <circle cx="12" cy="12" r="6" stroke="currentColor" stroke-width="2"/>
-          <circle cx="12" cy="12" r="2" fill="currentColor"/>
-        </svg>
+        <Icon name="target" size="48rpx" color="#ffffff" />
       </view>
       <text class="header-title">模拟面试</text>
       <text class="header-subtitle">配置您的面试参数</text>
