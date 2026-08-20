@@ -7,12 +7,13 @@ springAiAlibabaGraph = "2.0.0-M1.1"
 tika = "2.9.2"
 lombok = "1.18.36"
 junit-jupiter = "5.12.0"
-redisson = "4.0.0"
+redisson = "4.7.0"
 mapstruct = "1.6.3"
 aws-sdk = "2.29.51"
 itext = "8.0.5"
 jjwt = "0.12.6"
 poi = "5.2.5"
+tencentcloudSes = "3.1.1291"
 
 [libraries]
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
@@ -25,6 +26,7 @@ jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
 jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
 poi-core = { module = "org.apache.poi:poi", version.ref = "poi" }
 poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poi" }
+tencentcloud-ses = { module = "com.tencentcloudapi:tencentcloud-sdk-java-ses", version.ref = "tencentcloudSes" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

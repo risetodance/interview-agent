@@ -139,6 +139,7 @@ public class WechatScanLoginService {
 
         UserEntity newUser = UserEntity.builder()
             .username(username)
+            // 本路径不落库 email（保持 null），无用户邮箱输入；后续用户经 bindEmail 绑定（入口已做小写规范化），故无需规范化
             .wechatOpenid(openid)
             .nickname("微信用户")
             .status(UserStatus.ACTIVE)

@@ -1,6 +1,8 @@
 package interview.guide.modules.user.controller;
 
 import interview.guide.common.annotation.CurrentUser;
+import interview.guide.common.exception.BusinessException;
+import interview.guide.common.exception.ErrorCode;
 import interview.guide.common.result.Result;
 import interview.guide.modules.user.dto.LoginRequest;
 import interview.guide.modules.user.dto.LoginResponse;
@@ -9,6 +11,8 @@ import interview.guide.modules.user.dto.ProfileUpdateRequest;
 import interview.guide.modules.user.dto.RegisterRequest;
 import interview.guide.modules.user.dto.RegisterResponse;
 import interview.guide.modules.user.model.UserProfileDTO;
+import interview.guide.modules.user.service.EmailCodeService;
+import interview.guide.modules.user.service.EmailNormalizer;
 import interview.guide.modules.user.service.UserLoginService;
 import interview.guide.modules.user.service.UserQueryService;
 import interview.guide.modules.user.service.UserRegisterService;
@@ -33,14 +37,35 @@ public class UserController {
     private final UserRegisterService registerService;
     private final UserLoginService loginService;
     private final UserQueryService queryService;
+    private final EmailCodeService emailCodeService;
 
     /**
-     * 用户注册
+     * 用户注册（web 直注入口）
      * POST /api/auth/register
+     * 需要邮箱验证码（scene=REGISTER）：先经 POST /api/auth/email/code（scene=REGISTER）获取验证码，
+     * 随邮箱/密码一并提交；两步式邮箱注册（registerByEmail）不经过本方法，已由 LOGIN 码完成邮箱所有权验证
      */
     @PostMapping("/api/auth/register")
     public Result<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
         log.info("收到用户注册请求: username={}", request.username());
+        // 与发码入口使用同一份规范化邮箱拼 Redis key 及查库，
+        // 否则大小写/首尾空格变体会导致验码 key 漂移，误报“验证码已过期”
+        String email = EmailNormalizer.normalize(request.email());
+
+        // 冲突预检先于验码（F1 原则）：用户名/邮箱已存在时直接报错，不消耗验证码
+        if (queryService.existsByUsername(request.username())) {
+            throw new BusinessException(ErrorCode.USERNAME_EXISTS);
+        }
+        if (queryService.existsByEmail(email)) {
+            throw new BusinessException(ErrorCode.EMAIL_EXISTS);
+        }
+
+        // 校验注册验证码（通过即消费，一次性使用）
+        if (request.code() == null || request.code().isBlank()) {
+            throw new BusinessException(ErrorCode.EMAIL_CODE_INVALID, "请输入邮箱验证码");
+        }
+        emailCodeService.verifyCode(email, EmailCodeService.Scene.REGISTER, request.code());
+
         RegisterResponse response = registerService.register(request);
         return Result.success("注册成功", response);
     }
@@ -54,44 +79,6 @@ public class UserController {
         log.info("收到用户登录请求: username={}", request.username());
         LoginResponse response = loginService.login(request);
         return Result.success("登录成功", response);
-    }
-
-    /**
-     * H5测试用登录接口 - 自动创建用户
-     * POST /api/auth/login/test
-     */
-    @PostMapping("/api/auth/login/test")
-    public Result<LoginResponse> testLogin(@RequestBody LoginRequest request) {
-        log.info("收到H5测试登录请求: username={}", request.username());
-        try {
-            // 尝试登录
-            LoginResponse response = loginService.login(request);
-            return Result.success("登录成功", response);
-        } catch (IllegalArgumentException e) {
-            // loginService 对"用户不存在"和"密码错误"都抛 IllegalArgumentException，需区分：
-            // 用户已存在 → 密码错误，直接返回；用户不存在 → 注册新用户
-            if (queryService.existsByUsername(request.username())) {
-                return Result.error("用户名或密码错误");
-            }
-            log.info("用户不存在，尝试创建新用户: username={}", request.username());
-            try {
-                RegisterRequest registerRequest = new RegisterRequest(
-                    request.username(),
-                    request.password(),
-                    request.username() + "@test.com",
-                    request.username()
-                );
-                registerService.register(registerRequest);
-                LoginResponse response = loginService.login(request);
-                return Result.success("注册并登录成功", response);
-            } catch (Exception ex) {
-                log.error("H5测试登录失败", ex);
-                return Result.error("登录失败: " + ex.getMessage());
-            }
-        } catch (Exception e) {
-            log.error("H5测试登录失败", e);
-            return Result.error(e.getMessage());
-        }
     }
 
     /**

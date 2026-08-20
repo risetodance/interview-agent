@@ -11,6 +11,16 @@ interface Result<T = unknown> {
 
 const baseURL = import.meta.env.PROD ? '' : '';
 
+/**
+ * 构造携带后端业务码的错误
+ * message 文案与既有 reject(message) 语义一致，仅附加 code 供调用方按业务码结构化判断
+ */
+function createBizError(message: string, code: number): Error & { code: number } {
+  const err = new Error(message) as Error & { code: number };
+  err.code = code;
+  return err;
+}
+
 const instance: AxiosInstance = axios.create({
   baseURL,
   timeout: 60000,
@@ -50,8 +60,8 @@ instance.interceptors.response.use(
         response.data = result.data;
         return response;
       }
-      // 失败：直接抛出 message
-      return Promise.reject(new Error(result.message || '请求失败'));
+      // 失败：直接抛出 message（附带业务码 code）
+      return Promise.reject(createBizError(result.message || '请求失败', result.code));
     }
     
     // 非 Result 格式，直接返回
@@ -68,10 +78,10 @@ instance.interceptors.response.use(
       }
 
       const { data } = error.response;
-      // 尝试解析 Result 格式
+      // 尝试解析 Result 格式（附带业务码 code）
       if (data && typeof data === 'object' && 'code' in data && 'message' in data) {
         const result = data as Result;
-        return Promise.reject(new Error(result.message || '请求失败'));
+        return Promise.reject(createBizError(result.message || '请求失败', result.code));
       }
       // 响应格式不对
       return Promise.reject(new Error('请求失败，请重试'));

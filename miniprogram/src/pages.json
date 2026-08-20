@@ -14,6 +14,19 @@
       }
     },
     {
+      "path": "pages/auth/forgot-password",
+      "style": {
+        "navigationBarTitleText": "找回密码",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/auth/security",
+      "style": {
+        "navigationBarTitleText": "账号与安全"
+      }
+    },
+    {
       "path": "pages/profile/index",
       "style": {
         "navigationBarTitleText": "个人中心"

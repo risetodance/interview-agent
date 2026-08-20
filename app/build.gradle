@@ -27,6 +27,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    // 腾讯云 SES 发信（API 调用，个人用户 SMTP 已停用；仅引 SES 独立模块 SDK，不引全家桶）
+    implementation libs.tencentcloud.ses
 
     // Micrometer + Prometheus 监控
     implementation 'io.micrometer:micrometer-registry-prometheus'

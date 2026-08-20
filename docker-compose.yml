@@ -105,7 +105,7 @@ services:
       args:
         MINIMAX_API_KEY: ${MINIMAX_API_KEY}
         MINIMAX_API_HOST: ${MINIMAX_API_HOST}
-    container_name: interview-guide-app
+    container_name: interview-agent-app
     restart: unless-stopped
     mem_limit: 1536m
     ports:
@@ -141,7 +141,7 @@ services:
     environment:
       TZ: Asia/Shanghai
     volumes:
-      - /opt/interview-guide/prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - /opt/interview-agent/prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml
       - ${PROMETHEUS_DATA_DIR}:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'

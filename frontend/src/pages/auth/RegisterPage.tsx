@@ -3,6 +3,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useUser } from '../../store/user';
 import { getErrorMessage } from '../../api/request';
+import { authApi } from '../../api/auth';
+import { useCodeCountdown } from '../../hooks/useCodeCountdown';
+import { isValidEmail } from '../../utils/validate';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function RegisterPage() {
@@ -11,9 +14,14 @@ export default function RegisterPage() {
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [nickname, setNickname] = useState('');
+
+  // 邮箱验证码 60s 倒计时 + 发码请求 in-flight 防抖
+  const { codeText, counting, start: startCountdown } = useCodeCountdown();
+  const [sending, setSending] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -38,9 +46,14 @@ export default function RegisterPage() {
       setError('请输入邮箱');
       return false;
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!isValidEmail(email)) {
       setError('请输入有效的邮箱地址');
+      return false;
+    }
+
+    // 邮箱验证码验证
+    if (!code) {
+      setError('请输入邮箱验证码');
       return false;
     }
 
@@ -82,6 +95,7 @@ export default function RegisterPage() {
         username: username.trim(),
         email: email.trim(),
         password,
+        code: code.trim() || undefined,
         nickname: nickname.trim() || undefined,
       });
 
@@ -91,6 +105,27 @@ export default function RegisterPage() {
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * 获取邮箱验证码（注册场景）
+   */
+  const handleGetCode = async () => {
+    if (counting || sending) return;
+    setError('');
+    if (!isValidEmail(email)) {
+      setError('请输入正确的邮箱地址');
+      return;
+    }
+    setSending(true);
+    try {
+      await authApi.sendEmailCode(email.trim(), 'REGISTER');
+      startCountdown();
+    } catch (err) {
+      setError(getErrorMessage(err) || '验证码发送失败');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -169,6 +204,33 @@ export default function RegisterPage() {
                 className="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
                 disabled={loading}
               />
+            </div>
+
+            {/* 邮箱验证码 */}
+            <div>
+              <label htmlFor="emailCode" className="block text-sm font-medium text-slate-700">
+                验证码 <span className="text-red-500">*</span>
+              </label>
+              <div className="mt-1 flex gap-3">
+                <input
+                  id="emailCode"
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="请输入邮箱验证码"
+                  className="block w-full flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
+                  disabled={loading}
+                  inputMode="numeric"
+                />
+                <button
+                  type="button"
+                  onClick={handleGetCode}
+                  disabled={counting || sending || !email}
+                  className="px-4 py-3 bg-primary-50 text-primary-600 rounded-xl text-sm font-semibold whitespace-nowrap transition-all hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {codeText}
+                </button>
+              </div>
             </div>
 
             {/* 密码 */}

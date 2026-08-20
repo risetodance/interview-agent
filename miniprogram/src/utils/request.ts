@@ -81,19 +81,26 @@ const responseInterceptors = (
       })
     }
 
-    return Promise.reject(new Error('登录已过期'))
+    // ST-5：错误对象附带结构化 code（此处为 HTTP 状态码），供调用方按码分支处理
+    const err401: any = new Error('登录已过期')
+    err401.code = statusCode
+    return Promise.reject(err401)
   }
 
   // 其它 HTTP >=400：优先按 HTTP 状态码判断，避免非 Result 格式响应穿透（B4）
   if (statusCode >= 400) {
     const errData = response.data as any
-    const message = (errData && typeof errData === 'object' && errData.message)
+    const isErrObject = errData && typeof errData === 'object'
+    const message = isErrObject && errData.message
       ? errData.message
       : `请求失败(${statusCode})`
     if (showError) {
       uni.showToast({ title: message, icon: 'none' })
     }
-    return Promise.reject(new Error(message))
+    // ST-5：code 优先取响应体业务码，兜底 HTTP 状态码
+    const err: any = new Error(message)
+    err.code = isErrObject && typeof errData.code === 'number' ? errData.code : statusCode
+    return Promise.reject(err)
   }
 
   // HTTP 200：data 可能是非对象（纯文本/HTML/空），兜底
@@ -131,7 +138,10 @@ const responseInterceptors = (
       })
     }
 
-    return Promise.reject(new Error(data.message || '登录已过期'))
+    // ST-5：附带业务码 401
+    const bizErr401: any = new Error(data.message || '登录已过期')
+    bizErr401.code = data.code
+    return Promise.reject(bizErr401)
   }
 
   // 其他业务错误
@@ -142,7 +152,10 @@ const responseInterceptors = (
         icon: 'none'
       })
     }
-    return Promise.reject(new Error(data.message || '请求失败'))
+    // ST-5：业务失败附带结构化业务码，调用方 catch 可用 error.code 精确分支
+    const bizErr: any = new Error(data.message || '请求失败')
+    bizErr.code = data.code
+    return Promise.reject(bizErr)
   }
 
   return data.data
@@ -327,7 +340,10 @@ export const uploadFile = <T = any>(
               title: data.message || '上传失败',
               icon: 'none'
             })
-            reject(new Error(data.message))
+            // ST-5：业务失败附带结构化业务码（与 responseInterceptors 对齐）
+            const uploadErr: any = new Error(data.message)
+            uploadErr.code = data.code
+            reject(uploadErr)
           }
         } catch {
           reject(new Error('解析响应失败'))

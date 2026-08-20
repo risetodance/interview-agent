@@ -65,6 +65,7 @@ class UserRegisterServiceTest {
                 "existingUser",
                 "password123",
                 "newemail@test.com",
+                null,  // 验证码（本测试不涉及，直注入口在 Controller 层校验）
                 "New User"
             );
             when(userRepository.existsByUsername("existingUser")).thenReturn(true);
@@ -88,6 +89,7 @@ class UserRegisterServiceTest {
                 "newUser",
                 "password123",
                 "existingemail@test.com",
+                null,  // 验证码（本测试不涉及，直注入口在 Controller 层校验）
                 "New User"
             );
             when(userRepository.existsByUsername("newUser")).thenReturn(false);
@@ -116,6 +118,7 @@ class UserRegisterServiceTest {
                 "newUser",
                 "password123",
                 "newemail@test.com",
+                null,  // 验证码（本测试不涉及，直注入口在 Controller 层校验）
                 "New User"
             );
 
@@ -163,6 +166,7 @@ class UserRegisterServiceTest {
                 "testUser",
                 "myPassword",
                 "test@example.com",
+                null,  // 验证码（本测试不涉及，直注入口在 Controller 层校验）
                 "Test User"
             );
 
@@ -207,7 +211,8 @@ class UserRegisterServiceTest {
                 "userWithoutNick",
                 "password123",
                 "test@test.com",
-                null  // nickname 为 null
+                null,  // 验证码（本测试不涉及，直注入口在 Controller 层校验）
+                null   // nickname 为 null
             );
 
             when(userRepository.existsByUsername("userWithoutNick")).thenReturn(false);

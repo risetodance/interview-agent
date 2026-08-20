@@ -91,7 +91,16 @@ public enum ErrorCode {
     AI_MODEL_PROBE_FAILED(11006, "拉取模型列表失败"),
     AI_MODEL_CONFIG_IN_USE(11007, "配置正被角色引用，请先取消指派"),
     AI_MODEL_ROLE_CHAT_REQUIRED(11008, "主模型角色不能为空"),
-    AI_MODEL_NOT_CONFIGURED(11009, "AI 模型未配置，请联系管理员配置模型");
+    AI_MODEL_NOT_CONFIGURED(11009, "AI 模型未配置，请联系管理员配置模型"),
+
+    // ========== 邮箱验证码模块错误 12xxx ==========
+    EMAIL_CODE_SEND_TOO_FREQUENT(12001, "验证码发送过于频繁，请稍后再试"),
+    EMAIL_CODE_EXPIRED(12002, "验证码已过期，请重新获取"),
+    EMAIL_CODE_INVALID(12003, "验证码错误"),
+    EMAIL_CODE_TOO_MANY_FAILURES(12004, "验证码错误次数过多，请重新获取"),
+    EMAIL_SEND_FAILED(12005, "邮件发送失败，请稍后重试"),
+    EMAIL_NOT_CONFIGURED(12006, "邮件服务未配置，请联系管理员"),
+    EMAIL_SCENE_INVALID(12007, "不支持的验证码场景");
     
     private final Integer code;
     private final String message;

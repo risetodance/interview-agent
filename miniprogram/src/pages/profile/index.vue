@@ -142,11 +142,17 @@ const menuItems = computed(() => [
 ])
 
 // 设置项配置（icon 对应 Icon.vue 图标名）
-const settingsItems = [
+const settingsItems: Array<{ icon: string; title: string; subtitle?: string; path: string }> = [
   {
     icon: 'bell',
     title: '消息通知',
     path: '/pages/notification/list'
+  },
+  {
+    icon: 'shield',
+    title: '账号与安全',
+    subtitle: '修改密码 / 绑定邮箱',
+    path: '/pages/auth/security'
   }
 ]
 
@@ -255,7 +261,10 @@ const handleMenuClick = (item: any) => {
             <view class="settings-item-icon">
               <Icon :name="item.icon" size="28rpx" color="#fff" />
             </view>
-            <text class="settings-item-title">{{ item.title }}</text>
+            <view class="settings-item-texts">
+              <text class="settings-item-title">{{ item.title }}</text>
+              <text v-if="item.subtitle" class="settings-item-subtitle">{{ item.subtitle }}</text>
+            </view>
           </view>
           <Icon name="chevron-right" size="24rpx" color="#94a3b8" />
         </view>
@@ -587,9 +596,20 @@ const handleMenuClick = (item: any) => {
   margin-right: 20rpx;
 }
 
+.settings-item-texts {
+  display: flex;
+  flex-direction: column;
+}
+
 .settings-item-title {
   font-size: 30rpx;
   color: #333;
+}
+
+.settings-item-subtitle {
+  font-size: 22rpx;
+  color: #999;
+  margin-top: 4rpx;
 }
 
 .logout-section,

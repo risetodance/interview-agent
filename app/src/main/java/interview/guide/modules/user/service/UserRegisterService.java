@@ -35,6 +35,11 @@ public class UserRegisterService {
      */
     @Transactional(rollbackFor = Exception.class)
     public RegisterResponse register(RegisterRequest request) {
+        // V2：邮箱入口规范化（trim + 统一小写），统一走 EmailNormalizer，与认证链路共用同一份实现。
+        // 若原样入库混合大小写邮箱，发码/登录/忘记密码/占用检查均按小写查询与拼 Redis key，会产生漂移
+        // （改密误报验证码已过期、忘记密码误报未注册、同邮箱不同大小写重复建号）
+        request = normalizeRequestEmail(request);
+
         // 1. 验证用户名是否已存在
         if (userRepository.existsByUsername(request.username())) {
             throw new BusinessException(ErrorCode.USERNAME_EXISTS);
@@ -54,6 +59,27 @@ public class UserRegisterService {
 
         // 5. 返回注册结果（不包含密码）
         return toRegisterResponse(savedUser);
+    }
+
+    /**
+     * 返回邮箱已规范化（trim + 小写）的新请求对象
+     * 规范化逻辑统一走 EmailNormalizer（与认证链路共用同一份实现）
+     * 遵循 immutable 原则创建新对象，不修改原对象；已是规范格式时直接原样返回
+     */
+    private RegisterRequest normalizeRequestEmail(RegisterRequest request) {
+        String email = request.email();
+        if (email == null) {
+            return request;
+        }
+        String normalized = EmailNormalizer.normalize(email);
+        return normalized.equals(email) ? request : new RegisterRequest(
+                request.username(),
+                request.password(),
+                normalized,
+                // 原样保留验证码字段（本方法仅规范化邮箱，不改变其余字段）
+                request.code(),
+                request.nickname()
+        );
     }
 
     /**

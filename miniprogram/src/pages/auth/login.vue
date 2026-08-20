@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref } from 'vue'
 import { useUserStore } from '../../stores/user'
 import Icon from '../../components/common/Icon.vue'
-import { wechatLogin } from '../../api/auth'
-import { login, testLogin } from '../../api/user'
-import { isH5 } from "../../utils/env"
+import { wechatLogin, emailLogin, emailRegister } from '../../api/auth'
+import { login } from '../../api/user'
+import { isH5 } from '../../utils/env'
+import { useEmailCode } from '../../composables/useEmailCode'
+import { isValidEmail } from '../../utils/validate'
 
 // 用户 Store
 const userStore = useUserStore()
@@ -60,7 +62,8 @@ const handleWechatLogin = async () => {
     }
 
     const result = await wechatLogin(loginData)
-    userStore.setToken(result.token, result.refreshToken)
+    // C1：后端 LoginResponse 不含 refreshToken，setToken 第二参可省略
+    userStore.setToken(result.token)
     // B9/N3: 后端 LoginResponse 仅含 token/userId/username/role（无 nickname/avatar），
     // 统一调用 fetchUserInfo 拉取权威用户信息，确保登录态成立（isLoggedIn = !!token && !!userInfo）
     // B9 回归修复：fetchUserInfo 失败不阻塞登录主流程（token 已存），后续 401 兜底重登
@@ -82,18 +85,37 @@ const handleWechatLogin = async () => {
   }
 }
 
-// 账号密码登录
-const showAccountLogin = ref(false)
+// 账号密码登录（M6：删除无引用死变量 showAccountLogin）
 const username = ref('')
 const password = ref('')
 
-// 手机号登录
-const showPhoneLogin = ref(false)
-const phone = ref('')
-const code = ref('')
-const codeText = ref('获取验证码')
-const isCounting = ref(false)
-let countdownTimer: ReturnType<typeof setTimeout> | null = null
+// 邮箱验证码登录（两步式：第一步登录/识别未注册，第二步设置用户名密码完成注册）
+const showEmailLogin = ref(false)
+const email = ref('')
+const emailCode = ref('')
+// SIM-3：发码防抖/倒计时/定时器清理统一由 useEmailCode 封装
+const { codeText, isCounting, send: sendCode } = useEmailCode('LOGIN')
+// 两步式第二步状态：true 表示邮箱已验证但未注册，正在设置账号信息
+const isRegisterStep = ref(false)
+const regUsername = ref('')
+const regPassword = ref('')
+
+// 登录成功后的统一处理：存 token → 拉取用户信息 → 回首页
+// C1：LoginResult 已收窄为无 refreshToken，仅需 token（setToken 第二参可选）
+const handleLoginSuccess = async (result: { token: string }) => {
+  userStore.setToken(result.token)
+  // B9 回归修复：fetchUserInfo 失败不阻塞登录主流程
+  try {
+    await userStore.fetchUserInfo()
+  } catch (e) {
+    console.error('获取用户信息失败:', e)
+  }
+  uni.showToast({ title: '登录成功', icon: 'success' })
+  setTimeout(() => {
+    // B10: reLaunch 清空页面栈
+    uni.reLaunch({ url: '/pages/index/index' })
+  }, 500)
+}
 
 const handleAccountLogin = async () => {
   if (isLoading.value) return
@@ -109,23 +131,9 @@ const handleAccountLogin = async () => {
 
   isLoading.value = true
   try {
-    // N4: 小程序端走正式 login 接口（/api/auth/login）；
-    // H5 走 testLogin（自动建号，仅本地测试用），避免小程序端绕过正式鉴权
-    const result = isH5
-      ? await testLogin({ username: username.value, password: password.value })
-      : await login({ username: username.value, password: password.value })
-    userStore.setToken(result.token, result.refreshToken)
-    // B9 回归修复：fetchUserInfo 失败不阻塞登录主流程
-    try {
-      await userStore.fetchUserInfo()
-    } catch (e) {
-      console.error('获取用户信息失败:', e)
-    }
-    uni.showToast({ title: '登录成功', icon: 'success' })
-    setTimeout(() => {
-      // B10: reLaunch 清空页面栈
-      uni.reLaunch({ url: '/pages/index/index' })
-    }, 500)
+    // 统一走正式 login 接口（原 H5 分支的 /api/auth/login/test 已随后端接口一并删除）
+    const result = await login({ username: username.value, password: password.value })
+    await handleLoginSuccess(result)
   } catch (error: any) {
     uni.showToast({ title: error.message || '登录失败', icon: 'none' })
   } finally {
@@ -133,61 +141,43 @@ const handleAccountLogin = async () => {
   }
 }
 
-const handleGetCode = async () => {
-  if (isCounting.value || !phone.value) return
-  if (!/^1[3-9]\d{9}$/.test(phone.value)) {
-    uni.showToast({ title: '请输入正确的手机号', icon: 'none' })
+// 获取邮箱验证码（第一步）：仅做邮箱校验，发码/防抖/倒计时交给 composable
+const handleGetCode = () => {
+  // M7：空邮箱给出提示而非静默返回
+  if (!email.value) {
+    uni.showToast({ title: '请输入邮箱地址', icon: 'none' })
     return
   }
-
-  try {
-    const { sendVerifyCode } = await import('../../api/auth')
-    await sendVerifyCode(phone.value, 'login')
-    isCounting.value = true
-    let seconds = 60
-    codeText.value = `${seconds}s`
-    countdownTimer = setInterval(() => {
-      seconds--
-      codeText.value = `${seconds}s`
-      if (seconds <= 0) {
-        clearInterval(countdownTimer!)
-        codeText.value = '获取验证码'
-        isCounting.value = false
-      }
-    }, 1000)
-  } catch (error: any) {
-    uni.showToast({ title: error.message || '发送失败', icon: 'none' })
+  if (!isValidEmail(email.value)) {
+    uni.showToast({ title: '请输入正确的邮箱地址', icon: 'none' })
+    return
   }
+  sendCode(email.value)
 }
 
-const handlePhoneLogin = async () => {
+// 邮箱验证码登录（第一步）→ 已注册直接登录；未注册进入第二步
+const handleEmailLogin = async () => {
   // N8：协议未勾选禁止登录
   if (!agreed.value) {
     uni.showToast({ title: '请先同意用户协议和隐私政策', icon: 'none' })
     return
   }
-  if (!phone.value || !code.value) {
-    uni.showToast({ title: '请填写完整信息', icon: 'none' })
+  if (!email.value || !emailCode.value) {
+    uni.showToast({ title: '请填写邮箱和验证码', icon: 'none' })
     return
   }
 
   isLoading.value = true
   try {
-    const { phoneLogin } = await import('../../api/auth')
-    const result = await phoneLogin({ phone: phone.value, code: code.value })
-    userStore.setToken(result.token, result.refreshToken)
-    // N2: 手机号登录后同样拉取完整用户信息，确保登录态成立
-    // B9 回归修复：fetchUserInfo 失败不阻塞登录主流程
-    try {
-      await userStore.fetchUserInfo()
-    } catch (e) {
-      console.error('获取用户信息失败:', e)
+    const result = await emailLogin(email.value, emailCode.value)
+    if (result.needsRegister) {
+      // 验证码已由后端还原（5 分钟内有效），进入第二步设置账号信息
+      isRegisterStep.value = true
+      regUsername.value = email.value.split('@')[0]
+      uni.showToast({ title: '该邮箱未注册，请设置账号信息', icon: 'none' })
+      return
     }
-    uni.showToast({ title: '登录成功', icon: 'success' })
-    setTimeout(() => {
-      // B10: reLaunch 清空页面栈
-      uni.reLaunch({ url: '/pages/index/index' })
-    }, 500)
+    await handleLoginSuccess(result.login!)
   } catch (error: any) {
     uni.showToast({ title: error.message || '登录失败', icon: 'none' })
   } finally {
@@ -195,9 +185,71 @@ const handlePhoneLogin = async () => {
   }
 }
 
-onUnmounted(() => {
-  if (countdownTimer) clearInterval(countdownTimer)
-})
+// 邮箱验证码注册（两步式第二步）：设置用户名密码，完成即登录
+const handleEmailRegister = async () => {
+  // M2：与 handleEmailLogin 一致，注册完成即登录，同样需先勾选协议
+  if (!agreed.value) {
+    uni.showToast({ title: '请先同意用户协议和隐私政策', icon: 'none' })
+    return
+  }
+  if (!regUsername.value || !regPassword.value) {
+    uni.showToast({ title: '请设置用户名和密码', icon: 'none' })
+    return
+  }
+  if (regUsername.value.length < 3) {
+    uni.showToast({ title: '用户名至少 3 个字符', icon: 'none' })
+    return
+  }
+  if (regPassword.value.length < 6) {
+    uni.showToast({ title: '密码至少 6 位', icon: 'none' })
+    return
+  }
+
+  isLoading.value = true
+  try {
+    const result = await emailRegister({
+      email: email.value,
+      code: emailCode.value,
+      username: regUsername.value,
+      password: regPassword.value
+    })
+    await handleLoginSuccess(result)
+  } catch (error: any) {
+    uni.showToast({ title: error.message || '注册失败', icon: 'none' })
+    // ST-5：验证码失效时自动回第一步重新收码（对齐 Web 行为）
+    // 结构化业务码优先（12002 过期/12003 错误/12004 错误次数过多），消息含"验证码"兜底
+    const code = error?.code
+    if (code === 12002 || code === 12003 || code === 12004 ||
+        (code === undefined && (error.message || '').includes('验证码'))) {
+      emailCode.value = ''
+      isRegisterStep.value = false
+    }
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 第二步返回第一步（重新收码）
+const backToEmailStep = () => {
+  isRegisterStep.value = false
+  regUsername.value = ''
+  regPassword.value = ''
+  // M3：清空旧验证码，保证"返回重新获取验证码"文案与行为一致
+  emailCode.value = ''
+}
+
+// 切回"账号登录"tab（M4：顺带复位两步式注册残留，避免再次进入邮箱登录时串脏数据）
+const switchToAccountLogin = () => {
+  showEmailLogin.value = false
+  isRegisterStep.value = false
+  regUsername.value = ''
+  regPassword.value = ''
+}
+
+// 忘记密码
+const goToForgotPassword = () => {
+  uni.navigateTo({ url: '/pages/auth/forgot-password' })
+}
 </script>
 
 <template>
@@ -230,22 +282,22 @@ onUnmounted(() => {
       <view class="login-tabs">
         <view
           class="tab-item"
-          :class="{ active: !showPhoneLogin }"
-          @click="showPhoneLogin = false; showAccountLogin = false"
+          :class="{ active: !showEmailLogin }"
+          @click="switchToAccountLogin"
         >
           <text>账号登录</text>
         </view>
         <view
           class="tab-item"
-          :class="{ active: showPhoneLogin }"
-          @click="showPhoneLogin = true; showAccountLogin = false"
+          :class="{ active: showEmailLogin }"
+          @click="showEmailLogin = true"
         >
-          <text>手机号</text>
+          <text>邮箱登录</text>
         </view>
       </view>
 
       <!-- 账号密码表单 -->
-      <view v-if="!showPhoneLogin" class="form-section">
+      <view v-if="!showEmailLogin" class="form-section">
         <view class="input-group">
           <view class="input-item">
             <text class="input-label">用户名</text>
@@ -259,28 +311,61 @@ onUnmounted(() => {
         <button class="submit-btn" :loading="isLoading" @click="handleAccountLogin">
           <text>立即登录</text>
         </button>
+        <!-- 忘记密码入口（账号密码场景） -->
+        <view class="forgot-row" @click="goToForgotPassword">
+          <text class="forgot-link">忘记密码？</text>
+        </view>
       </view>
 
-      <!-- 手机号表单 -->
+      <!-- 邮箱验证码表单 -->
       <view v-else class="form-section">
-        <view class="input-group">
+        <!-- 第一步：邮箱 + 验证码 -->
+        <view v-if="!isRegisterStep" class="input-group">
           <view class="input-item">
-            <text class="input-label">手机号</text>
-            <input v-model="phone" type="number" placeholder="请输入手机号" maxlength="11" class="input-field" />
+            <text class="input-label">邮箱</text>
+            <input v-model="email" type="text" placeholder="请输入邮箱地址" class="input-field" />
           </view>
           <view class="input-item">
             <text class="input-label">验证码</text>
             <view class="code-row">
-              <input v-model="code" type="number" placeholder="请输入验证码" maxlength="6" class="input-field code-input" />
+              <input v-model="emailCode" type="number" placeholder="请输入邮箱验证码" maxlength="6" class="input-field code-input" />
               <view class="code-btn" :class="{ disabled: isCounting }" @click="handleGetCode">
                 <text>{{ codeText }}</text>
               </view>
             </view>
           </view>
         </view>
-        <button class="submit-btn" :disabled="isLoading" @click="handlePhoneLogin">
-          <text>立即登录</text>
+        <!-- 第二步：邮箱已验证未注册 → 设置用户名密码完成注册 -->
+        <view v-else class="input-group">
+          <view class="input-item">
+            <text class="input-label">邮箱（已验证）</text>
+            <input :value="email" type="text" disabled class="input-field input-disabled" />
+          </view>
+          <view class="input-item">
+            <text class="input-label">用户名</text>
+            <input v-model="regUsername" type="text" placeholder="3-50 个字符" class="input-field" />
+          </view>
+          <view class="input-item">
+            <text class="input-label">设置密码</text>
+            <input v-model="regPassword" type="password" placeholder="至少 6 位" class="input-field" />
+          </view>
+        </view>
+        <button
+          v-if="!isRegisterStep"
+          class="submit-btn"
+          :disabled="isLoading"
+          @click="handleEmailLogin"
+        >
+          <text>登录 / 注册</text>
         </button>
+        <view v-else class="register-actions">
+          <button class="submit-btn" :disabled="isLoading" @click="handleEmailRegister">
+            <text>完成注册并登录</text>
+          </button>
+          <view class="back-link" @click="backToEmailStep">
+            <text>返回重新获取验证码</text>
+          </view>
+        </view>
       </view>
     </view>
 
@@ -548,6 +633,32 @@ onUnmounted(() => {
 
 .link {
   color: $primary;
+}
+
+// 忘记密码入口
+.forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20rpx;
+}
+
+.forgot-link {
+  font-size: 26rpx;
+  color: $primary;
+}
+
+// 第二步禁用态邮箱输入框
+.input-disabled {
+  opacity: 0.6;
+}
+
+// 第二步返回链接
+.back-link {
+  display: flex;
+  justify-content: center;
+  margin-top: 20rpx;
+  font-size: 26rpx;
+  color: $text-muted;
 }
 
 // 底部

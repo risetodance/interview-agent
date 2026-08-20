@@ -62,7 +62,6 @@ spring:
       max-file-size: 50MB  # 支持知识库上传（简历限制在业务层检查）
       max-request-size: 50MB
 
-
   # Redisson配置 (使用 spring.redis.redisson，参考官方文档)
   redis:
     redisson:
@@ -116,6 +115,18 @@ spring:
       include-message: always
       include-binding-errors: always
 
+# 腾讯云 SES 发信（个人用户仅支持 API 调用，SMTP 已停用）
+# 控制台 https://console.cloud.tencent.com/ses ：发信地址 + 访问密钥（secretId/secretKey 建子账号只授权 SES）
+ses:
+  secret-id: ${SES_SECRET_ID:}
+  secret-key: ${SES_SECRET_KEY:}
+  region: ${SES_REGION:ap-guangzhou}
+  from-email: ${SES_FROM_EMAIL:}
+  from-name: ${SES_MAIL_FROM_NAME:AI 面试指南}
+  # 模板 ID（SES 控制台"发信模板"创建并审核通过后取得；个人用户仅支持模板发送）
+  template-code-id: ${SES_TEMPLATE_CODE_ID:0}
+  template-notify-id: ${SES_TEMPLATE_NOTIFY_ID:0}
+
 # Actuator + Micrometer Prometheus 配置
 management:
   server:
@@ -152,7 +163,7 @@ app:
     # Token 过期时间（小时），默认 24 小时
     token-expiration-hours: ${JWT_TOKEN_EXPIRATION_HOURS:24}
     # Token 密钥（生产环境应使用环境变量）
-    secret: ${JWT_SECRET:interview-guide-jwt-secret-key-must-be-at-least-512-bits-long-for-hs512}
+    secret: ${JWT_SECRET:interview-agent-jwt-secret-key-must-be-at-least-512-bits-long-for-hs512}
 
   # 会话/空闲超时配置
   session:
@@ -195,7 +206,7 @@ app:
     endpoint: ${APP_STORAGE_ENDPOINT:http://localhost:9000}
     access-key: ${APP_STORAGE_ACCESS_KEY:dHN8XLCvDl1ZfBMc9yRi}
     secret-key: ${APP_STORAGE_SECRET_KEY:zWOFlUyeIY20qML3j7DPpBCoRbV4sGHxAgnJSfm8}
-    bucket: ${APP_STORAGE_BUCKET:interview-guide}
+    bucket: ${APP_STORAGE_BUCKET:interview-agent}
     region: ${APP_STORAGE_REGION:us-east-1}
   
   # 微信配置

@@ -43,6 +43,7 @@ interface UserContextType {
   token: string | null;
   isLoggedIn: boolean;
   login: (username: string, password: string) => Promise<void>;
+  loginWithToken: (token: string) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => void;
   fetchUserProfile: () => Promise<void>;
@@ -141,6 +142,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   /**
+   * 用已有 token 直接建立登录态（邮箱验证码登录/注册等已拿到 token 的场景）
+   */
+  const loginWithToken = async (newToken: string): Promise<void> => {
+    setToken(newToken);
+    setStoredToken(newToken);
+    await fetchUserProfile();
+  };
+
+  /**
    * 用户注册
    */
   const register = async (data: RegisterRequest): Promise<void> => {
@@ -214,6 +224,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         token,
         isLoggedIn,
         login,
+        loginWithToken,
         register,
         logout,
         fetchUserProfile,

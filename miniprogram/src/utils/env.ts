@@ -18,7 +18,7 @@
  * （各业务模块自带 `/api` 前缀，故此处去尾；缺省回退到生产域名）。
  */
 export const apiBaseUrl: string =
-  import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://api.interview-guide.com'
+  import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://api.interview-agent.com'
 
 /**
  * 是否运行在 H5 环境（浏览器）。

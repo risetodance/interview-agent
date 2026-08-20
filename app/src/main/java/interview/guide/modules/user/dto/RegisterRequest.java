@@ -21,6 +21,12 @@ public record RegisterRequest(
     @Size(max = 100, message = "邮箱长度不能超过100个字符")
     String email,
 
+    // 邮箱验证码（scene=REGISTER）。不加 @NotBlank：两步式邮箱注册路径构造时传 null
+    // （该路径已用 LOGIN 码验证过邮箱所有权），web 直注入口由 Controller 显式校验非空，
+    // 避免两套校验标准打架
+    @Size(max = 10, message = "验证码长度不正确")
+    String code,
+
     @Size(max = 50, message = "昵称长度不能超过50个字符")
     String nickname
 ) {}

@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense, lazy } from 'react';
 import ProfilePage from './pages/profile/ProfilePage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import BankListPage from './pages/question/BankListPage';
 import QuestionDetailPage from './pages/question/QuestionDetailPage';
 import MyBankPage from './pages/question/MyBankPage';
@@ -219,6 +220,7 @@ function App() {
           {/* 登录注册页面（不需要Layout） */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
           <Route element={<AuthRouteGuard />}>
             {/* 默认重定向到上传页面 */}

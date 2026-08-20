@@ -41,7 +41,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String[] EXCLUDED_PATHS = {
             "/api/auth/login",
             "/api/auth/register",
-            "/api/auth/captcha",
+            // 邮箱验证码认证（发送验证码/两步式登录注册/忘记密码重置）
+            "/api/auth/email/**",
+            "/api/auth/password/reset",
             "/api/health",
             "/api/actuator/**",
             "/swagger-ui/**",

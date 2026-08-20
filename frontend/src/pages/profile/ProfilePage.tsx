@@ -4,11 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import { useUser } from '../../store/user';
 import { pointsApi } from '../../api/points';
 import { membershipApi, MembershipType } from '../../api/membership';
-import { User, Mail, Award, Crown, Lock, LogOut, Save, Eye, EyeOff } from 'lucide-react';
+import { authApi } from '../../api/auth';
+import { getErrorMessage } from '../../api/request';
+import { useCodeCountdown } from '../../hooks/useCodeCountdown';
+import { isValidEmail } from '../../utils/validate';
+import { User, Mail, Award, Crown, Lock, LogOut, Save, Eye, EyeOff, KeyRound } from 'lucide-react';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { user, logout, updateProfile, changePassword } = useUser();
+  const { user, logout, updateProfile, changePassword, fetchUserProfile } = useUser();
 
   // 编辑资料表单状态
   const [nickname, setNickname] = useState('');
@@ -17,6 +21,7 @@ export default function ProfilePage() {
   const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // 修改密码表单状态
+  const [pwdTab, setPwdTab] = useState<'old' | 'email'>('old');
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -25,6 +30,59 @@ export default function ProfilePage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // 邮箱验证码改密（验证码发往当前账号绑定邮箱）
+  const [pwdCode, setPwdCode] = useState('');
+  const { codeText: pwdCodeText, counting: pwdCounting, start: startPwdCountdown } = useCodeCountdown();
+  // 改密发码 in-flight 防抖
+  const [pwdSending, setPwdSending] = useState(false);
+
+  // 绑定/换绑邮箱
+  const [newEmail, setNewEmail] = useState('');
+  const [bindCode, setBindCode] = useState('');
+  const { codeText: bindCodeText, counting: bindCounting, start: startBindCountdown } = useCodeCountdown();
+  // 绑定邮箱发码 in-flight 防抖
+  const [bindSending, setBindSending] = useState(false);
+  const [bindLoading, setBindLoading] = useState(false);
+  const [bindMessage, setBindMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // 获取改密验证码（发往绑定邮箱）
+  const handleGetPwdCode = async () => {
+    if (pwdCounting || pwdSending) return;
+    if (!user?.email) {
+      setPasswordMessage({ type: 'error', text: '当前账号未绑定邮箱，请先在下方绑定邮箱' });
+      return;
+    }
+    setPwdSending(true);
+    try {
+      await authApi.sendEmailCode(user.email, 'CHANGE_PASSWORD');
+      startPwdCountdown();
+      setPasswordMessage(null);
+    } catch (err) {
+      setPasswordMessage({ type: 'error', text: getErrorMessage(err) || '验证码发送失败' });
+    } finally {
+      setPwdSending(false);
+    }
+  };
+
+  // 获取绑定邮箱验证码（发往新邮箱）
+  const handleGetBindCode = async () => {
+    if (bindCounting || bindSending) return;
+    if (!isValidEmail(newEmail)) {
+      setBindMessage({ type: 'error', text: '请输入正确的新邮箱地址' });
+      return;
+    }
+    setBindSending(true);
+    try {
+      await authApi.sendEmailCode(newEmail, 'BIND_EMAIL');
+      startBindCountdown();
+      setBindMessage(null);
+    } catch (err) {
+      setBindMessage({ type: 'error', text: getErrorMessage(err) || '验证码发送失败' });
+    } finally {
+      setBindSending(false);
+    }
+  };
 
   // 登出确认
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -93,7 +151,7 @@ export default function ProfilePage() {
     }
   };
 
-  // 处理密码修改
+  // 处理密码修改（双方式：旧密码 / 邮箱验证码）
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordMessage(null);
@@ -110,19 +168,67 @@ export default function ProfilePage() {
       return;
     }
 
+    // 按方式校验凭证
+    if (pwdTab === 'old' && !oldPassword) {
+      setPasswordMessage({ type: 'error', text: '请输入旧密码' });
+      return;
+    }
+    if (pwdTab === 'email' && !pwdCode) {
+      setPasswordMessage({ type: 'error', text: '请输入邮箱验证码' });
+      return;
+    }
+
     setPasswordLoading(true);
 
     try {
-      await changePassword(oldPassword, newPassword);
+      if (pwdTab === 'old') {
+        await changePassword(oldPassword, newPassword);
+      } else {
+        await authApi.changePasswordByEmail(pwdCode, newPassword);
+      }
       setPasswordMessage({ type: 'success', text: '密码修改成功' });
       // 清空密码表单
       setOldPassword('');
+      setPwdCode('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error) {
-      setPasswordMessage({ type: 'error', text: error instanceof Error ? error.message : '密码修改失败' });
+      setPasswordMessage({ type: 'error', text: getErrorMessage(error) || '密码修改失败' });
     } finally {
       setPasswordLoading(false);
+    }
+  };
+
+  // 处理绑定/换绑邮箱
+  const handleBindEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBindMessage(null);
+
+    if (!isValidEmail(newEmail)) {
+      setBindMessage({ type: 'error', text: '请输入正确的新邮箱地址' });
+      return;
+    }
+    if (!bindCode) {
+      setBindMessage({ type: 'error', text: '请输入验证码' });
+      return;
+    }
+
+    setBindLoading(true);
+    let bindSucceeded = false;
+    try {
+      await authApi.bindEmail(newEmail, bindCode);
+      bindSucceeded = true;
+      setBindMessage({ type: 'success', text: '邮箱绑定成功' });
+      setNewEmail('');
+      setBindCode('');
+    } catch (error) {
+      setBindMessage({ type: 'error', text: getErrorMessage(error) || '绑定失败' });
+    } finally {
+      setBindLoading(false);
+    }
+    // 刷新用户信息以显示新邮箱；刷新失败不覆盖成功提示、不误报失败，仅记录日志
+    if (bindSucceeded) {
+      fetchUserProfile().catch((e) => console.error('刷新用户信息失败', e));
     }
   };
 
@@ -334,36 +440,84 @@ export default function ProfilePage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center">
               <Lock className="w-5 h-5 text-primary-500" />
             </div>
             <h2 className="text-lg font-semibold text-slate-800">修改密码</h2>
           </div>
 
+          {/* 验证方式切换 */}
+          <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => { setPwdTab('old'); setPasswordMessage(null); }}
+              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                pwdTab === 'old' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              原密码验证
+            </button>
+            <button
+              type="button"
+              onClick={() => { setPwdTab('email'); setPasswordMessage(null); }}
+              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                pwdTab === 'email' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              邮箱验证码
+            </button>
+          </div>
+
           <form onSubmit={handlePasswordSubmit}>
             <div className="space-y-4">
-              {/* 旧密码 */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">旧密码</label>
-                <div className="relative">
-                  <input
-                    type={showOldPassword ? 'text' : 'password'}
-                    value={oldPassword}
-                    onChange={(e) => setOldPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 pr-10 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
-                    placeholder="请输入旧密码"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowOldPassword(!showOldPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+              {/* 凭证：旧密码 或 邮箱验证码 */}
+              {pwdTab === 'old' ? (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">旧密码</label>
+                  <div className="relative">
+                    <input
+                      type={showOldPassword ? 'text' : 'password'}
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                      className="w-full px-4 py-2.5 pr-10 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
+                      placeholder="请输入旧密码"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOldPassword(!showOldPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    验证码（发送至 {user.email || '未绑定邮箱'}）
+                  </label>
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={pwdCode}
+                      onChange={(e) => setPwdCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
+                      placeholder="邮箱验证码"
+                      inputMode="numeric"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGetPwdCode}
+                      disabled={pwdCounting || pwdSending || !user.email}
+                      className="px-4 py-2.5 bg-primary-50 text-primary-600 rounded-xl text-sm font-semibold whitespace-nowrap transition-all hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {pwdCodeText}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* 新密码 */}
               <div>
@@ -441,6 +595,97 @@ export default function ProfilePage() {
           </form>
         </motion.div>
       </div>
+
+      {/* 绑定/换绑邮箱卡片 */}
+      <motion.div
+        className="bg-white rounded-2xl shadow-sm p-6 mt-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center">
+            <Mail className="w-5 h-5 text-sky-500" />
+          </div>
+          <h2 className="text-lg font-semibold text-slate-800">绑定邮箱</h2>
+          <span className="ml-auto text-sm text-slate-400">
+            当前：
+            <span className="font-medium text-slate-600">{user.email || '未绑定'}</span>
+          </span>
+        </div>
+
+        <form onSubmit={handleBindEmailSubmit}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 新邮箱 */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">新邮箱</label>
+              <input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
+                placeholder="请输入要绑定的新邮箱"
+              />
+            </div>
+
+            {/* 验证码 */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">验证码</label>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={bindCode}
+                  onChange={(e) => setBindCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
+                  placeholder="新邮箱收到的验证码"
+                  inputMode="numeric"
+                />
+                <button
+                  type="button"
+                  onClick={handleGetBindCode}
+                  disabled={bindCounting || bindSending || !newEmail}
+                  className="px-4 py-2.5 bg-primary-50 text-primary-600 rounded-xl text-sm font-semibold whitespace-nowrap transition-all hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {bindCodeText}
+                </button>
+              </div>
+            </div>
+
+            {/* 消息提示 */}
+            {bindMessage && (
+              <div className="md:col-span-2">
+                <div
+                  className={`px-4 py-2 rounded-lg text-sm ${
+                    bindMessage.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-600'
+                      : 'bg-red-50 text-red-600'
+                  }`}
+                >
+                  {bindMessage.text}
+                </div>
+              </div>
+            )}
+
+            {/* 提交按钮 */}
+            <div className="md:col-span-2">
+              <button
+                type="submit"
+                disabled={bindLoading}
+                className="flex items-center justify-center gap-2 px-6 py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {bindLoading ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <KeyRound className="w-4 h-4" />
+                    {user.email ? '换绑邮箱' : '绑定邮箱'}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </form>
+      </motion.div>
 
       {/* 登出按钮 */}
       <motion.div

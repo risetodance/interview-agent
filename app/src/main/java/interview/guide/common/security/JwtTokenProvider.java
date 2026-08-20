@@ -38,7 +38,7 @@ public final class JwtTokenProvider {
      */
     public JwtTokenProvider(
             @Value("${app.jwt.token-expiration-hours:24}") int tokenExpirationHours,
-            @Value("${app.jwt.secret:interview-guide-jwt-secret-key-must-be-at-least-512-bits-long-for-hs512}") String secret) {
+            @Value("${app.jwt.secret:interview-agent-jwt-secret-key-must-be-at-least-512-bits-long-for-hs512}") String secret) {
         this.tokenExpiration = tokenExpirationHours * 60 * 60 * 1000L;
         this.secret = secret;
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));

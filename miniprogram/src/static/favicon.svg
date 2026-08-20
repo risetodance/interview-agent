@@ -1,26 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <!-- 背景圆形 -->
-  <rect width="32" height="32" rx="8" fill="url(#gradient)"/>
-
-  <!-- 机器人头部 -->
-  <rect x="8" y="10" width="16" height="14" rx="3" fill="white"/>
-
-  <!-- 机器人天线 -->
-  <line x1="16" y1="6" x2="16" y2="10" stroke="white" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="16" cy="6" r="2" fill="#38bdf8"/>
-
-  <!-- 机器人眼睛 -->
-  <circle cx="12" cy="15" r="2" fill="#0ea5e9"/>
-  <circle cx="20" cy="15" r="2" fill="#0ea5e9"/>
-
-  <!-- 机器人嘴巴 -->
-  <rect x="12" y="19" width="8" height="2" rx="1" fill="#0ea5e9"/>
-
-  <!-- 渐变定义 -->
+  <!-- 背景圆角方块：沿用原版色值 sky-500 → sky-400（补 gradientUnits 让渐变真正生效） -->
   <defs>
-    <linearGradient id="gradient" x1="0" y1="0" x2="32" y2="32">
-      <stop offset="0%" stop-color="#0ea5e9"/>
-      <stop offset="100%" stop-color="#38bdf8"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#38bdf8"/>
     </linearGradient>
   </defs>
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+
+  <!-- 天线：白色杆，天线球沿用原版 #38bdf8 -->
+  <circle cx="16" cy="5" r="2.5" fill="#38bdf8"/>
+  <line x1="16" y1="6.5" x2="16" y2="11.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- 机器人头部：白色超圆角矩形，水平垂直均严格居中 -->
+  <rect x="7.5" y="10" width="17" height="14.5" rx="4.5" fill="#fff"/>
+
+  <!-- 眼睛：竖向胶囊，AI 屏幕感，小尺寸下依然清晰（颜色沿用原版 #0ea5e9） -->
+  <rect x="10.8" y="13.8" width="3.2" height="5.6" rx="1.6" fill="#0ea5e9"/>
+  <rect x="18" y="13.8" width="3.2" height="5.6" rx="1.6" fill="#0ea5e9"/>
+
+  <!-- 嘴：微笑弧，传达面试官的亲和（颜色沿用原版 #0ea5e9） -->
+  <path d="M12.8 20.8 Q16 23.6 19.2 20.8" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" fill="none"/>
 </svg>

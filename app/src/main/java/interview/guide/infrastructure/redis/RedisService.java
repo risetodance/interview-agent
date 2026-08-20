@@ -84,6 +84,13 @@ public class RedisService {
     }
 
     /**
+     * 仅当键不存在时设置值并返回 true（setIfAbsent 语义，常用于限发窗口标记）
+     */
+    public <T> boolean setIfAbsent(String key, T value, Duration ttl) {
+        return redissonClient.getBucket(key).setIfAbsent(value, ttl);
+    }
+
+    /**
      * 设置过期时间
      */
     public boolean expire(String key, Duration ttl) {
