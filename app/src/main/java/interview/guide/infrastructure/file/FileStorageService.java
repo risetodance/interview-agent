@@ -3,6 +3,7 @@ package interview.guide.infrastructure.file;
 import interview.guide.common.config.StorageConfigProperties;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -195,24 +196,27 @@ public class FileStorageService {
     }
 
     /**
-     * 确保存储桶存在
+     * 确保存储桶存在（幂等）。
+     * <p>
+     * 新环境首次部署时对象存储是空的，缺桶会导致首次上传 404（The specified bucket does not exist），
+     * 挂 @PostConstruct 启动自动执行（此前该方法是无人调用的死代码）。
+     * 注意：headBucket 对不存在的桶抛通用 S3Exception(404) 而非 NoSuchBucketException，
+     * 须按状态码判断才能走进建桶分支。
+     * 存储暂不可达（如本地开发未起 rustfs）仅告警不阻断启动，上传时自然按需报错。
      */
+    @PostConstruct
     public void ensureBucketExists() {
+        String bucket = storageConfig.getBucket();
         try {
-            HeadBucketRequest headRequest = HeadBucketRequest.builder()
-                    .bucket(storageConfig.getBucket())
-                    .build();
-            s3Client.headBucket(headRequest);
-            log.info("存储桶已存在: {}", storageConfig.getBucket());
-        } catch (NoSuchBucketException e) {
-            log.info("存储桶不存在，正在创建: {}", storageConfig.getBucket());
-            CreateBucketRequest createRequest = CreateBucketRequest.builder()
-                    .bucket(storageConfig.getBucket())
-                    .build();
-            s3Client.createBucket(createRequest);
-            log.info("存储桶创建成功: {}", storageConfig.getBucket());
+            s3Client.headBucket(HeadBucketRequest.builder().bucket(bucket).build());
+            log.info("存储桶已存在: {}", bucket);
         } catch (S3Exception e) {
-            log.error("检查存储桶失败: {}", e.getMessage(), e);
+            if (e.statusCode() == 404) {
+                s3Client.createBucket(CreateBucketRequest.builder().bucket(bucket).build());
+                log.info("存储桶不存在，已自动创建: {}", bucket);
+            } else {
+                log.warn("存储桶检查失败（不阻断启动）: bucket={}, error={}", bucket, e.getMessage());
+            }
         }
     }
 

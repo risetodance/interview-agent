@@ -283,8 +283,12 @@ public class AiModelRegistry {
 
        @Override
        public ChatOptions getDefaultOptions() {
-            ensureConfigured();
-            return delegate.getDefaultOptions();
+            // 启动期宽容：ChatClient.builder(...) 构造 DefaultChatClientRequestSpec 时会立即调用本方法，
+            // 若此时数据库尚无模型配置（新环境首次部署、后台还没来得及配），抛异常会导致整个应用启动失败、
+            // 管理后台无法访问，形成"起不来→配不了"死锁。故此处返回占位空选项让应用正常启动；
+            // 真正的强校验保留在 call/stream 调用期（ensureConfigured），未配置时业务接口返回明确提示。
+            ChatModel current = delegate;
+            return current != null ? current.getDefaultOptions() : OpenAiChatOptions.builder().build();
         }
 
         /**

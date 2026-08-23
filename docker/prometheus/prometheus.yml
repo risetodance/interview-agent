@@ -1,0 +1,29 @@
+# Prometheus 抓取配置
+# 挂载关系：docker-compose.yml 将本文件挂载为容器内 /etc/prometheus/prometheus.yml
+# （宿主机路径 /opt/interview-agent/prometheus/config/prometheus.yml，由 deploy.sh 自动上传）
+#
+# 修改配置请改本文件后重新部署，不要直接改服务器上的副本（会被下次部署覆盖）。
+#
+# targets 说明：
+# - prometheus 自身：localhost:9090（容器内回环）
+# - Spring Boot 应用：按实际部署环境填写 Actuator 端口
+#   * 服务器固定 IP 部署：10.1.0.13:8081（当前生产配置）
+#   * 同一 compose 网络内（应用以容器方式跑在同一个 docker-compose）：
+#     可改用服务名 app:8081，避免依赖主机 IP
+
+global:
+  scrape_interval: 15s      # 数据抓取间隔，15秒足够，可降低负载
+  evaluation_interval: 15s  # 告警规则评估间隔
+
+# 抓取配置
+scrape_configs:
+  # 任务1: 监控 Prometheus 自身
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # 任务2: 监控 Spring Boot 应用（Actuator 暴露指标，端口 8081）
+  - job_name: 'springboot-app'
+    metrics_path: '/actuator/prometheus'  # Spring Boot 暴露指标的默认路径
+    static_configs:
+      - targets: ['10.1.0.13:8081']

@@ -86,7 +86,14 @@ public class EmailCodeService {
         String limitKey = limitKey(email, scene);
         // setIfAbsent 成功 = 抢到 60s 发送窗口；失败 = 上一次发送还在窗口内
         if (!redisService.setIfAbsent(limitKey, "1", SEND_INTERVAL)) {
-            throw new BusinessException(ErrorCode.EMAIL_CODE_SEND_TOO_FREQUENT);
+            // 窗口从上一次"发送成功"起算，前端倒计时可能因页面跳转/刷新而丢失，
+            // 报错带上剩余秒数让用户明确还需等多久（TTL 毫秒 → 秒，向上取整）
+            long remainMs = redisService.getTimeToLive(limitKey);
+            long remainSeconds = remainMs > 0 ? (remainMs + 999) / 1000 : 0;
+            throw new BusinessException(ErrorCode.EMAIL_CODE_SEND_TOO_FREQUENT,
+                    remainSeconds > 0
+                            ? "验证码发送过于频繁，请 " + remainSeconds + " 秒后重试"
+                            : "验证码发送过于频繁，请稍后再试");
         }
 
         try {

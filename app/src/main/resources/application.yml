@@ -34,7 +34,7 @@ spring:
 
   # PostgreSQL数据库配置
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:interview_guide}
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:interview_agent}
     username: ${POSTGRES_USER:postgres}
     password: ${POSTGRES_PASSWORD:123456}
     driver-class-name: org.postgresql.Driver
@@ -98,10 +98,6 @@ spring:
         api-key: ${EMBEDDING_API_KEY:${MINIMAX_API_KEY}}
         options:
           model: ${EMBEDDING_MODEL:text-embedding-v4}
-    # 禁用自动重试机制，让异常立即返回
-    retry:
-      max-attempts: 1  # 不重试，失败立即返回
-      on-client-errors: false
     # PostgreSQL Vector Store配置
     vectorstore:
       pgvector:

@@ -38,8 +38,8 @@ public class SearchIndexInitializer {
     private void createQuestionsFtsIndex() {
         log.info("检查并创建题库 BM25 搜索索引...");
 
-        // 检查 pg_search 扩展是否可用
-        if (isPgSearchAvailable()) {
+        // 检查 pg_search 扩展是否不可用，未安装时先尝试自动补装
+        if (!ensurePgSearchInstalled()) {
             log.warn("pg_search 扩展不可用，跳过题库 BM25 索引创建");
             return;
         }
@@ -83,8 +83,8 @@ public class SearchIndexInitializer {
     private void createVectorStoreBm25Index() {
         log.info("检查并创建知识库 BM25 搜索索引...");
 
-        // 检查 pg_search 扩展是否可用
-        if (isPgSearchAvailable()) {
+        // 检查 pg_search 扩展是否不可用，未安装时先尝试自动补装
+        if (!ensurePgSearchInstalled()) {
             log.warn("pg_search 扩展不可用，跳过知识库 BM25 索引创建");
             return;
         }
@@ -123,9 +123,9 @@ public class SearchIndexInitializer {
     }
 
     /**
-     * 检查 pg_search 扩展是否可用
+     * 检查 pg_search 扩展是否不可用
      */
-    private boolean isPgSearchAvailable() {
+    private boolean isPgSearchUnavailable() {
         try {
             Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM pg_extension WHERE extname = 'pg_search'",
@@ -135,6 +135,28 @@ public class SearchIndexInitializer {
         } catch (Exception e) {
             log.debug("检查 pg_search 扩展失败: {}", e.getMessage());
             return true;
+        }
+    }
+
+    /**
+     * 确保 pg_search 扩展已安装到当前库（幂等，未安装时自动补装）。
+     * <p>
+     * paradedb 镜像自带扩展文件，但"安装到库"（CREATE EXTENSION）是 per-database 动作，
+     * 新环境初始化或手工建库时容易遗漏——启动时自动补装，免去手动 psql。
+     * 前置条件：shared_preload_libraries 已包含 pg_search（compose 已显式声明，镜像默认配置亦含）；
+     * 未预加载时 CREATE EXTENSION 会失败，此处捕获后返回 false，调用方降级跳过索引创建。
+     */
+    private boolean ensurePgSearchInstalled() {
+        if (!isPgSearchUnavailable()) {
+            return true;
+        }
+        try {
+            jdbcTemplate.execute("CREATE EXTENSION IF NOT EXISTS pg_search");
+            log.info("pg_search 扩展已自动安装");
+            return true;
+        } catch (Exception e) {
+            log.warn("pg_search 扩展自动安装失败（多半是未配置 shared_preload_libraries）: {}", e.getMessage());
+            return false;
         }
     }
 }

@@ -200,8 +200,8 @@ public class WorkflowExecutor {
 
     /**
      * 解析 JDBC URL 获取 host、port、database
-     * 输入: jdbc:postgresql://localhost:5432/interview_guide
-     * 输出: ["localhost", "5432", "interview_guide"]
+     * 输入: jdbc:postgresql://localhost:5432/interview_agent
+     * 输出: ["localhost", "5432", "interview_agent"]
      */
     private String[] parsePgUrl(String url) {
         // jdbc:postgresql://host:port/database

@@ -58,6 +58,7 @@ services:
       -c work_mem=8MB
       -c maintenance_work_mem=32MB
       -c effective_cache_size=384MB
+      -c shared_preload_libraries=pg_search
       -c logging_collector=on
       -c log_directory=/var/log/postgresql
       -c log_filename=postgresql.log
@@ -141,7 +142,8 @@ services:
     environment:
       TZ: Asia/Shanghai
     volumes:
-      - /opt/interview-agent/prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      # 配置文件单文件挂载（deploy.sh 上传到 $PROMETHEUS_CONFIG_DIR；默认值与 deploy.sh 兜底一致）
+      - ${PROMETHEUS_CONFIG_DIR}/prometheus.yml:/etc/prometheus/prometheus.yml
       - ${PROMETHEUS_DATA_DIR}:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
