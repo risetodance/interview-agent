@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { KeyRound, AlertCircle, Loader2, ArrowLeft } from 'lucide-react';
 import { getErrorMessage } from '../../api/request';
 import { authApi } from '../../api/auth';
 import { useCodeCountdown } from '../../hooks/useCodeCountdown';
 import { isValidEmail } from '../../utils/validate';
+import BrandMark from '../../components/BrandMark';
 
 /**
  * 忘记密码页：邮箱 + 验证码 + 新密码
+ * 视觉：左墨水蓝叙事面板 + 右表单区，细边框控件语言（与登录页同构）
  */
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -80,165 +81,205 @@ export default function ForgotPasswordPage() {
     }
   };
 
+  const labelCls = 'block text-xs font-medium text-zinc-600 mb-1.5';
   const inputCls =
-    'w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all';
+    'w-full h-9 px-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors disabled:bg-zinc-100 disabled:text-zinc-400';
+  const primaryBtnCls =
+    'w-full h-9 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2';
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-100 via-sky-50 to-white px-4 py-12 relative overflow-hidden">
-      {/* 背景装饰 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-sky-200/40 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-sky-300/30 rounded-full blur-3xl animate-pulse animation-delay-2000" />
-      </div>
-
-      <motion.div
-        className="relative w-full max-w-md"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 border border-white/50">
-          {/* 返回登录 */}
-          <button
-            type="button"
-            onClick={() => navigate('/login', { state: { from } })}
-            className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-600 transition-colors mb-6"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            返回登录
-          </button>
-
-          <div className="text-center mb-8">
-            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/30">
-              <KeyRound className="w-7 h-7 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">找回密码</h1>
-            <p className="text-slate-500">通过注册邮箱的验证码重置密码</p>
+    <div className="min-h-screen flex bg-white">
+      {/* 左侧叙事面板（大屏显示） */}
+      <aside className="hidden lg:flex w-[420px] xl:w-[480px] shrink-0 flex-col justify-between bg-primary-950 bg-grid p-12 relative">
+        {/* 品牌区 */}
+        <div className="flex items-center gap-3">
+          <BrandMark className="w-7 h-7" />
+          <div>
+            <span className="block text-sm font-semibold text-white tracking-tight">智能面试助手</span>
+            <span className="block text-xs text-white/50">AI Assistant</span>
           </div>
-
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-center gap-2"
-              >
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                {error}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {success ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center py-6"
-            >
-              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
-                <KeyRound className="w-7 h-7 text-green-600" />
-              </div>
-              <p className="text-slate-700 font-semibold mb-2">密码重置成功</p>
-              <p className="text-slate-500 text-sm mb-6">请使用新密码登录</p>
-              <Link
-                to="/login"
-                state={{ from }}
-                className="inline-block px-8 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-semibold shadow-lg shadow-primary-500/30 transition-all hover:shadow-xl"
-              >
-                去登录
-              </Link>
-            </motion.div>
-          ) : (
-            <form onSubmit={handleReset} className="space-y-5">
-              <div>
-                <label htmlFor="fp-email" className="block text-sm font-semibold text-slate-700 mb-2">
-                  注册邮箱
-                </label>
-                <input
-                  id="fp-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="请输入注册时的邮箱地址"
-                  className={inputCls}
-                  disabled={loading}
-                  autoComplete="email"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="fp-code" className="block text-sm font-semibold text-slate-700 mb-2">
-                  验证码
-                </label>
-                <div className="flex gap-3">
-                  <input
-                    id="fp-code"
-                    type="text"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="邮箱验证码"
-                    className={`${inputCls} flex-1`}
-                    disabled={loading}
-                    inputMode="numeric"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleGetCode}
-                    disabled={counting || sending || !email}
-                    className="px-4 py-3 bg-primary-50 text-primary-600 rounded-xl text-sm font-semibold whitespace-nowrap transition-all hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {codeText}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="fp-newpwd" className="block text-sm font-semibold text-slate-700 mb-2">
-                  新密码
-                </label>
-                <input
-                  id="fp-newpwd"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="至少 6 位"
-                  className={inputCls}
-                  disabled={loading}
-                  autoComplete="new-password"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="fp-confirm" className="block text-sm font-semibold text-slate-700 mb-2">
-                  确认新密码
-                </label>
-                <input
-                  id="fp-confirm"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="再次输入新密码"
-                  className={inputCls}
-                  disabled={loading}
-                  autoComplete="new-password"
-                />
-              </div>
-
-              <motion.button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-semibold shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                whileHover={{ scale: loading ? 1 : 1.02 }}
-                whileTap={{ scale: loading ? 1 : 0.98 }}
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-5 h-5" />}
-                {loading ? '提交中...' : '重置密码'}
-              </motion.button>
-            </form>
-          )}
         </div>
-      </motion.div>
+
+        {/* 主文案与安全说明 */}
+        <div>
+          <p className="font-mono text-xs tracking-[0.2em] text-primary-300/70 uppercase mb-5">
+            Account Recovery
+          </p>
+          <h2 className="text-3xl xl:text-4xl font-semibold text-white leading-snug tracking-tight">
+            验证邮箱，
+            <br />
+            安全重置密码
+          </h2>
+
+          <div className="mt-12 divide-y divide-white/10 border-t border-white/10">
+            <div className="py-4 flex items-start gap-4">
+              <span className="font-mono text-xs text-primary-300/70 pt-1">01</span>
+              <div>
+                <p className="text-sm font-medium text-white">邮箱验证</p>
+                <p className="text-sm text-white/50 mt-0.5">使用注册邮箱接收一次性验证码</p>
+              </div>
+            </div>
+            <div className="py-4 flex items-start gap-4">
+              <span className="font-mono text-xs text-primary-300/70 pt-1">02</span>
+              <div>
+                <p className="text-sm font-medium text-white">重置密码</p>
+                <p className="text-sm text-white/50 mt-0.5">新密码设置后立即生效</p>
+              </div>
+            </div>
+            <div className="py-4 flex items-start gap-4">
+              <span className="font-mono text-xs text-primary-300/70 pt-1">03</span>
+              <div>
+                <p className="text-sm font-medium text-white">重新登录</p>
+                <p className="text-sm text-white/50 mt-0.5">使用新密码登录，继续面试训练</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 底部信息 */}
+        <p className="font-mono text-xs text-white/35">AI Assistant · Account Recovery</p>
+      </aside>
+
+      {/* 右侧表单区 */}
+      <div className="flex-1 flex flex-col">
+        {/* 移动端品牌行 */}
+        <div className="lg:hidden flex items-center gap-2.5 px-6 pt-6">
+          <BrandMark className="w-6 h-6" />
+          <span className="text-sm font-semibold text-zinc-900">智能面试助手</span>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center px-6 py-12">
+          <div className="w-full max-w-sm fade-in">
+            {/* 返回登录 */}
+            <button
+              type="button"
+              onClick={() => navigate('/login', { state: { from } })}
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-700 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              返回登录
+            </button>
+
+            {/* 标题 */}
+            <h1 className="mt-5 text-xl font-semibold text-zinc-900 tracking-tight">找回密码</h1>
+            <p className="mt-1.5 text-sm text-zinc-500">通过注册邮箱的验证码重置密码</p>
+
+            {/* 错误提示 */}
+            {error && (
+              <div className="mt-5 flex items-center gap-2 border border-red-200 bg-red-50 rounded-md px-3 py-2.5 text-sm text-red-700 fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span className="break-all">{error}</span>
+              </div>
+            )}
+
+            {success ? (
+              /* 重置成功 */
+              <div className="mt-8 py-6 text-center fade-in">
+                <div className="w-12 h-12 mx-auto mb-4 rounded-md bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                  <KeyRound className="w-6 h-6 text-emerald-700" />
+                </div>
+                <p className="font-medium text-zinc-900 mb-1">密码重置成功</p>
+                <p className="text-sm text-zinc-500 mb-6">请使用新密码登录</p>
+                <Link
+                  to="/login"
+                  state={{ from }}
+                  className="inline-flex items-center justify-center h-9 px-5 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors"
+                >
+                  去登录
+                </Link>
+              </div>
+            ) : (
+              /* 重置表单 */
+              <form onSubmit={handleReset} className="mt-6 space-y-5">
+                <div>
+                  <label htmlFor="fp-email" className={labelCls}>
+                    注册邮箱
+                  </label>
+                  <input
+                    id="fp-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="请输入注册时的邮箱地址"
+                    className={inputCls}
+                    disabled={loading}
+                    autoComplete="email"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="fp-code" className={labelCls}>
+                    验证码
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="fp-code"
+                      type="text"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="邮箱验证码"
+                      className={`${inputCls} flex-1 font-mono tracking-widest`}
+                      disabled={loading}
+                      inputMode="numeric"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGetCode}
+                      disabled={counting || sending || !email}
+                      className="h-9 px-3.5 border border-zinc-300 rounded-md text-sm text-zinc-700 font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {codeText}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="fp-newpwd" className={labelCls}>
+                    新密码
+                  </label>
+                  <input
+                    id="fp-newpwd"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="至少 6 位"
+                    className={inputCls}
+                    disabled={loading}
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="fp-confirm" className={labelCls}>
+                    确认新密码
+                  </label>
+                  <input
+                    id="fp-confirm"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="再次输入新密码"
+                    className={inputCls}
+                    disabled={loading}
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <button type="submit" disabled={loading} className={primaryBtnCls}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      提交中...
+                    </>
+                  ) : (
+                    '重置密码'
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

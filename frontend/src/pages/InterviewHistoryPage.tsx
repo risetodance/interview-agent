@@ -1,23 +1,15 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { historyApi, InterviewItem, EvaluateStatus } from '../api/history';
+import { historyApi, type InterviewItem, type EvaluateStatus } from '../api/history';
 import { formatDate } from '../utils/date';
 import DeleteConfirmDialog from '../components/DeleteConfirmDialog';
 import { useToast } from '../components/Toast';
 import {
-  Users,
   Search,
   Download,
   Trash2,
   ChevronRight,
-  CheckCircle,
-  Clock,
-  PlayCircle,
-  TrendingUp,
   FileText,
   Loader2,
-  AlertCircle,
-  RefreshCw,
 } from 'lucide-react';
 
 interface InterviewHistoryPageProps {
@@ -38,38 +30,24 @@ interface InterviewStats {
   averageScore: number;
 }
 
-// 统计卡片组件
+// 统计卡片组件（数字卡范式：mono 数字 + 单位小字）
 function StatCard({
-  icon: Icon,
   label,
   value,
-  suffix,
-  color,
+  unit,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number | string;
-  suffix?: string;
-  color: string;
+  unit?: string;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-xl p-6 shadow-sm border border-slate-100"
-    >
-      <div className="flex items-center gap-4">
-        <div className={`p-3 rounded-lg ${color}`}>
-          <Icon className="w-6 h-6 text-white" />
-        </div>
-        <div>
-          <p className="text-sm text-slate-500">{label}</p>
-          <p className="text-2xl font-bold text-slate-800">
-            {value}{suffix && <span className="text-base font-normal text-slate-400 ml-1">{suffix}</span>}
-          </p>
-        </div>
-      </div>
-    </motion.div>
+    <div className="bg-white border border-zinc-200 rounded-lg px-5 py-4">
+      <p className="text-xs text-zinc-500">{label}</p>
+      <p className="mt-1.5 flex items-baseline gap-1">
+        <span className="font-mono text-2xl font-semibold text-primary-800 tabular-nums">{value}</span>
+        {unit && <span className="text-xs text-zinc-400">{unit}</span>}
+      </p>
+    </div>
   );
 }
 
@@ -97,32 +75,6 @@ function isEvaluateFailed(interview: InterviewWithResume): boolean {
   return interview.evaluateStatus === 'FAILED';
 }
 
-// 状态图标
-function StatusIcon({ interview }: { interview: InterviewWithResume }) {
-  // 评估失败
-  if (isEvaluateFailed(interview)) {
-    return <AlertCircle className="w-4 h-4 text-red-500" />;
-  }
-  // 正在评估
-  if (isEvaluating(interview)) {
-    return <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />;
-  }
-  // 评估完成
-  if (isEvaluateCompleted(interview)) {
-    return <CheckCircle className="w-4 h-4 text-green-500" />;
-  }
-  // 面试进行中
-  if (interview.status === 'IN_PROGRESS') {
-    return <PlayCircle className="w-4 h-4 text-blue-500" />;
-  }
-  // 面试已完成但评估未开始
-  if (isCompletedStatus(interview.status)) {
-    return <Clock className="w-4 h-4 text-yellow-500" />;
-  }
-  // 已创建
-  return <Clock className="w-4 h-4 text-yellow-500" />;
-}
-
 // 状态文本
 function getStatusText(interview: InterviewWithResume): string {
   // 评估失败
@@ -148,10 +100,27 @@ function getStatusText(interview: InterviewWithResume): string {
   return '已创建';
 }
 
-// 获取分数颜色
+// 状态 chip 样式（语义色，克制使用）
+function getStatusChipCls(interview: InterviewWithResume): string {
+  if (isEvaluateFailed(interview)) {
+    return 'text-red-700 bg-red-50 border-red-200';
+  }
+  if (isEvaluating(interview)) {
+    return 'text-amber-700 bg-amber-50 border-amber-200';
+  }
+  if (isEvaluateCompleted(interview)) {
+    return 'text-emerald-700 bg-emerald-50 border-emerald-200';
+  }
+  if (interview.status === 'IN_PROGRESS') {
+    return 'text-amber-700 bg-amber-50 border-amber-200';
+  }
+  return 'text-zinc-500 bg-zinc-50 border-zinc-200';
+}
+
+// 获取分数条颜色
 function getScoreColor(score: number): string {
-  if (score >= 80) return 'bg-green-500';
-  if (score >= 60) return 'bg-yellow-500';
+  if (score >= 80) return 'bg-emerald-500';
+  if (score >= 60) return 'bg-amber-500';
   return 'bg-red-500';
 }
 
@@ -311,178 +280,126 @@ export default function InterviewHistoryPage({ onBack: _onBack, onViewInterview 
   );
 
   return (
-    <motion.div
-      className="w-full"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-    >
-      {/* 头部 */}
-      <div className="flex justify-between items-start mb-8 flex-wrap gap-6">
+    <div className="fade-in">
+      {/* 页头 */}
+      <div className="flex items-end justify-between gap-4 mb-6 flex-wrap">
         <div>
-          <motion.h1
-            className="text-2xl font-bold text-slate-800 flex items-center gap-3"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-          >
-            <Users className="w-7 h-7 text-primary-500" />
-            面试记录
-          </motion.h1>
-          <motion.p
-            className="text-slate-500 mt-1"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
-          >
-            查看和管理所有模拟面试记录
-          </motion.p>
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">面试记录</h1>
+          <p className="mt-1 text-sm text-zinc-500">查看和管理所有模拟面试记录</p>
         </div>
 
-        <motion.div
-          className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-2.5 min-w-[280px] focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100 transition-all"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-        >
-          <Search className="w-5 h-5 text-slate-400" />
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="搜索简历名称..."
+            placeholder="搜索简历名称"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 outline-none text-slate-700 placeholder:text-slate-400"
+            className="w-full h-9 pl-8 pr-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors"
           />
-        </motion.div>
+        </div>
       </div>
 
-      {/* 统计卡片 */}
+      {/* 统计概览 */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <StatCard
-            icon={Users}
-            label="面试总数"
-            value={stats.totalCount}
-            color="bg-primary-500"
-          />
-          <StatCard
-            icon={CheckCircle}
-            label="已完成"
-            value={stats.completedCount}
-            color="bg-emerald-500"
-          />
-          <StatCard
-            icon={TrendingUp}
-            label="平均分数"
-            value={stats.averageScore}
-            suffix="分"
-            color="bg-sky-500"
-          />
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <StatCard label="面试总数" value={stats.totalCount} unit="场" />
+          <StatCard label="已完成" value={stats.completedCount} unit="场" />
+          <StatCard label="平均分数" value={stats.averageScore} unit="分" />
         </div>
       )}
 
       {/* 加载状态 */}
       {loading && (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+          <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" />
         </div>
       )}
 
       {/* 空状态 */}
       {!loading && filteredInterviews.length === 0 && (
-        <motion.div
-          className="text-center py-20 bg-white rounded-2xl shadow-sm border border-slate-100"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-        >
-          <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-slate-700 mb-2">暂无面试记录</h3>
-          <p className="text-slate-500">开始一次模拟面试后，记录将显示在这里</p>
-        </motion.div>
+        <div className="bg-white border border-zinc-200 rounded-lg">
+          <p className="px-5 py-8 text-xs text-zinc-400 text-center">
+            暂无面试记录，开始一次模拟面试后记录将显示在这里
+          </p>
+        </div>
       )}
 
       {/* 表格 */}
       {!loading && filteredInterviews.length > 0 && (
-        <motion.div
-          className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th className="text-left px-6 py-4 text-sm font-medium text-slate-600">关联简历</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-slate-600">题目数</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-slate-600">状态</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-slate-600">得分</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-slate-600">创建时间</th>
-                <th className="text-right px-6 py-4 text-sm font-medium text-slate-600">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <AnimatePresence>
-                {filteredInterviews.map((interview, index) => (
-                  <motion.tr
+        <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-zinc-50 border-b border-zinc-100">
+                <tr>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-zinc-500">关联简历</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-zinc-500">题目数</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-zinc-500">状态</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-zinc-500">得分</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-zinc-500">创建时间</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-zinc-500">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredInterviews.map((interview) => (
+                  <tr
                     key={interview.sessionId}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
                     onClick={() => onViewInterview(interview.sessionId, interview.resumeId)}
-                    className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors group"
+                    className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50 cursor-pointer transition-colors group"
                   >
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-slate-400" />
-                        <div>
-                          <p className="font-medium text-slate-800">{interview.resumeFilename}</p>
-                          <p className="text-xs text-slate-400">#{interview.sessionId.slice(-8)}</p>
+                        <FileText className="w-4 h-4 text-zinc-400 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm text-zinc-800 truncate max-w-[280px]">{interview.resumeFilename}</p>
+                          <p className="font-mono text-xs text-zinc-400 mt-0.5">#{interview.sessionId.slice(-8)}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-sm">
-                        {interview.totalQuestions} 题
+                    <td className="px-5 py-3.5">
+                      <span className="font-mono text-sm text-zinc-700 tabular-nums">{interview.totalQuestions}</span>
+                      <span className="ml-1 text-xs text-zinc-400">题</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span
+                        className={`inline-flex items-center text-xs border rounded px-1.5 py-0.5 ${getStatusChipCls(interview)}`}
+                      >
+                        {getStatusText(interview)}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <StatusIcon interview={interview} />
-                        <span className="text-sm text-slate-600">
-                          {getStatusText(interview)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3.5">
                       {isEvaluateCompleted(interview) && interview.overallScore !== null ? (
-                        <div className="flex items-center gap-3">
-                          <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <motion.div
-                              className={`h-full ${getScoreColor(interview.overallScore)} rounded-full`}
-                              initial={{ width: 0 }}
-                              animate={{ width: `${interview.overallScore}%` }}
-                              transition={{ duration: 0.8, delay: index * 0.05 }}
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-16 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${getScoreColor(interview.overallScore)}`}
+                              style={{ width: `${interview.overallScore}%` }}
                             />
                           </div>
-                          <span className="font-bold text-slate-800">{interview.overallScore}</span>
+                          <span className="font-mono text-sm font-medium text-zinc-800 tabular-nums">
+                            {interview.overallScore}
+                          </span>
                         </div>
                       ) : isEvaluating(interview) ? (
-                        <span className="text-blue-500 text-sm">生成中...</span>
+                        <span className="text-sm text-amber-700">生成中…</span>
                       ) : isEvaluateFailed(interview) ? (
-                        <span className="text-red-500 text-sm" title={interview.evaluateError}>失败</span>
+                        <span className="text-sm text-red-700" title={interview.evaluateError}>失败</span>
                       ) : (
-                        <span className="text-slate-400">-</span>
+                        <span className="text-sm text-zinc-400">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-500">
+                    <td className="px-5 py-3.5 font-mono text-xs text-zinc-500 tabular-nums whitespace-nowrap">
                       {formatDate(interview.createdAt)}
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-0.5">
                         {/* 导出按钮 */}
                         {isEvaluateCompleted(interview) && (
                           <button
                             onClick={(e) => handleExport(interview.sessionId, e)}
                             disabled={exporting === interview.sessionId}
-                            className="p-2 text-slate-400 hover:text-primary-500 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50"
-                            title="导出PDF"
+                            className="p-2 text-zinc-400 hover:text-primary-700 hover:bg-primary-50 rounded-md transition-colors disabled:opacity-50"
+                            title="导出 PDF"
                           >
                             {exporting === interview.sessionId ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
@@ -495,20 +412,20 @@ export default function InterviewHistoryPage({ onBack: _onBack, onViewInterview 
                         <button
                           onClick={(e) => handleDeleteClick(interview, e)}
                           disabled={deletingSessionId === interview.sessionId}
-                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                          className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
                           title="删除"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-primary-500 group-hover:translate-x-1 transition-all" />
+                        <ChevronRight className="w-4 h-4 text-zinc-300 group-hover:text-zinc-500 transition-colors" />
                       </div>
                     </td>
-                  </motion.tr>
+                  </tr>
                 ))}
-              </AnimatePresence>
-            </tbody>
-          </table>
-        </motion.div>
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* 删除确认对话框 */}
@@ -520,6 +437,6 @@ export default function InterviewHistoryPage({ onBack: _onBack, onViewInterview 
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteItem(null)}
       />
-    </motion.div>
+    </div>
   );
 }

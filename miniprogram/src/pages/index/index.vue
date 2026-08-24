@@ -134,7 +134,7 @@ const startInterview = () => {
       <view class="hero-card" @click="startInterview">
         <view class="hero-pattern"></view>
         <view class="hero-deco">
-          <Icon name="sparkles" :size="120" color="rgba(255,255,255,0.2)" />
+          <Icon name="message" :size="120" color="rgba(255,255,255,0.2)" />
         </view>
         <view class="hero-body">
           <text class="hero-title">AI 模拟面试</text>

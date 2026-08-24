@@ -1,18 +1,19 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Eye, EyeOff, LogIn, AlertCircle, Loader2, Mail, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Loader2, Mail, ArrowLeft } from 'lucide-react';
 import { useUser } from '../../store/user';
 import { getErrorMessage } from '../../api/request';
 import { authApi } from '../../api/auth';
 import { useCodeCountdown } from '../../hooks/useCodeCountdown';
 import { isValidEmail } from '../../utils/validate';
+import BrandMark from '../../components/BrandMark';
 
 type LoginMode = 'account' | 'email';
 
 /**
  * 登录页面
  * 双方式：账号密码 / 邮箱验证码（两步式：未注册邮箱验证后进入第二步设置账号信息）
+ * 视觉：左墨水蓝叙事面板 + 右表单区，细边框控件语言
  */
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -180,100 +181,120 @@ export default function LoginPage() {
     }
   };
 
+  const labelCls = 'block text-xs font-medium text-zinc-600 mb-1.5';
   const inputCls =
-    'w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all';
+    'w-full h-9 px-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors disabled:bg-zinc-100 disabled:text-zinc-400';
+  const primaryBtnCls =
+    'w-full h-9 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2';
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-100 via-sky-50 to-white px-4 py-12 relative overflow-hidden">
-      {/* 背景装饰 - 玻璃态圆形 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-sky-200/40 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-sky-300/30 rounded-full blur-3xl animate-pulse animation-delay-2000" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-sky-100/20 rounded-full blur-3xl" />
-      </div>
-
-      {/* 装饰性圆点 - 动画效果 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-32 right-32 w-3 h-3 bg-sky-400/60 rounded-full animate-float-1" />
-        <div className="absolute top-48 right-48 w-2 h-2 bg-sky-300/80 rounded-full animate-float-2" />
-        <div className="absolute bottom-40 left-32 w-4 h-4 bg-sky-400/50 rounded-full animate-float-3" />
-        <div className="absolute bottom-60 left-48 w-2 h-2 bg-sky-300/70 rounded-full animate-float-4" />
-        <div className="absolute top-40 left-1/4 w-2 h-2 bg-sky-400/40 rounded-full animate-float-5" />
-        <div className="absolute bottom-32 right-1/3 w-3 h-3 bg-sky-400/50 rounded-full animate-float-6" />
-      </div>
-
-      <motion.div
-        className="relative w-full max-w-md"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        {/* 卡片 */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 border border-white/50">
-          {/* 标题 */}
-          <motion.div
-            className="text-center mb-8"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">欢迎回来</h1>
-            <p className="text-slate-500">登录您的账号开始 AI 模拟面试</p>
-          </motion.div>
-
-          {/* 错误提示 */}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-center gap-2"
-              >
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                {error}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* 登录方式 tabs */}
-          <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-xl">
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => { setMode('account'); setRegisterStep(false); setEmailLocked(false); setEmailCode(''); setError(''); }}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                mode === 'account' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              账号密码登录
-            </button>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => { setMode('email'); setError(''); }}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                mode === 'email' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              邮箱验证码
-            </button>
+    <div className="min-h-screen flex bg-white">
+      {/* 左侧叙事面板（大屏显示） */}
+      <aside className="hidden lg:flex w-[420px] xl:w-[480px] shrink-0 flex-col justify-between bg-primary-950 bg-grid p-12 relative">
+        {/* 品牌区 */}
+        <div className="flex items-center gap-3">
+          <BrandMark className="w-7 h-7" />
+          <div>
+            <span className="block text-sm font-semibold text-white tracking-tight">智能面试助手</span>
+            <span className="block text-xs text-white/50">AI Assistant</span>
           </div>
+        </div>
 
-          <AnimatePresence mode="wait">
+        {/* 主文案与特性 */}
+        <div>
+          <p className="font-mono text-xs tracking-[0.2em] text-primary-300/70 uppercase mb-5">
+            AI Interview Workspace
+          </p>
+          <h2 className="text-3xl xl:text-4xl font-semibold text-white leading-snug tracking-tight">
+            和 AI 面试官，
+            <br />
+            练一场真面试
+          </h2>
+
+          <div className="mt-12 divide-y divide-white/10 border-t border-white/10">
+            <div className="py-4 flex items-start gap-4">
+              <span className="font-mono text-xs text-primary-300/70 pt-1">01</span>
+              <div>
+                <p className="text-sm font-medium text-white">简历解析</p>
+                <p className="text-sm text-white/50 mt-0.5">上传即得结构化的简历分析</p>
+              </div>
+            </div>
+            <div className="py-4 flex items-start gap-4">
+              <span className="font-mono text-xs text-primary-300/70 pt-1">02</span>
+              <div>
+                <p className="text-sm font-medium text-white">多视角模拟面试</p>
+                <p className="text-sm text-white/50 mt-0.5">多位 AI 面试官轮番提问</p>
+              </div>
+            </div>
+            <div className="py-4 flex items-start gap-4">
+              <span className="font-mono text-xs text-primary-300/70 pt-1">03</span>
+              <div>
+                <p className="text-sm font-medium text-white">面试报告</p>
+                <p className="text-sm text-white/50 mt-0.5">多维度评分与改进建议</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 底部信息 */}
+        <p className="font-mono text-xs text-white/35">AI Assistant · Interview Workspace</p>
+      </aside>
+
+      {/* 右侧表单区 */}
+      <div className="flex-1 flex flex-col">
+        {/* 移动端品牌行 */}
+        <div className="lg:hidden flex items-center gap-2.5 px-6 pt-6">
+          <BrandMark className="w-6 h-6" />
+          <span className="text-sm font-semibold text-zinc-900">智能面试助手</span>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center px-6 py-12">
+          <div className="w-full max-w-sm fade-in">
+            {/* 标题 */}
+            <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">登录</h1>
+            <p className="mt-1.5 text-sm text-zinc-500">登录以继续使用模拟面试</p>
+
+            {/* 错误提示 */}
+            {error && (
+              <div className="mt-5 flex items-center gap-2 border border-red-200 bg-red-50 rounded-md px-3 py-2.5 text-sm text-red-700 fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span className="break-all">{error}</span>
+              </div>
+            )}
+
+            {/* 登录方式 tabs：底线式 */}
+            <div className="mt-6 flex border-b border-zinc-200">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => { setMode('account'); setRegisterStep(false); setEmailLocked(false); setEmailCode(''); setError(''); }}
+                className={`pb-2.5 pr-6 text-sm border-b-2 -mb-px transition-colors ${
+                  mode === 'account'
+                    ? 'border-primary-600 text-zinc-900 font-medium'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                账号密码
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => { setMode('email'); setError(''); }}
+                className={`pb-2.5 pr-6 text-sm border-b-2 -mb-px transition-colors ${
+                  mode === 'email' && !registerStep
+                    ? 'border-primary-600 text-zinc-900 font-medium'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                邮箱验证码
+              </button>
+            </div>
+
             {/* 账号密码登录表单 */}
             {mode === 'account' && (
-              <motion.form
-                key="account"
-                onSubmit={handleSubmit}
-                className="space-y-5"
-                initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 12 }}
-                transition={{ duration: 0.2 }}
-              >
+              <form key="account" onSubmit={handleSubmit} className="mt-6 space-y-5 fade-in">
                 <div>
-                  <label htmlFor="username" className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label htmlFor="username" className={labelCls}>
                     用户名
                   </label>
                   <input
@@ -289,7 +310,7 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="password" className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label htmlFor="password" className={labelCls}>
                     密码
                   </label>
                   <div className="relative">
@@ -299,67 +320,49 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="请输入密码"
-                      className={`${inputCls} pr-12`}
+                      className={`${inputCls} pr-10`}
                       disabled={loading}
                       autoComplete="current-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-700 transition-colors"
                       tabIndex={-1}
                     >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
 
-                {/* 忘记密码 */}
                 <div className="flex justify-end">
                   <Link
                     to="/forgot-password"
                     state={{ from }}
-                    className="text-sm text-primary-600 font-medium hover:text-primary-700 transition-colors"
+                    className="text-xs text-primary-700 hover:text-primary-800 hover:underline underline-offset-2 transition-colors"
                   >
                     忘记密码？
                   </Link>
                 </div>
 
-                <motion.button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-semibold shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  whileHover={{ scale: loading ? 1 : 1.02 }}
-                  whileTap={{ scale: loading ? 1 : 0.98 }}
-                >
+                <button type="submit" disabled={loading} className={primaryBtnCls}>
                   {loading ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      登录中...
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      登录中…
                     </>
                   ) : (
-                    <>
-                      <LogIn className="w-5 h-5" />
-                      登录
-                    </>
+                    '登录'
                   )}
-                </motion.button>
-              </motion.form>
+                </button>
+              </form>
             )}
 
-            {/* 邮箱验证码登录表单 */}
+            {/* 邮箱验证码登录表单（第一步） */}
             {mode === 'email' && !registerStep && (
-              <motion.form
-                key="email-step1"
-                onSubmit={handleEmailLogin}
-                className="space-y-5"
-                initial={{ opacity: 0, x: 12 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -12 }}
-                transition={{ duration: 0.2 }}
-              >
+              <form key="email-step1" onSubmit={handleEmailLogin} className="mt-6 space-y-5 fade-in">
                 <div>
-                  <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label htmlFor="email" className={labelCls}>
                     邮箱
                   </label>
                   <input
@@ -367,7 +370,7 @@ export default function LoginPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="请输入邮箱地址"
+                    placeholder="name@example.com"
                     className={inputCls}
                     disabled={loading || emailLocked}
                     autoComplete="email"
@@ -375,17 +378,17 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="emailCode" className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label htmlFor="emailCode" className={labelCls}>
                     验证码
                   </label>
-                  <div className="flex gap-3">
+                  <div className="flex gap-2">
                     <input
                       id="emailCode"
                       type="text"
                       value={emailCode}
                       onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      placeholder="邮箱验证码"
-                      className={`${inputCls} flex-1`}
+                      placeholder="6 位数字验证码"
+                      className={`${inputCls} flex-1 font-mono tracking-widest`}
                       disabled={loading}
                       inputMode="numeric"
                     />
@@ -393,57 +396,41 @@ export default function LoginPage() {
                       type="button"
                       onClick={handleGetCode}
                       disabled={counting || sending || !email}
-                      className="px-4 py-3 bg-primary-50 text-primary-600 rounded-xl text-sm font-semibold whitespace-nowrap transition-all hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="h-9 px-3.5 border border-zinc-300 rounded-md text-sm text-zinc-700 font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                     >
                       {codeText}
                     </button>
                   </div>
                 </div>
 
-                <motion.button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-semibold shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  whileHover={{ scale: loading ? 1 : 1.02 }}
-                  whileTap={{ scale: loading ? 1 : 0.98 }}
-                >
+                <button type="submit" disabled={loading} className={primaryBtnCls}>
                   {loading ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      登录中...
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      登录中…
                     </>
                   ) : (
-                    <>
-                      <Mail className="w-5 h-5" />
-                      登录 / 注册
-                    </>
+                    '登录 / 注册'
                   )}
-                </motion.button>
+                </button>
 
-                <p className="text-center text-xs text-slate-400">
+                <p className="text-xs text-zinc-400">
                   未注册的邮箱验证通过后将引导设置账号信息
                 </p>
-              </motion.form>
+              </form>
             )}
 
             {/* 邮箱两步式第二步：设置账号信息 */}
             {mode === 'email' && registerStep && (
-              <motion.form
-                key="email-step2"
-                onSubmit={handleEmailRegister}
-                className="space-y-5"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.2 }}
-              >
-                <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl text-sm text-sky-700 flex items-center gap-2">
-                  <Mail className="w-4 h-4 flex-shrink-0" />
-                  {email}（已验证）
+              <form key="email-step2" onSubmit={handleEmailRegister} className="mt-6 space-y-5 fade-in">
+                <div className="flex items-center gap-2 border border-zinc-200 bg-zinc-50 rounded-md px-3 py-2.5 text-sm text-zinc-700">
+                  <Mail className="w-4 h-4 shrink-0 text-zinc-400" />
+                  <span className="font-mono text-xs truncate">{email}</span>
+                  <span className="ml-auto text-xs text-primary-700 shrink-0">已验证</span>
                 </div>
 
                 <div>
-                  <label htmlFor="regUsername" className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label htmlFor="regUsername" className={labelCls}>
                     用户名
                   </label>
                   <input
@@ -459,7 +446,7 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="regPassword" className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label htmlFor="regPassword" className={labelCls}>
                     设置密码
                   </label>
                   <input
@@ -474,49 +461,36 @@ export default function LoginPage() {
                   />
                 </div>
 
-                <motion.button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-semibold shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  whileHover={{ scale: loading ? 1 : 1.02 }}
-                  whileTap={{ scale: loading ? 1 : 0.98 }}
-                >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
-                  {loading ? '提交中...' : '完成注册并登录'}
-                </motion.button>
+                <button type="submit" disabled={loading} className={primaryBtnCls}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {loading ? '提交中…' : '完成注册并登录'}
+                </button>
 
                 <button
                   type="button"
                   onClick={() => { setRegisterStep(false); setEmailCode(''); setEmailLocked(false); setError(''); }}
-                  className="w-full text-sm text-slate-400 hover:text-slate-600 transition-colors flex items-center justify-center gap-1"
+                  className="w-full flex items-center justify-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-700 transition-colors"
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowLeft className="w-3.5 h-3.5" />
                   返回重新获取验证码
                 </button>
-              </motion.form>
+              </form>
             )}
-          </AnimatePresence>
 
-          {/* 注册链接 */}
-          <motion.div
-            className="mt-8 text-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-          >
-            <p className="text-slate-500">
+            {/* 注册链接 */}
+            <p className="mt-8 text-sm text-zinc-500">
               还没有账号？{' '}
               <Link
                 to="/register"
                 state={{ from }}
-                className="text-primary-600 font-semibold hover:text-primary-700 transition-colors"
+                className="text-primary-700 font-medium hover:text-primary-800 hover:underline underline-offset-2 transition-colors"
               >
                 立即注册
               </Link>
             </p>
-          </motion.div>
+          </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

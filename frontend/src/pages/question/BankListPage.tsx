@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
-  BookOpen,
   Plus,
   Trash2,
   Edit3,
@@ -10,6 +8,7 @@ import {
   FileQuestion,
   Search,
   Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import {
   questionApi,
@@ -102,141 +101,143 @@ export default function BankListPage({
 
   // 题库卡片组件
   const BankCard = ({ bank }: { bank: QuestionBankDTO }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow ${
-        selectable ? 'cursor-pointer hover:border-primary-300' : ''
+    <div
+      className={`bg-white border border-zinc-200 rounded-lg p-5 transition-colors ${
+        selectable ? 'cursor-pointer hover:border-primary-400' : 'hover:border-zinc-300'
       }`}
       onClick={() => handleSelectBank(bank)}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-3">
-          <div className={`p-2 rounded-lg ${bank.type === 'SYSTEM' ? 'bg-blue-100' : 'bg-green-100'}`}>
-            <BookOpen className={`w-5 h-5 ${bank.type === 'SYSTEM' ? 'text-blue-600' : 'text-green-600'}`} />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium text-zinc-900 truncate">{bank.name}</h3>
+            <span
+              className={`text-xs border rounded px-1.5 py-0.5 shrink-0 ${
+                bank.type === 'SYSTEM'
+                  ? 'text-zinc-500 bg-zinc-50 border-zinc-200'
+                  : 'text-primary-700 bg-primary-50 border-primary-200'
+              }`}
+            >
+              {bank.type === 'SYSTEM' ? '系统题库' : '我的题库'}
+            </span>
           </div>
-          <div>
-            <h3 className="font-medium text-slate-900">{bank.name}</h3>
-            <p className="text-sm text-slate-500 mt-1">
-              {bank.description || '暂无描述'}
-            </p>
+          <p className="mt-1.5 text-sm text-zinc-500 line-clamp-2">
+            {bank.description || '暂无描述'}
+          </p>
+        </div>
+        {bank.type === 'USER' && !selectable && (
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/questions/bank/${bank.id}/edit`);
+              }}
+              className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors"
+              title="编辑"
+            >
+              <Edit3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteDialog({ show: true, bank });
+              }}
+              className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+              title="删除"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
-        </div>
-        <div className="flex items-center gap-1">
-          {bank.type === 'USER' && !selectable && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(`/questions/bank/${bank.id}/edit`);
-                }}
-                className="p-2 text-slate-400 hover:text-primary-600 hover:bg-slate-100 rounded-lg transition-colors"
-                title="编辑"
-              >
-                <Edit3 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDeleteDialog({ show: true, bank });
-                }}
-                className="p-2 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg transition-colors"
-                title="删除"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </>
-          )}
-        </div>
+        )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-3 text-sm text-slate-500 whitespace-nowrap">
-          <span className="flex items-center gap-1">
-            <FileQuestion className="w-4 h-4" />
-            {bank.questionCount} 道题目
-          </span>
-          <span className={`px-2 py-0.5 rounded text-xs ${
-            bank.type === 'SYSTEM' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
-          }`}>
-            {bank.type === 'SYSTEM' ? '系统题库' : '我的题库'}
-          </span>
-        </div>
+      <div className="mt-4 pt-4 border-t border-zinc-100 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 font-mono text-xs text-zinc-400 tabular-nums">
+          <FileQuestion className="w-3.5 h-3.5" />
+          {bank.questionCount} 道题目
+        </span>
         <button
           onClick={(e) => {
             e.stopPropagation();
             handleViewQuestions(bank.id);
           }}
-          className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 whitespace-nowrap"
+          className="flex items-center gap-1 text-xs text-primary-700 hover:text-primary-800 transition-colors"
         >
-          <Eye className="w-4 h-4" />
+          <Eye className="w-3.5 h-3.5" />
           查看题目
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+        <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="w-full">
+    <div className="fade-in">
       {/* 页面标题和操作栏 */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-end justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">题库管理</h1>
-          <p className="text-slate-500 mt-1">管理您的面试题库</p>
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">题库管理</h1>
+          <p className="mt-1 text-sm text-zinc-500">管理您的面试题库</p>
         </div>
         <button
           onClick={() => navigate('/questions/bank/create')}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          className="h-9 px-4 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors flex items-center gap-1.5"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4" />
           创建题库
         </button>
       </div>
 
       {/* 搜索栏 */}
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+      <div className="relative mb-5">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
         <input
           type="text"
-          placeholder="搜索题库..."
+          placeholder="搜索题库名称或描述…"
           value={searchKeyword}
           onChange={(e) => setSearchKeyword(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full h-9 pl-8 pr-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors"
         />
       </div>
 
       {error && (
-        <div className="mb-4 p-4 bg-red-50 text-red-600 rounded-lg">
+        <div className="mb-4 flex items-center gap-2 border border-red-200 bg-red-50 rounded-md px-3 py-2.5 text-sm text-red-700">
+          <AlertCircle className="w-4 h-4 shrink-0" />
           {error}
         </div>
       )}
 
       {/* 题库列表 */}
       {filteredBanks.length === 0 ? (
-        <div className="text-center py-12">
-          <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-          <p className="text-slate-500">暂无题库</p>
-          <button
-            onClick={() => navigate('/questions/bank/create')}
-            className="mt-4 text-primary-600 hover:text-primary-700"
-          >
-            创建第一个题库
-          </button>
+        <div className="bg-white border border-zinc-200 rounded-lg">
+          <p className="px-5 py-10 text-xs text-zinc-400 text-center">
+            暂无题库，{' '}
+            <button
+              onClick={() => navigate('/questions/bank/create')}
+              className="text-primary-700 hover:text-primary-800 underline underline-offset-2 transition-colors"
+            >
+              创建第一个题库
+            </button>
+          </p>
         </div>
       ) : (
         <div className="space-y-8">
           {/* 系统题库 */}
           {systemBanks.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">系统题库</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-medium text-zinc-900">系统题库</h2>
+                <span className="font-mono text-xs text-zinc-400 tabular-nums">
+                  {systemBanks.length} 个
+                </span>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {systemBanks.map(bank => (
                   <BankCard key={bank.id} bank={bank} />
@@ -248,7 +249,12 @@ export default function BankListPage({
           {/* 用户题库 */}
           {userBanks.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">我的题库</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-medium text-zinc-900">我的题库</h2>
+                <span className="font-mono text-xs text-zinc-400 tabular-nums">
+                  {userBanks.length} 个
+                </span>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {userBanks.map(bank => (
                   <BankCard key={bank.id} bank={bank} />

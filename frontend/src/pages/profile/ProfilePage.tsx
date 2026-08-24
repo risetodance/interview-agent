@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../../store/user';
 import { pointsApi } from '../../api/points';
@@ -8,7 +7,25 @@ import { authApi } from '../../api/auth';
 import { getErrorMessage } from '../../api/request';
 import { useCodeCountdown } from '../../hooks/useCodeCountdown';
 import { isValidEmail } from '../../utils/validate';
-import { User, Mail, Award, Crown, Lock, LogOut, Save, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+
+// 控件样式（统一设计体系）
+const labelCls = 'block text-xs font-medium text-zinc-600 mb-1.5';
+const inputCls =
+  'w-full h-9 px-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors disabled:bg-zinc-100';
+const primaryBtnCls =
+  'h-9 px-5 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2';
+const secondaryBtnCls =
+  'h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed';
+
+// 表单消息提示（成功/失败语义色）
+function messageCls(type: 'success' | 'error'): string {
+  return `border rounded-md px-3 py-2.5 text-sm fade-in ${
+    type === 'success'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+      : 'border-red-200 bg-red-50 text-red-700'
+  }`;
+}
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -238,25 +255,20 @@ export default function ProfilePage() {
     navigate('/login');
   };
 
-  // 获取会员状态显示
+  // 获取会员状态显示（克制语义色 chip）
   const getMembershipDisplay = (membership: string) => {
-    const membershipMap: Record<string, { label: string; className: string }> = {
-      FREE: { label: '免费用户', className: 'bg-slate-100 text-slate-600' },
-      VIP: { label: 'VIP 会员', className: 'bg-amber-100 text-amber-600' },
-      PREMIUM: { label: '高级会员', className: 'bg-purple-100 text-purple-600' },
+    const membershipMap: Record<string, { label: string; chipCls: string }> = {
+      FREE: { label: '免费用户', chipCls: 'text-zinc-500 bg-zinc-50 border-zinc-200' },
+      VIP: { label: 'VIP 会员', chipCls: 'text-amber-700 bg-amber-50 border-amber-200' },
+      PREMIUM: { label: '高级会员', chipCls: 'text-primary-700 bg-primary-50 border-primary-200' },
     };
-    return membershipMap[membership] || { label: membership, className: 'bg-slate-100 text-slate-600' };
+    return membershipMap[membership] || { label: membership, chipCls: 'text-zinc-500 bg-zinc-50 border-zinc-200' };
   };
 
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <User className="w-8 h-8 text-slate-400" />
-          </div>
-          <p className="text-slate-500">请先登录</p>
-        </div>
+        <p className="px-5 py-8 text-xs text-zinc-400 text-center">请先登录后查看个人中心</p>
       </div>
     );
   }
@@ -264,230 +276,173 @@ export default function ProfilePage() {
   const membershipInfo = getMembershipDisplay(membership);
 
   return (
-    <motion.div
-      className="max-w-4xl mx-auto"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
-      {/* 页面头部 */}
-      <div className="mb-8">
-        <motion.h1
-          className="text-3xl font-bold text-slate-900 mb-2"
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-        >
-          个人中心
-        </motion.h1>
-        <motion.p
-          className="text-slate-500"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-        >
-          欢迎回来，{user.nickname || user.username}
-        </motion.p>
+    <div className="fade-in">
+      {/* 页头 */}
+      <div className="flex items-end justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">个人中心</h1>
+          <p className="mt-1 text-sm text-zinc-500">欢迎回来，{user.nickname || user.username}</p>
+        </div>
+        <span className="font-mono text-xs text-zinc-400">ID {user.id ?? '—'}</span>
       </div>
 
-      {/* 用户信息展示卡片 */}
-      <motion.div
-        className="bg-white rounded-2xl shadow-sm p-6 mb-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
-        <div className="flex items-center gap-6">
-          {/* 头像 */}
-          <div className="relative">
-            {user.avatar ? (
-              <img
-                src={user.avatar}
-                alt={user.nickname || user.username}
-                className="w-20 h-20 rounded-full object-cover border-4 border-primary-50"
-              />
-            ) : (
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl font-bold border-4 border-primary-50">
-                {(user.nickname || user.username).charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div className={`absolute -bottom-1 -right-1 px-2 py-0.5 rounded-full text-xs font-medium ${membershipInfo.className}`}>
-              {membership === 'FREE' ? <Crown className="w-3 h-3 inline mr-1" /> : null}
-              {membershipInfo.label}
+      {/* 账号信息卡片 */}
+      <div className="bg-white border border-zinc-200 rounded-lg p-5 mb-5">
+        <div className="flex items-center gap-5">
+          {/* 头像：有头像展示图片，否则首字母圆 */}
+          {user.avatar ? (
+            <img
+              src={user.avatar}
+              alt={user.nickname || user.username}
+              className="w-16 h-16 rounded-full object-cover border border-zinc-200 shrink-0"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-primary-800 text-white text-xl font-medium flex items-center justify-center uppercase shrink-0">
+              {(user.nickname || user.username).charAt(0)}
             </div>
-          </div>
+          )}
 
-          {/* 用户信息 */}
-          <div className="flex-1 grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center">
-                <User className="w-5 h-5 text-primary-500" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-400">用户名</p>
-                <p className="font-medium text-slate-800">{user.username}</p>
-              </div>
+          {/* 基础信息 */}
+          <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="min-w-0">
+              <p className="text-xs text-zinc-400">用户名</p>
+              <p className="mt-1 text-sm font-medium text-zinc-800 truncate">{user.username}</p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center">
-                <Mail className="w-5 h-5 text-primary-500" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-400">邮箱</p>
-                <p className="font-medium text-slate-800">{user.email}</p>
-              </div>
+            <div className="min-w-0">
+              <p className="text-xs text-zinc-400">邮箱</p>
+              <p className="mt-1 text-sm font-medium text-zinc-800 truncate">{user.email || '—'}</p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
-                <Award className="w-5 h-5 text-amber-500" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-400">积分</p>
-                <p className="font-medium text-slate-800">
-                  {pointsLoading ? '加载中...' : points.toLocaleString()}
-                </p>
-              </div>
+            <div>
+              <p className="text-xs text-zinc-400">积分</p>
+              <p className="mt-1 font-mono text-sm font-medium text-primary-800 tabular-nums">
+                {pointsLoading ? '—' : points.toLocaleString()}
+              </p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
-                <Crown className="w-5 h-5 text-purple-500" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-400">会员等级</p>
-                <p className="font-medium text-slate-800">{membershipLoading ? '加载中...' : membershipInfo.label}</p>
-              </div>
+            <div>
+              <p className="text-xs text-zinc-400">会员等级</p>
+              <span
+                className={`mt-1.5 inline-block text-xs border rounded px-1.5 py-0.5 ${
+                  membershipLoading ? 'text-zinc-500 bg-zinc-50 border-zinc-200' : membershipInfo.chipCls
+                }`}
+              >
+                {membershipLoading ? '—' : membershipInfo.label}
+              </span>
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* 两个卡片：个人资料和修改密码 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* 个人资料卡片 */}
-        <motion.div
-          className="bg-white rounded-2xl shadow-sm p-6"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center">
-              <User className="w-5 h-5 text-primary-500" />
-            </div>
-            <h2 className="text-lg font-semibold text-slate-800">编辑资料</h2>
+        <div className="bg-white border border-zinc-200 rounded-lg flex flex-col">
+          <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+            <h2 className="text-sm font-medium text-zinc-900">编辑资料</h2>
           </div>
 
-          <form onSubmit={handleProfileSubmit}>
+          <form onSubmit={handleProfileSubmit} className="p-5">
             <div className="space-y-4">
               {/* 昵称 */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">昵称</label>
+                <label htmlFor="nickname" className={labelCls}>
+                  昵称
+                </label>
                 <input
+                  id="nickname"
                   type="text"
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
+                  className={inputCls}
                   placeholder="请输入昵称"
                 />
               </div>
 
               {/* 头像 URL */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">头像 URL</label>
+                <label htmlFor="avatar" className={labelCls}>
+                  头像 URL
+                </label>
                 <input
+                  id="avatar"
                   type="url"
                   value={avatar}
                   onChange={(e) => setAvatar(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
+                  className={inputCls}
                   placeholder="https://example.com/avatar.jpg"
                 />
               </div>
 
               {/* 消息提示 */}
-              {profileMessage && (
-                <div
-                  className={`px-4 py-2 rounded-lg text-sm ${
-                    profileMessage.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-600'
-                      : 'bg-red-50 text-red-600'
-                  }`}
-                >
-                  {profileMessage.text}
-                </div>
-              )}
+              {profileMessage && <div className={messageCls(profileMessage.type)}>{profileMessage.text}</div>}
 
               {/* 提交按钮 */}
-              <button
-                type="submit"
-                disabled={profileLoading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {profileLoading ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    保存修改
-                  </>
-                )}
-              </button>
+              <div>
+                <button type="submit" disabled={profileLoading} className={primaryBtnCls}>
+                  {profileLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {profileLoading ? '保存中…' : '保存修改'}
+                </button>
+              </div>
             </div>
           </form>
-        </motion.div>
+        </div>
 
         {/* 修改密码卡片 */}
-        <motion.div
-          className="bg-white rounded-2xl shadow-sm p-6"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center">
-              <Lock className="w-5 h-5 text-primary-500" />
+        <div className="bg-white border border-zinc-200 rounded-lg flex flex-col">
+          <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+            <h2 className="text-sm font-medium text-zinc-900">修改密码</h2>
+          </div>
+
+          {/* 验证方式切换：底线式 tabs */}
+          <div className="px-5 pt-4">
+            <div className="flex border-b border-zinc-200">
+              <button
+                type="button"
+                onClick={() => { setPwdTab('old'); setPasswordMessage(null); }}
+                className={`pb-2.5 pr-6 text-sm border-b-2 -mb-px transition-colors ${
+                  pwdTab === 'old'
+                    ? 'border-primary-600 text-zinc-900 font-medium'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                原密码验证
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPwdTab('email'); setPasswordMessage(null); }}
+                className={`pb-2.5 pr-6 text-sm border-b-2 -mb-px transition-colors ${
+                  pwdTab === 'email'
+                    ? 'border-primary-600 text-zinc-900 font-medium'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                邮箱验证码
+              </button>
             </div>
-            <h2 className="text-lg font-semibold text-slate-800">修改密码</h2>
           </div>
 
-          {/* 验证方式切换 */}
-          <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-xl">
-            <button
-              type="button"
-              onClick={() => { setPwdTab('old'); setPasswordMessage(null); }}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                pwdTab === 'old' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              原密码验证
-            </button>
-            <button
-              type="button"
-              onClick={() => { setPwdTab('email'); setPasswordMessage(null); }}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                pwdTab === 'email' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              邮箱验证码
-            </button>
-          </div>
-
-          <form onSubmit={handlePasswordSubmit}>
+          <form onSubmit={handlePasswordSubmit} className="p-5 pt-4">
             <div className="space-y-4">
               {/* 凭证：旧密码 或 邮箱验证码 */}
               {pwdTab === 'old' ? (
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">旧密码</label>
+                  <label htmlFor="oldPassword" className={labelCls}>
+                    旧密码
+                  </label>
                   <div className="relative">
                     <input
+                      id="oldPassword"
                       type={showOldPassword ? 'text' : 'password'}
                       value={oldPassword}
                       onChange={(e) => setOldPassword(e.target.value)}
-                      className="w-full px-4 py-2.5 pr-10 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
+                      className={`${inputCls} pr-10`}
                       placeholder="请输入旧密码"
                       required
                     />
                     <button
                       type="button"
                       onClick={() => setShowOldPassword(!showOldPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-700 transition-colors"
+                      tabIndex={-1}
                     >
                       {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -495,23 +450,24 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  <label htmlFor="pwdCode" className={labelCls}>
                     验证码（发送至 {user.email || '未绑定邮箱'}）
                   </label>
-                  <div className="flex gap-3">
+                  <div className="flex gap-2">
                     <input
+                      id="pwdCode"
                       type="text"
                       value={pwdCode}
                       onChange={(e) => setPwdCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
-                      placeholder="邮箱验证码"
+                      className={`${inputCls} flex-1 font-mono tracking-widest`}
+                      placeholder="6 位数字验证码"
                       inputMode="numeric"
                     />
                     <button
                       type="button"
                       onClick={handleGetPwdCode}
                       disabled={pwdCounting || pwdSending || !user.email}
-                      className="px-4 py-2.5 bg-primary-50 text-primary-600 rounded-xl text-sm font-semibold whitespace-nowrap transition-all hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="h-9 px-3.5 border border-zinc-300 rounded-md text-sm text-zinc-700 font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                     >
                       {pwdCodeText}
                     </button>
@@ -521,21 +477,25 @@ export default function ProfilePage() {
 
               {/* 新密码 */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">新密码</label>
+                <label htmlFor="newPassword" className={labelCls}>
+                  新密码
+                </label>
                 <div className="relative">
                   <input
+                    id="newPassword"
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 pr-10 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
+                    className={`${inputCls} pr-10`}
                     placeholder="请输入新密码（至少6位）"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-700 transition-colors"
+                    tabIndex={-1}
+                  >
                     {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
@@ -543,20 +503,24 @@ export default function ProfilePage() {
 
               {/* 确认新密码 */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">确认新密码</label>
+                <label htmlFor="confirmPassword" className={labelCls}>
+                  确认新密码
+                </label>
                 <div className="relative">
                   <input
+                    id="confirmPassword"
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 pr-10 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
+                    className={`${inputCls} pr-10`}
                     placeholder="请再次输入新密码"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-700 transition-colors"
+                    tabIndex={-1}
                   >
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -564,79 +528,56 @@ export default function ProfilePage() {
               </div>
 
               {/* 消息提示 */}
-              {passwordMessage && (
-                <div
-                  className={`px-4 py-2 rounded-lg text-sm ${
-                    passwordMessage.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-600'
-                      : 'bg-red-50 text-red-600'
-                  }`}
-                >
-                  {passwordMessage.text}
-                </div>
-              )}
+              {passwordMessage && <div className={messageCls(passwordMessage.type)}>{passwordMessage.text}</div>}
 
               {/* 提交按钮 */}
-              <button
-                type="submit"
-                disabled={passwordLoading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {passwordLoading ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <Lock className="w-4 h-4" />
-                    修改密码
-                  </>
-                )}
-              </button>
+              <div>
+                <button type="submit" disabled={passwordLoading} className={primaryBtnCls}>
+                  {passwordLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {passwordLoading ? '提交中…' : '修改密码'}
+                </button>
+              </div>
             </div>
           </form>
-        </motion.div>
+        </div>
       </div>
 
       {/* 绑定/换绑邮箱卡片 */}
-      <motion.div
-        className="bg-white rounded-2xl shadow-sm p-6 mt-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.35 }}
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center">
-            <Mail className="w-5 h-5 text-sky-500" />
-          </div>
-          <h2 className="text-lg font-semibold text-slate-800">绑定邮箱</h2>
-          <span className="ml-auto text-sm text-slate-400">
-            当前：
-            <span className="font-medium text-slate-600">{user.email || '未绑定'}</span>
-          </span>
+      <div className="bg-white border border-zinc-200 rounded-lg mt-5">
+        <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+          <h2 className="text-sm font-medium text-zinc-900">绑定邮箱</h2>
+          <span className="font-mono text-xs text-zinc-400 truncate">当前：{user.email || '未绑定'}</span>
         </div>
 
-        <form onSubmit={handleBindEmailSubmit}>
+        <form onSubmit={handleBindEmailSubmit} className="p-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* 新邮箱 */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">新邮箱</label>
+              <label htmlFor="newEmail" className={labelCls}>
+                新邮箱
+              </label>
               <input
+                id="newEmail"
                 type="email"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
+                className={inputCls}
                 placeholder="请输入要绑定的新邮箱"
               />
             </div>
 
             {/* 验证码 */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">验证码</label>
-              <div className="flex gap-3">
+              <label htmlFor="bindCode" className={labelCls}>
+                验证码
+              </label>
+              <div className="flex gap-2">
                 <input
+                  id="bindCode"
                   type="text"
                   value={bindCode}
                   onChange={(e) => setBindCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all"
+                  className={`${inputCls} flex-1 font-mono tracking-widest`}
                   placeholder="新邮箱收到的验证码"
                   inputMode="numeric"
                 />
@@ -644,7 +585,7 @@ export default function ProfilePage() {
                   type="button"
                   onClick={handleGetBindCode}
                   disabled={bindCounting || bindSending || !newEmail}
-                  className="px-4 py-2.5 bg-primary-50 text-primary-600 rounded-xl text-sm font-semibold whitespace-nowrap transition-all hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="h-9 px-3.5 border border-zinc-300 rounded-md text-sm text-zinc-700 font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
                   {bindCodeText}
                 </button>
@@ -654,87 +595,54 @@ export default function ProfilePage() {
             {/* 消息提示 */}
             {bindMessage && (
               <div className="md:col-span-2">
-                <div
-                  className={`px-4 py-2 rounded-lg text-sm ${
-                    bindMessage.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-600'
-                      : 'bg-red-50 text-red-600'
-                  }`}
-                >
-                  {bindMessage.text}
-                </div>
+                <div className={messageCls(bindMessage.type)}>{bindMessage.text}</div>
               </div>
             )}
 
             {/* 提交按钮 */}
             <div className="md:col-span-2">
-              <button
-                type="submit"
-                disabled={bindLoading}
-                className="flex items-center justify-center gap-2 px-6 py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {bindLoading ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <KeyRound className="w-4 h-4" />
-                    {user.email ? '换绑邮箱' : '绑定邮箱'}
-                  </>
-                )}
+              <button type="submit" disabled={bindLoading} className={primaryBtnCls}>
+                {bindLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {bindLoading ? '提交中…' : user.email ? '换绑邮箱' : '绑定邮箱'}
               </button>
             </div>
           </div>
         </form>
-      </motion.div>
+      </div>
 
-      {/* 登出按钮 */}
-      <motion.div
-        className="mt-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-      >
+      {/* 退出登录 */}
+      <div className="mt-5">
         <button
           onClick={() => setShowLogoutConfirm(true)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-medium rounded-xl transition-colors"
+          className="h-9 px-4 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
         >
-          <LogOut className="w-4 h-4" />
           退出登录
         </button>
-      </motion.div>
+      </div>
 
       {/* 登出确认对话框 */}
       {showLogoutConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <motion.div
-            className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-          >
-            <div className="text-center">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <LogOut className="w-8 h-8 text-red-500" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-800 mb-2">确认退出</h3>
-              <p className="text-slate-500 mb-6">确定要退出当前账号吗？</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowLogoutConfirm(false)}
-                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors"
-                >
+        <>
+          <div className="fixed inset-0 bg-zinc-950/40 z-50 fade-in" onClick={() => setShowLogoutConfirm(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white border border-zinc-200 rounded-lg max-w-sm w-full p-5 fade-in">
+              <h3 className="text-sm font-medium text-zinc-900 mb-3">确认退出</h3>
+              <p className="text-sm text-zinc-500 mb-6">确定要退出当前账号吗？</p>
+              <div className="flex gap-3 justify-end">
+                <button onClick={() => setShowLogoutConfirm(false)} className={secondaryBtnCls}>
                   取消
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white font-medium rounded-xl transition-colors"
+                  className="h-9 px-4 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
                 >
                   确认退出
                 </button>
               </div>
             </div>
-          </motion.div>
-        </div>
+          </div>
+        </>
       )}
-    </motion.div>
+    </div>
   );
 }

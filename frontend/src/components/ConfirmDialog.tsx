@@ -1,4 +1,4 @@
-import {AnimatePresence, motion} from 'framer-motion';
+import { Loader2 } from 'lucide-react';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -29,88 +29,63 @@ export default function ConfirmDialog({
 }: ConfirmDialogProps) {
   if (!open) return null;
 
-  const variantStyles = {
-    danger: 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700',
-    primary: 'bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700',
-    warning: 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600'
+  const variantStyles: Record<'danger' | 'primary' | 'warning', string> = {
+    danger: 'bg-red-600 hover:bg-red-700',
+    primary: 'bg-primary-600 hover:bg-primary-700 active:bg-primary-800',
+    warning: 'bg-amber-600 hover:bg-amber-700'
   };
 
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          {/* 背景遮罩 */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onCancel}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
-          />
-          
-          {/* 对话框 */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
-            >
-              {/* 标题 */}
-              <h3 className="text-xl font-bold text-slate-900 mb-4">
-                {title}
-              </h3>
-              
-              {/* 内容 */}
-              <div className="text-slate-600 mb-6">
-                {typeof message === 'string' ? (
-                  message && <p className="whitespace-pre-line">{message}</p>
-                ) : (
-                  message
-                )}
-                {customContent}
-              </div>
+    <>
+      {/* 背景遮罩 */}
+      <div onClick={onCancel} className="fixed inset-0 bg-zinc-950/40 z-50 fade-in" />
 
-              {/* 按钮 */}
-              {!hideButtons && (
-                <div className="flex gap-3 justify-end">
-                  <motion.button
-                    onClick={onCancel}
-                    disabled={loading}
-                    className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    {cancelText}
-                  </motion.button>
-                  <motion.button
-                    onClick={onConfirm}
-                    disabled={loading}
-                    className={`px-5 py-2.5 text-white rounded-xl font-semibold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${variantStyles[confirmVariant]}`}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    {loading ? (
-                      <span className="flex items-center gap-2">
-                        <motion.span
-                          className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                        />
-                        处理中...
-                      </span>
-                    ) : (
-                      confirmText
-                    )}
-                  </motion.button>
-                </div>
-              )}
-            </motion.div>
+      {/* 对话框 */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="bg-white border border-zinc-200 rounded-lg max-w-md w-full p-5 fade-in">
+          {/* 标题 */}
+          <h3 className="text-sm font-medium text-zinc-900 mb-3">
+            {title}
+          </h3>
+
+          {/* 内容 */}
+          <div className="text-sm text-zinc-500 mb-6">
+            {typeof message === 'string' ? (
+              message && <p className="whitespace-pre-line">{message}</p>
+            ) : (
+              message
+            )}
+            {customContent}
           </div>
-        </>
-      )}
-    </AnimatePresence>
+
+          {/* 按钮 */}
+          {!hideButtons && (
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={onCancel}
+                disabled={loading}
+                className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {cancelText}
+              </button>
+              <button
+                onClick={onConfirm}
+                disabled={loading}
+                className={`h-9 px-4 rounded-md text-white text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 ${variantStyles[confirmVariant]}`}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    处理中…
+                  </>
+                ) : (
+                  confirmText
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
-

@@ -1,18 +1,13 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
-  Bell,
   Check,
   CheckCheck,
   Trash2,
-  FileText,
-  Users,
-  Database,
-  Crown,
   Settings,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import {
   notificationApi,
@@ -23,13 +18,16 @@ import {
 import { getErrorMessage } from '../../api/request';
 
 // 通知类型映射
-const notificationTypeConfig: Record<NotificationType, { icon: React.ComponentType<{ className?: string }>; label: string; color: string }> = {
-  SYSTEM: { icon: Bell, label: '系统通知', color: 'bg-slate-100 text-slate-600' },
-  INTERVIEW: { icon: Users, label: '面试通知', color: 'bg-blue-100 text-blue-600' },
-  RESUME: { icon: FileText, label: '简历通知', color: 'bg-green-100 text-green-600' },
-  KNOWLEDGEBASE: { icon: Database, label: '知识库通知', color: 'bg-purple-100 text-purple-600' },
-  MEMBERSHIP: { icon: Crown, label: '会员通知', color: 'bg-amber-100 text-amber-600' },
+const notificationTypeConfig: Record<NotificationType, { label: string }> = {
+  SYSTEM: { label: '系统通知' },
+  INTERVIEW: { label: '面试通知' },
+  RESUME: { label: '简历通知' },
+  KNOWLEDGEBASE: { label: '知识库通知' },
+  MEMBERSHIP: { label: '会员通知' },
 };
+
+// 通知类型 chip（中性色，非状态语义）
+const typeChipCls = 'text-zinc-500 bg-zinc-50 border-zinc-200';
 
 // 格式化时间
 function formatTime(dateString: string): string {
@@ -161,42 +159,27 @@ export default function NotificationListPage() {
   }, [message]);
 
   return (
-    <motion.div
-      className="max-w-4xl mx-auto"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
-      {/* 页面头部 */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="fade-in">
+      {/* 页头 */}
+      <div className="flex items-end justify-between mb-6">
         <div>
-          <motion.h1
-            className="text-3xl font-bold text-slate-900 mb-2"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-          >
-            通知中心
-          </motion.h1>
-          <motion.p
-            className="text-slate-500"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
-          >
-            共 {total} 条通知
-          </motion.p>
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">通知中心</h1>
+          <p className="mt-1 text-sm text-zinc-500">
+            共 <span className="font-mono tabular-nums text-zinc-700">{total}</span> 条通知
+          </p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleMarkAllAsRead}
             disabled={actionLoading !== null}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-50 hover:bg-primary-100 text-primary-600 font-medium rounded-xl transition-colors disabled:opacity-50"
+            className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
             <CheckCheck className="w-4 h-4" />
             全部已读
           </button>
           <button
             onClick={handleGoToSettings}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors"
+            className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors inline-flex items-center gap-2"
           >
             <Settings className="w-4 h-4" />
             通知设置
@@ -206,31 +189,26 @@ export default function NotificationListPage() {
 
       {/* 消息提示 */}
       {message && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`mb-4 px-4 py-2 rounded-lg text-sm ${
-            message.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+        <div
+          className={`mb-4 border rounded-md px-3 py-2.5 text-sm fade-in ${
+            message.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-red-200 bg-red-50 text-red-700'
           }`}
         >
           {message.text}
-        </motion.div>
+        </div>
       )}
 
       {/* 筛选器 */}
-      <motion.div
-        className="bg-white rounded-2xl shadow-sm p-4 mb-4"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
+      <div className="bg-white border border-zinc-200 rounded-lg px-5 py-4 mb-4">
         <div className="flex gap-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">类型:</span>
+            <span className="text-xs font-medium text-zinc-600">类型</span>
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value as NotificationType | '')}
-              className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+              className="h-9 px-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors"
             >
               <option value="">全部</option>
               {Object.entries(notificationTypeConfig).map(([type, config]) => (
@@ -241,11 +219,11 @@ export default function NotificationListPage() {
             </select>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">状态:</span>
+            <span className="text-xs font-medium text-zinc-600">状态</span>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as NotificationStatus | '')}
-              className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+              className="h-9 px-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors"
             >
               <option value="">全部</option>
               <option value="UNREAD">未读</option>
@@ -253,87 +231,84 @@ export default function NotificationListPage() {
             </select>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* 通知列表 */}
-      <motion.div
-        className="bg-white rounded-2xl shadow-sm overflow-hidden"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
+      <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-10 h-10 border-3 border-slate-200 border-t-primary-500 rounded-full animate-spin" />
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-5 h-5 text-zinc-400 animate-spin" />
           </div>
         ) : notifications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-              <Bell className="w-8 h-8 text-slate-400" />
-            </div>
-            <p className="text-slate-500">暂无通知</p>
-          </div>
+          <p className="px-5 py-8 text-xs text-zinc-400 text-center">暂无通知</p>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-zinc-100">
             {notifications.map((notification) => {
               const typeConfig = notificationTypeConfig[notification.type];
-              const IconComponent = typeConfig.icon;
               const isUnread = notification.status === 'UNREAD';
 
               return (
-                <motion.div
+                <div
                   key={notification.id}
-                  className={`p-4 hover:bg-slate-50 transition-colors cursor-pointer ${
+                  className={`px-5 py-3.5 hover:bg-zinc-50 transition-colors ${
                     isUnread ? 'bg-primary-50/50' : ''
                   }`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
                 >
                   <div className="flex gap-4">
-                    {/* 图标 */}
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${typeConfig.color}`}>
-                      <IconComponent className="w-5 h-5" />
-                    </div>
-
                     {/* 内容 */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            {isUnread && <span className="w-2 h-2 bg-primary-500 rounded-full flex-shrink-0" />}
-                            <h3 className={`font-medium ${isUnread ? 'text-slate-900' : 'text-slate-700'}`}>
+                            {isUnread && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary-600 shrink-0" />
+                            )}
+                            <span
+                              className={`text-xs border rounded px-1.5 py-0.5 shrink-0 ${typeChipCls}`}
+                            >
+                              {typeConfig.label}
+                            </span>
+                            <h3
+                              className={`text-sm truncate ${
+                                isUnread ? 'font-medium text-zinc-900' : 'text-zinc-600'
+                              }`}
+                            >
                               {notification.title}
                             </h3>
                           </div>
-                          <p className="text-sm text-slate-500 mt-1 line-clamp-2">{notification.content}</p>
-                          <p className="text-xs text-slate-400 mt-2">{formatTime(notification.createdAt)}</p>
+                          <p className="text-xs text-zinc-500 mt-1.5 line-clamp-2">
+                            {notification.content}
+                          </p>
+                          <p className="font-mono text-xs text-zinc-400 mt-1.5">
+                            {formatTime(notification.createdAt)}
+                          </p>
                         </div>
 
                         {/* 操作按钮 */}
-                        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                           {isUnread && (
                             <button
                               onClick={(e) => handleMarkAsRead(notification.id, e)}
                               disabled={actionLoading === notification.id}
-                              className="p-2 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50"
+                              className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors disabled:opacity-50"
                               title="标记已读"
                             >
-                              <Check className="w-4 h-4 text-slate-500" />
+                              <Check className="w-4 h-4" />
                             </button>
                           )}
                           <button
                             onClick={(e) => handleDelete(notification.id, e)}
                             disabled={actionLoading === notification.id}
-                            className="p-2 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+                            className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
                             title="删除"
                           >
-                            <Trash2 className="w-4 h-4 text-slate-500 hover:text-red-500" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               );
             })}
           </div>
@@ -341,29 +316,33 @@ export default function NotificationListPage() {
 
         {/* 分页 */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
-            <p className="text-sm text-slate-500">
-              第 {page} / {totalPages} 页，共 {total} 条
+          <div className="flex items-center justify-between px-5 py-3 border-t border-zinc-100">
+            <p className="text-xs text-zinc-500">
+              第 <span className="font-mono text-zinc-700 tabular-nums">{page}</span> /{' '}
+              <span className="font-mono text-zinc-700 tabular-nums">{totalPages}</span> 页 · 共{' '}
+              <span className="font-mono text-zinc-700 tabular-nums">{total}</span> 条
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => handlePageChange(page - 1)}
                 disabled={page === 1}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-8 w-8 flex items-center justify-center border border-zinc-300 rounded-md text-zinc-500 hover:bg-zinc-50 hover:border-zinc-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                aria-label="上一页"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => handlePageChange(page + 1)}
                 disabled={page === totalPages}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-8 w-8 flex items-center justify-center border border-zinc-300 rounded-md text-zinc-500 hover:bg-zinc-50 hover:border-zinc-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                aria-label="下一页"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }

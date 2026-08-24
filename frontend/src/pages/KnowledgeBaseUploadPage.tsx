@@ -34,8 +34,8 @@ export default function KnowledgeBaseUploadPage({ onUploadComplete, onBack }: Kn
       formatHint="支持 PDF、DOCX、DOC、TXT、MD"
       maxSizeHint="最大 50MB"
       uploading={uploading}
-      uploadButtonText="开始上传"
-      selectButtonText="选择文件"
+      uploadButtonText="上传知识库"
+      selectButtonText="浏览文件"
       showNameInput={true}
       nameLabel="知识库名称（可选）"
       namePlaceholder="留空则使用文件名"

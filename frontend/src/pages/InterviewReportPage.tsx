@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { perspectiveApi } from '../api/interviewerRole';
@@ -8,13 +7,6 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
-  Star,
-  ThumbsUp,
-  ThumbsDown,
-  MessageSquare,
-  Award,
-  Lightbulb,
-  TrendingUp, MessagesSquare,
 } from 'lucide-react';
 
 interface InterviewReportPageProps {
@@ -24,11 +16,12 @@ interface InterviewReportPageProps {
 
 type TabType = 'comprehensive' | string;
 
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: 'bg-slate-100 text-slate-600',
-  PROCESSING: 'bg-blue-100 text-blue-600',
-  COMPLETED: 'bg-green-100 text-green-600',
-  FAILED: 'bg-red-100 text-red-600',
+// 状态 chip 样式（语义色，克制使用）
+const STATUS_CHIP_CLS: Record<string, string> = {
+  PENDING: 'text-zinc-500 bg-zinc-50 border-zinc-200',
+  PROCESSING: 'text-amber-700 bg-amber-50 border-amber-200',
+  COMPLETED: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  FAILED: 'text-red-700 bg-red-50 border-red-200',
 };
 
 /**
@@ -122,19 +115,18 @@ export default function InterviewReportPage({ sessionId, onBack }: InterviewRepo
   }, [perspectives, loading, loadPerspectives, loadComprehensiveReport, comprehensiveReport]);
 
   // 获取所有 Tab（综合报告 + 各视角）
-  const allTabs: { id: TabType; label: string; icon?: string }[] = [
-    { id: 'comprehensive', label: '综合报告', icon: '📊' },
+  const allTabs: { id: TabType; label: string }[] = [
+    { id: 'comprehensive', label: '综合报告' },
     ...perspectives.map(p => ({
       id: String(p.perspectiveId),
       label: p.perspectiveName,
-      icon: p.perspectiveIcon || '👤',
     })),
   ];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+        <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" />
       </div>
     );
   }
@@ -142,112 +134,120 @@ export default function InterviewReportPage({ sessionId, onBack }: InterviewRepo
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center text-red-500">
-          <AlertCircle className="w-8 h-8 mx-auto mb-2" />
-          <p>{error}</p>
+        <div className="text-center">
+          <AlertCircle className="w-6 h-6 text-red-500 mx-auto mb-2" />
+          <p className="text-sm text-red-600">{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div>
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between mb-8">
+    <div className="fade-in">
+      {/* 页头 */}
+      <div className="flex items-end justify-between gap-4 mb-6 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center">
-              <Award className="w-5 h-5 text-white" />
-            </div>
-            面试报告
-          </h1>
-          <p className="text-slate-500 mt-1">多视角评估综合报告</p>
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">面试报告</h1>
+          <p className="mt-1 text-sm text-zinc-500">多视角评估综合报告</p>
         </div>
-        <motion.button
-          onClick={onBack}
-          className="px-5 py-2.5 border border-slate-200 rounded-xl text-slate-600 font-medium hover:bg-slate-50 transition-colors"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          返回
-        </motion.button>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-xs text-zinc-400">#{sessionId.slice(-8)}</span>
+          <button
+            onClick={onBack}
+            className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors"
+          >
+            返回
+          </button>
+        </div>
       </div>
 
-      {/* Tab 导航 */}
-      <div className="bg-white rounded-2xl shadow-sm mb-6 overflow-hidden">
-        <div className="flex overflow-x-auto">
-          {allTabs.map((tab) => {
-            const isActive = activeTab === tab.id;
-            const perspectiveOverview = tab.id !== 'comprehensive'
-              ? perspectives.find(p => String(p.perspectiveId) === tab.id)
-              : null;
+      {/* Tab 导航：底线式 */}
+      <div className="flex border-b border-zinc-200 mb-6 overflow-x-auto scrollbar-none">
+        {allTabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          const perspectiveOverview = tab.id !== 'comprehensive'
+            ? perspectives.find(p => String(p.perspectiveId) === tab.id)
+            : null;
 
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`
-                  flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
-                  ${isActive
-                    ? 'border-primary-500 text-primary-600 bg-primary-50/50'
-                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }
-                `}
-              >
-                {tab.icon && <span>{tab.icon}</span>}
-                <span>{tab.label}</span>
-                {perspectiveOverview && (
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLORS[perspectiveOverview.status as keyof typeof STATUS_COLORS]}`}>
-                    {perspectiveOverview.status === 'PROCESSING' && <RefreshCw className="w-3 h-3 animate-spin inline" />}
-                    {perspectiveOverview.status === 'COMPLETED' && perspectiveOverview.score !== null && (
-                      <span>{perspectiveOverview.score}分</span>
-                    )}
-                    {perspectiveOverview.status === 'PENDING' && '等待中'}
-                    {perspectiveOverview.status === 'FAILED' && '失败'}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`
+                flex items-center gap-2 px-4 py-2.5 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap
+                ${isActive
+                  ? 'border-primary-600 text-zinc-900 font-medium'
+                  : 'border-transparent text-zinc-500 hover:text-zinc-800'
+                }
+              `}
+            >
+              <span>{tab.label}</span>
+              {perspectiveOverview && (
+                <span
+                  className={`inline-flex items-center gap-1 text-xs border rounded px-1.5 py-0.5 ${
+                    STATUS_CHIP_CLS[perspectiveOverview.status as keyof typeof STATUS_CHIP_CLS] ?? STATUS_CHIP_CLS.PENDING
+                  }`}
+                >
+                  {perspectiveOverview.status === 'PROCESSING' && <RefreshCw className="w-3 h-3 animate-spin" />}
+                  {perspectiveOverview.status === 'COMPLETED' && perspectiveOverview.score !== null && (
+                    <span className="font-mono tabular-nums">{perspectiveOverview.score}分</span>
+                  )}
+                  {perspectiveOverview.status === 'PENDING' && '等待中'}
+                  {perspectiveOverview.status === 'FAILED' && '失败'}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab 内容 */}
-      <AnimatePresence mode="wait">
-        {activeTab === 'comprehensive' ? (
-          <motion.div
-            key="comprehensive"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
-            {comprehensiveReport ? (
-              <ComprehensiveReport report={comprehensiveReport} />
-            ) : (
-              <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
-                <Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto mb-4" />
-                <p className="text-slate-500">正在生成综合报告...</p>
-              </div>
-            )}
-          </motion.div>
-        ) : (
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
-            {activePerspectiveDetail ? (
-              <PerspectiveReport detail={activePerspectiveDetail} />
-            ) : (
-              <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
-                <Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto mb-4" />
-                <p className="text-slate-500">加载中...</p>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {activeTab === 'comprehensive' ? (
+        <div key="comprehensive" className="fade-in">
+          {comprehensiveReport ? (
+            <ComprehensiveReport report={comprehensiveReport} />
+          ) : (
+            <div className="bg-white border border-zinc-200 rounded-lg px-5 py-12 text-center">
+              <Loader2 className="w-6 h-6 text-zinc-400 animate-spin mx-auto mb-3" />
+              <p className="text-sm text-zinc-500">正在生成综合报告…</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div key={activeTab} className="fade-in">
+          {activePerspectiveDetail ? (
+            <PerspectiveReport detail={activePerspectiveDetail} />
+          ) : (
+            <div className="bg-white border border-zinc-200 rounded-lg px-5 py-12 text-center">
+              <Loader2 className="w-6 h-6 text-zinc-400 animate-spin mx-auto mb-3" />
+              <p className="text-sm text-zinc-500">加载中…</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 统计卡片（数字卡范式：mono 数字 + 单位小字）
+function StatCard({ label, value, unit }: { label: string; value: string | number; unit?: string }) {
+  return (
+    <div className="bg-white border border-zinc-200 rounded-lg px-5 py-4">
+      <p className="text-xs text-zinc-500">{label}</p>
+      <p className="mt-1.5 flex items-baseline gap-1">
+        <span className="font-mono text-2xl font-semibold text-primary-800 tabular-nums">{value}</span>
+        {unit && <span className="text-xs text-zinc-400">{unit}</span>}
+      </p>
+    </div>
+  );
+}
+
+// 卡片头（h-[46px] 细分割线范式）
+function CardHeader({ title, meta }: { title: string; meta?: string }) {
+  return (
+    <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+      <h3 className="text-sm font-medium text-zinc-900">{title}</h3>
+      {meta && <span className="font-mono text-xs text-zinc-400">{meta}</span>}
     </div>
   );
 }
@@ -257,162 +257,95 @@ export default function InterviewReportPage({ sessionId, onBack }: InterviewRepo
  */
 function ComprehensiveReport({ report }: { report: ComprehensiveReportDTO }) {
   return (
-    <div className="space-y-6">
-      {/* 综合得分卡片 */}
-      <div className="bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl p-8 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-primary-100 text-sm font-medium mb-1">综合得分</p>
-            <p className="text-5xl font-bold">{report.overallScore}</p>
-            <p className="text-primary-200 text-sm mt-1">加权平均分</p>
-          </div>
-          <div className="text-right">
-            <div className="w-20 h-20 rounded-full border-4 border-primary-300 flex items-center justify-center">
-              <Star className="w-10 h-10 text-primary-200" />
+    <div className="space-y-5">
+      {/* 统计概览 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="综合得分" value={report.overallScore} unit="分" />
+        <StatCard label="视角数量" value={report.perspectives.length} unit="个" />
+        <StatCard label="优势数量" value={report.strengths.length} unit="条" />
+        <StatCard label="改进建议" value={report.improvements.length} unit="条" />
+      </div>
+
+      {/* 各视角得分 */}
+      <div className="bg-white border border-zinc-200 rounded-lg">
+        <CardHeader title="各视角得分" meta={`${report.perspectives.length} 个视角`} />
+        <div className="p-5 space-y-4">
+          {report.perspectives.map((p) => (
+            <div key={p.id} className="flex items-center gap-4">
+              <div className="w-28 shrink-0">
+                <p className="text-sm text-zinc-800 truncate">{p.perspectiveName}</p>
+                {p.weight !== undefined && (
+                  <p className="font-mono text-xs text-zinc-400 mt-0.5">权重 {((p.weight as number) * 100).toFixed(0)}%</p>
+                )}
+              </div>
+              <div className="flex-1 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary-500 rounded-full"
+                  style={{ width: `${p.score ?? 0}%` }}
+                />
+              </div>
+              <span className="w-10 shrink-0 text-right font-mono text-sm font-medium text-zinc-800 tabular-nums">
+                {p.score ?? '—'}
+              </span>
             </div>
-          </div>
+          ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 各视角得分 */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-primary-500" />
-            各视角得分
-          </h3>
-          <div className="space-y-4">
-            {report.perspectives.map((p) => (
-              <div key={p.id} className="flex items-center gap-4">
-                <div className="w-32 text-sm font-medium text-slate-700 flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2">
-                    <span>{p.perspectiveIcon || '👤'}</span>
-                    <span>{p.perspectiveName}</span>
-                  </div>
-                  {p.weight !== undefined && (
-                    <span className="text-xs text-slate-400">权重 {((p.weight as number) * 100).toFixed(0)}%</span>
-                  )}
-                </div>
-                <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-primary-500 rounded-full"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${p.score ?? 0}%` }}
-                    transition={{ duration: 0.8 }}
-                  />
-                </div>
-                <div className="w-12 text-sm font-bold text-slate-800 text-right">
-                  {p.score ?? '-'}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 汇总统计 */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4">评估统计</h3>
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <ThumbsUp className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">优势数量</p>
-                <p className="font-bold text-slate-800">{report.strengths.length}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                <ThumbsDown className="w-5 h-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">改进建议</p>
-                <p className="font-bold text-slate-800">{report.improvements.length}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <MessageSquare className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">视角数量</p>
-                <p className="font-bold text-slate-800">{report.perspectives.length}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 综合评价（父容器） */}
+      {/* 综合评价 */}
       {(report.evaluation || report.developmentSuggestions) && (
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-primary-500" />
-            综合评价
-          </h3>
-          {report.evaluation && (
-            <div className="mb-4">
-              <h4 className="text-base font-medium text-slate-800 mb-2 flex items-center gap-2">
-                <MessagesSquare className="w-4 h-4 text-primary-500" />
-                评价
-              </h4>
-              <div className="prose prose-slate max-w-none">
-                <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+        <div className="bg-white border border-zinc-200 rounded-lg">
+          <CardHeader title="综合评价" />
+          <div className="p-5 space-y-5">
+            {report.evaluation && (
+              <div>
+                <h4 className="text-xs font-medium text-zinc-500 mb-1.5">评价</h4>
+                <p className="text-sm text-zinc-700 leading-relaxed whitespace-pre-wrap">
                   {report.evaluation}
                 </p>
               </div>
-            </div>
-          )}
-          {report.developmentSuggestions && (
-            <div>
-              <h4 className="text-base font-medium text-slate-800 mb-2 flex items-center gap-2">
-                <Lightbulb className="w-4 h-4 text-primary-500" />
-                发展建议
-              </h4>
-              <div className="prose prose-slate max-w-none">
-                <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+            )}
+            {report.developmentSuggestions && (
+              <div>
+                <h4 className="text-xs font-medium text-zinc-500 mb-1.5">发展建议</h4>
+                <p className="text-sm text-zinc-700 leading-relaxed whitespace-pre-wrap">
                   {report.developmentSuggestions}
                 </p>
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 优势 / 改进建议 */}
+      {(report.strengths.length > 0 || report.improvements.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {report.strengths.length > 0 && (
+            <div className="bg-white border border-zinc-200 rounded-lg">
+              <CardHeader title="综合优势" meta={`${report.strengths.length} 条`} />
+              <ul className="p-5 space-y-2">
+                {report.strengths.map((s, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-zinc-700">
+                    <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full mt-2 shrink-0" />
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
-        </div>
-      )}
-
-      {/* 综合优势 */}
-      {report.strengths.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <ThumbsUp className="w-5 h-5 text-green-500" />
-            综合优势
-          </h3>
-          <ul className="space-y-2">
-            {report.strengths.map((s, i) => (
-              <li key={i} className="flex items-start gap-2 text-slate-700">
-                <span className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
-                <span>{s}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* 综合改进建议 */}
-      {report.improvements.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <ThumbsDown className="w-5 h-5 text-amber-500" />
-            改进建议
-          </h3>
-          <ul className="space-y-2">
-            {report.improvements.map((s, i) => (
-              <li key={i} className="flex items-start gap-2 text-slate-700">
-                <span className="w-2 h-2 bg-amber-500 rounded-full mt-2 flex-shrink-0" />
-                <span>{s}</span>
-              </li>
-            ))}
-          </ul>
+          {report.improvements.length > 0 && (
+            <div className="bg-white border border-zinc-200 rounded-lg">
+              <CardHeader title="改进建议" meta={`${report.improvements.length} 条`} />
+              <ul className="p-5 space-y-2">
+                {report.improvements.map((s, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-zinc-700">
+                    <span className="w-1.5 h-1.5 bg-amber-600 rounded-full mt-2 shrink-0" />
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -424,108 +357,100 @@ function ComprehensiveReport({ report }: { report: ComprehensiveReportDTO }) {
  */
 function PerspectiveReport({ detail }: { detail: PerspectiveDetailDTO }) {
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-amber-600';
-    return 'text-red-600';
+    if (score >= 80) return 'text-emerald-700';
+    if (score >= 60) return 'text-amber-700';
+    return 'text-red-700';
   };
 
   return (
-    <div className="space-y-6">
-      {/* 视角信息卡片 */}
-      <div className="bg-white rounded-2xl shadow-sm p-6">
-        <div className="flex items-center gap-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-sky-500 to-sky-600 rounded-2xl flex items-center justify-center text-3xl">
-            {detail.perspectiveIcon || '👤'}
-          </div>
-          <div className="flex-1">
-            <h2 className="text-2xl font-bold text-slate-900">{detail.roleName}</h2>
-            <div className="flex items-center gap-4 mt-2">
-              <span className={`text-2xl font-bold ${getScoreColor(detail.score)}`}>
-                {detail.score}分
-              </span>
-            </div>
-          </div>
+    <div className="space-y-5">
+      {/* 视角信息 + 得分 */}
+      <div className="bg-white border border-zinc-200 rounded-lg px-5 py-4 flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <p className="font-mono text-xs text-zinc-400">视角</p>
+          <h2 className="text-base font-medium text-zinc-900 mt-0.5 truncate">{detail.roleName}</h2>
         </div>
+        <p className="flex items-baseline gap-1 shrink-0">
+          <span className={`font-mono text-2xl font-semibold tabular-nums ${getScoreColor(detail.score)}`}>
+            {detail.score}
+          </span>
+          <span className="text-xs text-zinc-400">分</span>
+        </p>
       </div>
 
       {/* 评价内容 */}
       {detail.feedback && (
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-primary-500" />
-            评价
-          </h3>
-          <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-            {detail.feedback}
-          </p>
+        <div className="bg-white border border-zinc-200 rounded-lg">
+          <CardHeader title="评价" />
+          <div className="p-5">
+            <p className="text-sm text-zinc-700 leading-relaxed whitespace-pre-wrap">
+              {detail.feedback}
+            </p>
+          </div>
         </div>
       )}
 
-      {/* 优势 */}
-      {detail.strengths.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <ThumbsUp className="w-5 h-5 text-green-500" />
-            优势
-          </h3>
-          <ul className="space-y-2">
-            {detail.strengths.map((s, i) => (
-              <li key={i} className="flex items-start gap-2 text-slate-700">
-                <span className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
-                <span>{s}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* 改进建议 */}
-      {detail.improvements.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <ThumbsDown className="w-5 h-5 text-amber-500" />
-            改进建议
-          </h3>
-          <ul className="space-y-2">
-            {detail.improvements.map((s, i) => (
-              <li key={i} className="flex items-start gap-2 text-slate-700">
-                <span className="w-2 h-2 bg-amber-500 rounded-full mt-2 flex-shrink-0" />
-                <span>{s}</span>
-              </li>
-            ))}
-          </ul>
+      {/* 优势 / 改进建议 */}
+      {(detail.strengths.length > 0 || detail.improvements.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {detail.strengths.length > 0 && (
+            <div className="bg-white border border-zinc-200 rounded-lg">
+              <CardHeader title="优势" meta={`${detail.strengths.length} 条`} />
+              <ul className="p-5 space-y-2">
+                {detail.strengths.map((s, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-zinc-700">
+                    <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full mt-2 shrink-0" />
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {detail.improvements.length > 0 && (
+            <div className="bg-white border border-zinc-200 rounded-lg">
+              <CardHeader title="改进建议" meta={`${detail.improvements.length} 条`} />
+              <ul className="p-5 space-y-2">
+                {detail.improvements.map((s, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-zinc-700">
+                    <span className="w-1.5 h-1.5 bg-amber-600 rounded-full mt-2 shrink-0" />
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
       {/* 问题详情列表 */}
       {detail.questionScores.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-primary-500" />
-            问题详情
-          </h3>
-          <div className="space-y-6">
+        <div className="bg-white border border-zinc-200 rounded-lg">
+          <CardHeader title="问题详情" meta={`${detail.questionScores.length} 题`} />
+          <div className="p-5 space-y-4">
             {detail.questionScores.map((q) => (
-              <div key={q.questionIndex} className="border border-slate-200 rounded-xl p-4">
+              <div key={q.questionIndex} className="border border-zinc-200 rounded-md p-4">
                 <div className="flex items-start justify-between gap-4 mb-3">
-                  <div className="flex-1">
-                    <span className="text-xs text-slate-500 mb-1 block">问题 {q.questionIndex + 1}</span>
-                    <p className="font-medium text-slate-900">{q.question}</p>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-mono text-xs text-zinc-400 mb-1 block">Q{q.questionIndex + 1}</span>
+                    <p className="text-sm font-medium text-zinc-900">{q.question}</p>
                   </div>
-                  <div className={`text-xl font-bold ${getScoreColor(q.score)}`}>
-                    {q.score}分
-                  </div>
+                  <p className="flex items-baseline gap-0.5 shrink-0">
+                    <span className={`font-mono text-lg font-semibold tabular-nums ${getScoreColor(q.score)}`}>
+                      {q.score}
+                    </span>
+                    <span className="text-xs text-zinc-400">分</span>
+                  </p>
                 </div>
                 {q.userAnswer && (
-                  <div className="text-sm text-slate-700 bg-blue-50 rounded-lg p-3 mt-2 border border-blue-100">
-                    <p className="text-xs text-blue-600 mb-1 font-medium">我的回答：</p>
-                    <p className="whitespace-pre-wrap">{q.userAnswer}</p>
+                  <div className="bg-zinc-50 border border-zinc-100 rounded-md p-3">
+                    <p className="text-xs text-zinc-500 mb-1">我的回答</p>
+                    <p className="text-sm text-zinc-700 whitespace-pre-wrap">{q.userAnswer}</p>
                   </div>
                 )}
                 {q.feedback && (
-                  <div className="text-sm text-slate-700 bg-slate-50 rounded-lg p-3">
-                    <p className="text-xs text-slate-500 mb-1">评价：</p>
-                    <div className="prose prose-sm prose-slate max-w-none">
+                  <div className="bg-zinc-50 border border-zinc-100 rounded-md p-3 mt-2">
+                    <p className="text-xs text-zinc-500 mb-1">评价</p>
+                    <div className="prose prose-sm prose-zinc max-w-none">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {q.feedback}
                       </ReactMarkdown>
@@ -533,9 +458,9 @@ function PerspectiveReport({ detail }: { detail: PerspectiveDetailDTO }) {
                   </div>
                 )}
                 {q.referenceAnswer && (
-                  <div className="text-sm text-slate-700 bg-green-50 rounded-lg p-3 mt-2 border border-green-100">
-                    <p className="text-xs text-green-600 mb-1 font-medium">参考答案：</p>
-                    <div className="prose prose-sm prose-green max-w-none">
+                  <div className="bg-primary-50/60 border border-primary-100 rounded-md p-3 mt-2">
+                    <p className="text-xs text-primary-700 mb-1">参考答案</p>
+                    <div className="prose prose-sm prose-zinc max-w-none">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {q.referenceAnswer}
                       </ReactMarkdown>
@@ -543,11 +468,14 @@ function PerspectiveReport({ detail }: { detail: PerspectiveDetailDTO }) {
                   </div>
                 )}
                 {q.keyPoints && q.keyPoints.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-xs text-amber-600 mb-1 font-medium">关键要点：</p>
-                    <div className="flex flex-wrap gap-1">
+                  <div className="mt-3">
+                    <p className="text-xs text-zinc-500 mb-1.5">关键要点</p>
+                    <div className="flex flex-wrap gap-1.5">
                       {q.keyPoints.map((point, idx) => (
-                        <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
+                        <span
+                          key={idx}
+                          className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5"
+                        >
                           {point}
                         </span>
                       ))}

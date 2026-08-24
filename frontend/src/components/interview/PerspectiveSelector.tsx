@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { useEffect } from 'react';
 import type { InterviewerRole } from '../../types/interviewerRole';
 import { CheckCircle } from 'lucide-react';
@@ -17,12 +16,6 @@ interface PerspectiveSelectorProps {
 }
 
 const MAX_PERSPECTIVES = 3;
-
-const ROLE_ICONS: Record<string, string> = {
-  TECH_INTERVIEWER: '💻',
-  HR_INTERVIEWER: '👔',
-  TECH_DIRECTOR: '📊',
-};
 
 /**
  * 视角选择器组件 - 多选卡片，最多选择3个视角
@@ -70,13 +63,13 @@ export default function PerspectiveSelector({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <label className="block text-sm font-semibold text-slate-700">
+      <div className="flex items-center justify-between mb-2">
+        <label className="block text-xs font-medium text-zinc-600">
           选择面试官视角
-          <span className="text-slate-400 font-normal ml-1">（最多选 {maxSelect} 个）</span>
+          <span className="text-zinc-400 font-normal ml-1">（最多选 {maxSelect} 个）</span>
         </label>
-        <span className="text-xs text-slate-500">
-          已选择 {selectedIds.length} / {maxSelect}
+        <span className="font-mono text-xs text-zinc-400 tabular-nums">
+          {selectedIds.length} / {maxSelect}
         </span>
       </div>
 
@@ -89,42 +82,39 @@ export default function PerspectiveSelector({
             <div
               key={role.id}
               className={`
-                relative p-4 rounded-xl border-2 text-left transition-all
+                relative p-4 rounded-lg border text-left transition-colors
                 ${isSelected
-                  ? 'border-primary-500 bg-primary-50 shadow-sm'
+                  ? 'border-primary-600 bg-primary-50'
                   : isDisabled
-                    ? 'border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed'
-                    : 'border-slate-200 bg-white hover:border-primary-300 hover:bg-primary-50/50 cursor-pointer'
+                    ? 'border-zinc-200 bg-zinc-50 opacity-60 cursor-not-allowed'
+                    : 'border-zinc-200 bg-white hover:border-primary-400 cursor-pointer'
                 }
               `}
               onClick={() => handleToggle(role.id)}
             >
               {/* 选中标记 */}
               {isSelected && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
+                <div
                   className="absolute top-3 right-3"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <CheckCircle className="w-5 h-5 text-primary-500" />
-                </motion.div>
+                  <CheckCircle className="w-4 h-4 text-primary-600" />
+                </div>
               )}
 
-              {/* 角色图标（点击区域） */}
-              <div className="flex items-center gap-2 mb-2" onClick={(e) => e.stopPropagation()}>
-                <span className="text-2xl">{role.icon || ROLE_ICONS[role.roleCode] || '👤'}</span>
+              {/* 角色名称（点击区域） */}
+              <div className="flex items-center gap-2 mb-2 pr-6" onClick={(e) => e.stopPropagation()}>
                 <div>
-                  <div className="font-semibold text-slate-900 text-sm">{role.roleName}</div>
+                  <div className="text-sm font-medium text-zinc-900">{role.roleName}</div>
                   {role.defaultTemplate && (
-                    <span className="text-xs text-amber-600">默认模板</span>
+                    <span className="text-xs text-zinc-400">默认模板</span>
                   )}
                 </div>
               </div>
 
               {/* 描述 */}
               {role.description && (
-                <p className="text-xs text-slate-500 mb-3 line-clamp-2">
+                <p className="text-xs text-zinc-500 mb-3 line-clamp-2">
                   {role.description}
                 </p>
               )}
@@ -145,23 +135,21 @@ export default function PerspectiveSelector({
                     }}
                     onClick={(e) => e.stopPropagation()}
                     style={{ pointerEvents: 'auto' }}
-                    className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-500"
+                    className="flex-1 h-1.5 bg-zinc-200 rounded-full appearance-none cursor-pointer accent-primary-600"
                   />
-                  <span className="text-xs font-medium text-primary-600 w-10 text-right">
+                  <span className="font-mono text-xs font-medium text-primary-700 w-10 text-right tabular-nums">
                     {((weights[role.id] ?? role.weight) * 100).toFixed(0)}%
                   </span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                    <motion.div
+                  <div className="flex-1 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                    <div
                       className="h-full bg-primary-400 rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${role.weight * 100}%` }}
-                      transition={{ duration: 0.5, delay: 0.1 }}
+                      style={{ width: `${role.weight * 100}%` }}
                     />
                   </div>
-                  <span className="text-xs font-medium text-slate-600 w-10 text-right">
+                  <span className="font-mono text-xs text-zinc-500 w-10 text-right tabular-nums">
                     {(role.weight * 100).toFixed(0)}%
                   </span>
                 </div>
@@ -174,8 +162,8 @@ export default function PerspectiveSelector({
       {/* 已选择提示 + 权重总和 */}
       {selectedIds.length > 0 && (
         <div className="mt-3 space-y-2">
-          <div className="text-sm text-slate-600">
-            <span className="font-medium">已选择：</span>
+          <div className="text-xs text-zinc-500">
+            <span className="font-medium text-zinc-700">已选择：</span>
             {selectedIds
               .map((id) => {
                 const role = enabledRoles.find((r) => r.id === id);
@@ -189,23 +177,21 @@ export default function PerspectiveSelector({
           {/* 权重总和校验 */}
           {onWeightsChange && (
             <div className="flex items-center gap-2">
-              <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden relative">
-                <motion.div
-                  className={`h-full rounded-full transition-colors ${
-                    totalWeight === 1 ? 'bg-green-500' : totalWeight > 1 ? 'bg-red-500' : 'bg-amber-500'
+              <div className="flex-1 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${
+                    totalWeight === 1 ? 'bg-emerald-500' : totalWeight > 1 ? 'bg-red-500' : 'bg-amber-500'
                   }`}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(totalWeight, 1) * 100}%` }}
-                  transition={{ duration: 0.3 }}
+                  style={{ width: `${Math.min(totalWeight, 1) * 100}%` }}
                 />
               </div>
-              <span className={`text-xs font-semibold w-16 text-right ${
-                totalWeight === 1 ? 'text-green-600' : 'text-red-500'
+              <span className={`font-mono text-xs font-medium w-16 text-right tabular-nums ${
+                totalWeight === 1 ? 'text-emerald-700' : 'text-red-700'
               }`}>
                 总计 {(totalWeight * 100).toFixed(0)}%
               </span>
               {totalWeight !== 1 && (
-                <span className="text-xs text-amber-600">
+                <span className="text-xs text-amber-700">
                   {totalWeight < 1 ? '权重不足' : '权重超出'}
                 </span>
               )}

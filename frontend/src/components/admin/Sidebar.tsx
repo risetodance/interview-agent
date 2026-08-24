@@ -5,11 +5,11 @@ import {
   Settings,
   FileText,
   LogOut,
-  Sparkles,
   UserCog,
   Cpu,
 } from 'lucide-react';
 import { useUser } from '../../store/user';
+import BrandMark from '../BrandMark';
 
 interface NavItem {
   id: string;
@@ -87,11 +87,9 @@ export default function AdminSidebar() {
       {/* Logo */}
       <div className="p-6 border-b border-slate-700">
         <Link to="/admin" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
-            <Sparkles className="w-5 h-5" />
-          </div>
+          <BrandMark className="w-9 h-9" />
           <div>
-            <span className="text-lg font-bold text-white tracking-tight block">AI Interview</span>
+            <span className="text-base font-semibold text-white tracking-tight block">智能面试助手</span>
             <span className="text-xs text-slate-400">管理后台</span>
           </div>
         </Link>

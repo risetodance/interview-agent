@@ -1,6 +1,5 @@
 import {useEffect, useState, useCallback, useRef} from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
-import {AnimatePresence, motion} from 'framer-motion';
 import {historyApi, InterviewDetail, ResumeDetail} from '../api/history';
 import AnalysisPanel from '../components/AnalysisPanel';
 import InterviewPanel from '../components/InterviewPanel';
@@ -8,11 +7,9 @@ import InterviewDetailPanel from '../components/InterviewDetailPanel';
 import {formatDateOnly} from '../utils/date';
 import {
   ChevronLeft,
-  Clock,
   Download,
   Mic,
-  CheckSquare,
-  MessageSquare
+  Loader2,
 } from 'lucide-react';
 
 interface ResumeDetailPageProps {
@@ -31,7 +28,6 @@ export default function ResumeDetailPage({ resumeId, onBack, onStartInterview }:
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('analysis');
   const [exporting, setExporting] = useState<string | null>(null);
-  const [[page, direction], setPage] = useState([0, 0]);
   const [detailView, setDetailView] = useState<DetailViewType>('list');
   const [selectedInterview, setSelectedInterview] = useState<InterviewDetail | null>(null);
   const [loadingInterview, setLoadingInterview] = useState(false);
@@ -206,184 +202,139 @@ export default function ResumeDetailPage({ resumeId, onBack, onStartInterview }:
   };
 
   const handleTabChange = (tab: TabType) => {
-    const newPage = tab === 'analysis' ? 0 : 1;
-    setPage([newPage, newPage > page ? 1 : -1]);
     setActiveTab(tab);
     setDetailView('list');
     setSelectedInterview(null);
   };
 
-  const slideVariants = {
-    enter: (direction: number) => ({
-      x: direction > 0 ? 300 : -300,
-      opacity: 0,
-    }),
-    center: {
-      x: 0,
-      opacity: 1,
-    },
-    exit: (direction: number) => ({
-      x: direction < 0 ? 300 : -300,
-      opacity: 0,
-    }),
-  };
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <motion.div 
-          className="w-12 h-12 border-4 border-slate-200 border-t-primary-500 rounded-full"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        />
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
       </div>
     );
   }
 
   if (!resume) {
     return (
-      <div className="text-center py-20">
-        <p className="text-red-500 mb-4">加载失败，请返回重试</p>
-        <button onClick={onBack} className="px-6 py-2 bg-primary-500 text-white rounded-lg">返回列表</button>
+      <div className="text-center py-24">
+        <p className="text-sm text-red-600 mb-4">加载失败，请返回重试</p>
+        <button
+          onClick={onBack}
+          className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors"
+        >
+          返回列表
+        </button>
       </div>
     );
   }
 
   const latestAnalysis = resume.analyses?.[0];
   const tabs = [
-    { id: 'analysis' as const, label: '简历分析', icon: CheckSquare },
-    { id: 'interview' as const, label: '面试记录', icon: MessageSquare, count: resume.interviews?.length || 0 },
+    { id: 'analysis' as const, label: '简历分析' },
+    { id: 'interview' as const, label: '面试记录', count: resume.interviews?.length || 0 },
   ];
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="w-full"
-    >
-      {/* 顶部导航栏 */}
-      <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
-        <div className="flex items-center gap-4">
-          <motion.button 
+    <div className="fade-in w-full">
+      {/* 页头 */}
+      <div className="flex items-end justify-between mb-6 flex-wrap gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <button
             onClick={detailView === 'interviewDetail' ? handleBackToInterviewList : onBack}
-            className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all shadow-sm"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            className="h-9 w-9 shrink-0 flex items-center justify-center rounded-md border border-zinc-300 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 hover:border-zinc-400 transition-colors"
+            aria-label="返回"
           >
-            <ChevronLeft className="w-5 h-5" />
-          </motion.button>
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold text-zinc-900 tracking-tight truncate max-w-[560px]">
               {detailView === 'interviewDetail' ? `面试详情 #${selectedInterview?.sessionId?.slice(-6) || ''}` : resume.filename}
-            </h2>
-            <p className="text-sm text-slate-500 flex items-center gap-1.5">
-              <Clock className="w-4 h-4" />
-              {detailView === 'interviewDetail' 
+            </h1>
+            <p className="mt-1 font-mono text-xs text-zinc-400 tabular-nums">
+              {detailView === 'interviewDetail'
                 ? `完成于 ${formatDateOnly(selectedInterview?.completedAt || selectedInterview?.createdAt || '')}`
                 : `上传于 ${formatDateOnly(resume.uploadedAt)}`
               }
             </p>
           </div>
         </div>
-        
-        <div className="flex gap-3">
+
+        <div className="flex gap-2.5">
           {detailView === 'interviewDetail' && selectedInterview && (
-            <motion.button
+            <button
               onClick={() => handleExportInterviewPdf(selectedInterview.sessionId)}
               disabled={exporting === selectedInterview.sessionId}
-              className="px-5 py-2.5 border border-slate-200 bg-white rounded-xl text-slate-600 font-medium hover:bg-slate-50 transition-all disabled:opacity-50 flex items-center gap-2"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               <Download className="w-4 h-4" />
               {exporting === selectedInterview.sessionId ? '导出中...' : '导出 PDF'}
-            </motion.button>
+            </button>
           )}
           {detailView !== 'interviewDetail' && (
-            <motion.button
+            <button
               onClick={() => onStartInterview(resume.resumeText, resumeId)}
-              className="px-5 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-medium shadow-lg shadow-primary-500/30 hover:shadow-xl transition-all flex items-center gap-2"
-              whileHover={{ scale: 1.02, y: -1 }}
-              whileTap={{ scale: 0.98 }}
+              className="h-9 px-5 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors inline-flex items-center gap-2"
             >
               <Mic className="w-4 h-4" />
               开始模拟面试
-            </motion.button>
+            </button>
           )}
         </div>
       </div>
 
-      {/* 标签页切换 - 仅在非面试详情时显示 */}
+      {/* 标签页切换（底线式）- 仅在非面试详情时显示 */}
       {detailView !== 'interviewDetail' && (
-        <div className="bg-white rounded-2xl p-2 mb-6 inline-flex gap-1">
+        <div className="flex items-center border-b border-zinc-200 mb-6">
           {tabs.map((tab) => (
-            <motion.button
+            <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
-              className={`relative px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors
-                ${activeTab === tab.id ? 'text-primary-600' : 'text-slate-500 hover:text-slate-700'}`}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              className={`pb-2.5 pr-6 text-sm border-b-2 -mb-px transition-colors ${
+                activeTab === tab.id
+                  ? 'border-primary-600 text-zinc-900 font-medium'
+                  : 'border-transparent text-zinc-500 hover:text-zinc-800'
+              }`}
             >
-              {activeTab === tab.id && (
-                <motion.div
-                  layoutId="activeTab"
-                  className="absolute inset-0 bg-primary-50 rounded-xl"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                />
+              {tab.label}
+              {tab.count !== undefined && tab.count > 0 && (
+                <span className="ml-1.5 font-mono text-xs text-zinc-400 tabular-nums">{tab.count}</span>
               )}
-              <span className="relative z-10 flex items-center gap-2">
-                <tab.icon className="w-5 h-5" />
-                {tab.label}
-                {tab.count !== undefined && tab.count > 0 && (
-                  <span className="px-2 py-0.5 bg-primary-100 text-primary-600 text-xs rounded-full">{tab.count}</span>
-                )}
-              </span>
-            </motion.button>
+            </button>
           ))}
         </div>
       )}
 
       {/* 内容区域 */}
-      <div className="relative overflow-hidden">
+      <div>
         {detailView === 'interviewDetail' && selectedInterview ? (
           <InterviewDetailPanel interview={selectedInterview} />
+        ) : activeTab === 'analysis' ? (
+          <div key="analysis" className="fade-in">
+            <AnalysisPanel
+              analysis={latestAnalysis}
+              analyzeStatus={resume.analyzeStatus}
+              analyzeError={resume.analyzeError}
+              onExport={handleExportAnalysisPdf}
+              exporting={exporting === 'analysis'}
+              onReanalyze={handleReanalyze}
+              reanalyzing={reanalyzing}
+            />
+          </div>
         ) : (
-          <AnimatePresence initial={false} custom={direction} mode="wait">
-            <motion.div
-              key={activeTab}
-              custom={direction}
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            >
-              {activeTab === 'analysis' ? (
-                <AnalysisPanel
-                  analysis={latestAnalysis}
-                  analyzeStatus={resume.analyzeStatus}
-                  analyzeError={resume.analyzeError}
-                  onExport={handleExportAnalysisPdf}
-                  exporting={exporting === 'analysis'}
-                  onReanalyze={handleReanalyze}
-                  reanalyzing={reanalyzing}
-                />
-              ) : (
-                <InterviewPanel
-                  interviews={resume.interviews || []}
-                  onStartInterview={() => onStartInterview(resume.resumeText, resumeId)}
-                  onViewInterview={handleViewInterview}
-                  onExportInterview={handleExportInterviewPdf}
-                  onDeleteInterview={handleDeleteInterview}
-                  exporting={exporting}
-                  loadingInterview={loadingInterview}
-                />
-              )}
-            </motion.div>
-          </AnimatePresence>
+          <div key="interview" className="fade-in">
+            <InterviewPanel
+              interviews={resume.interviews || []}
+              onStartInterview={() => onStartInterview(resume.resumeText, resumeId)}
+              onViewInterview={handleViewInterview}
+              onExportInterview={handleExportInterviewPdf}
+              onDeleteInterview={handleDeleteInterview}
+              exporting={exporting}
+              loadingInterview={loadingInterview}
+            />
+          </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }

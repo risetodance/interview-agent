@@ -1,10 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
   ArrowLeft,
-  Gift,
-  Calendar,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -27,46 +24,6 @@ function getPointsTypeText(type: PointsRecordType): string {
   }
 }
 
-// 积分记录类型样式
-function getPointsTypeStyle(type: PointsRecordType): {
-  bg: string;
-  text: string;
-  icon: React.ComponentType<{ className?: string }>;
-} {
-  switch (type) {
-    case 'SIGN_IN':
-      return {
-        bg: 'bg-green-100',
-        text: 'text-green-600',
-        icon: Calendar,
-      };
-    case 'COMPLETE_INTERVIEW':
-      return {
-        bg: 'bg-blue-100',
-        text: 'text-blue-600',
-        icon: Gift,
-      };
-    case 'SHARE_KB':
-      return {
-        bg: 'bg-purple-100',
-        text: 'text-purple-600',
-        icon: Gift,
-      };
-    case 'EXCHANGE':
-      return {
-        bg: 'bg-orange-100',
-        text: 'text-orange-600',
-        icon: Gift,
-      };
-    default:
-      return {
-        bg: 'bg-slate-100',
-        text: 'text-slate-600',
-        icon: Gift,
-      };
-  }
-}
-
 // 格式化日期时间
 function formatDateTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -80,43 +37,28 @@ function formatDateTime(dateStr: string): string {
 }
 
 // 积分记录行组件
-function PointsRecordRow({
-  record,
-  index,
-}: {
-  record: PointsRecordDTO;
-  index: number;
-}) {
-  const typeStyle = getPointsTypeStyle(record.type);
+function PointsRecordRow({ record }: { record: PointsRecordDTO }) {
   const isPositive = record.points > 0;
 
   return (
-    <motion.tr
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
-      className="border-b border-slate-50 hover:bg-slate-50 transition-colors"
-    >
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className={`p-2.5 rounded-lg ${typeStyle.bg}`}>
-            <typeStyle.icon className={`w-4 h-4 ${typeStyle.text}`} />
-          </div>
-          <div>
-            <p className="font-medium text-slate-800">{getPointsTypeText(record.type)}</p>
-            <p className="text-sm text-slate-500">{record.description}</p>
-          </div>
-        </div>
+    <tr className="hover:bg-zinc-50 transition-colors">
+      <td className="px-5 py-3.5">
+        <p className="text-sm text-zinc-800">{getPointsTypeText(record.type)}</p>
+        <p className="mt-0.5 text-xs text-zinc-400">{record.description}</p>
       </td>
-      <td className="px-6 py-4">
-        <span className={`font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+      <td className="px-5 py-3.5">
+        <span
+          className={`font-mono text-sm font-medium tabular-nums ${
+            isPositive ? 'text-emerald-700' : 'text-red-700'
+          }`}
+        >
           {isPositive ? '+' : ''}{record.points}
         </span>
       </td>
-      <td className="px-6 py-4 text-sm text-slate-500">
+      <td className="px-5 py-3.5 font-mono text-xs text-zinc-400 whitespace-nowrap">
         {formatDateTime(record.createdAt)}
       </td>
-    </motion.tr>
+    </tr>
   );
 }
 
@@ -168,20 +110,21 @@ function Pagination({
   };
 
   return (
-    <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
-      <div className="text-sm text-slate-500">
-        共 <span className="font-medium text-slate-700">{totalElements}</span> 条记录，
-        第 <span className="font-medium text-slate-700">{currentPage + 1}</span> /{' '}
-        <span className="font-medium text-slate-700">{totalPages}</span> 页
-      </div>
+    <div className="flex items-center justify-between px-5 py-3 border-t border-zinc-100">
+      <p className="text-xs text-zinc-500">
+        共 <span className="font-mono text-zinc-700 tabular-nums">{totalElements}</span> 条 · 第{' '}
+        <span className="font-mono text-zinc-700 tabular-nums">{currentPage + 1}</span> /{' '}
+        <span className="font-mono text-zinc-700 tabular-nums">{totalPages}</span> 页
+      </p>
       <div className="flex items-center gap-1">
         {/* 上一页 */}
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 0}
-          className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="h-8 w-8 flex items-center justify-center border border-zinc-300 rounded-md text-zinc-500 hover:bg-zinc-50 hover:border-zinc-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          aria-label="上一页"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-4 h-4" />
         </button>
 
         {/* 页码 */}
@@ -190,16 +133,16 @@ function Pagination({
             <button
               key={index}
               onClick={() => onPageChange(page)}
-              className={`min-w-[36px] h-9 px-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`h-8 min-w-[32px] px-1.5 rounded-md text-sm font-medium border transition-colors ${
                 currentPage === page
-                  ? 'bg-primary-500 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'border-primary-600 bg-primary-600 text-white'
+                  : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50 hover:border-zinc-400'
               }`}
             >
               {page + 1}
             </button>
           ) : (
-            <span key={index} className="px-2 text-slate-400">
+            <span key={index} className="px-1.5 text-sm text-zinc-400">
               {page}
             </span>
           )
@@ -209,9 +152,10 @@ function Pagination({
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages - 1}
-          className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="h-8 w-8 flex items-center justify-center border border-zinc-300 rounded-md text-zinc-500 hover:bg-zinc-50 hover:border-zinc-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          aria-label="下一页"
         >
-          <ChevronRight className="w-5 h-5" />
+          <ChevronRight className="w-4 h-4" />
         </button>
       </div>
     </div>
@@ -263,71 +207,65 @@ export default function PointsHistoryPage() {
   if (loading && !history) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+        <Loader2 className="w-5 h-5 text-zinc-400 animate-spin" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-5xl mx-auto">
-        <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4">
+      <div>
+        <div className="border border-red-200 bg-red-50 rounded-lg px-4 py-3 text-sm text-red-700 mb-4">
           {error}
         </div>
         <button
           onClick={handleBack}
-          className="flex items-center gap-2 text-primary-600 hover:text-primary-700"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-800 transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>返回会员中心</span>
+          <ArrowLeft className="w-3.5 h-3.5" />
+          返回会员中心
         </button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
-      {/* 页面头部 */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
+    <div className="fade-in">
+      {/* 页头 */}
+      <div className="flex items-end justify-between mb-6">
+        <div className="flex items-center gap-3">
           <button
             onClick={handleBack}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            className="h-9 w-9 flex items-center justify-center border border-zinc-300 rounded-md text-zinc-500 hover:bg-zinc-50 hover:border-zinc-400 transition-colors shrink-0"
+            aria-label="返回会员中心"
           >
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
+            <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-              <Gift className="w-7 h-7 text-primary-500" />
-              积分记录
-            </h1>
-            <p className="text-slate-500 mt-1">查看您的积分获取与使用记录</p>
+            <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">积分记录</h1>
+            <p className="mt-1 text-sm text-zinc-500">积分获取与使用明细</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 px-4 py-2 bg-primary-50 rounded-xl">
-          <Gift className="w-5 h-5 text-primary-600" />
-          <span className="text-sm text-primary-600">当前积分:</span>
-          <span className="text-xl font-bold text-primary-700">
+        <div className="text-right shrink-0">
+          <p className="text-xs text-zinc-500">当前积分</p>
+          <p className="mt-1 font-mono text-2xl font-semibold text-primary-800 tabular-nums">
             {points.toLocaleString()}
-          </span>
+          </p>
         </div>
       </div>
 
       {/* 积分记录列表 */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-        {loading && (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 text-primary-500 animate-spin" />
+      <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-5 h-5 text-zinc-400 animate-spin" />
           </div>
-        )}
-
-        {!loading && history && history.content.length === 0 ? (
-          <div className="text-center py-16">
-            <Gift className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-500">暂无积分记录</p>
+        ) : !loading && history && history.content.length === 0 ? (
+          <div className="px-5 py-8 text-center">
+            <p className="text-xs text-zinc-400">暂无积分记录，去会员中心签到可获得积分</p>
             <button
               onClick={handleBack}
-              className="mt-4 text-primary-500 hover:text-primary-600"
+              className="mt-3 text-xs text-primary-700 hover:text-primary-800 hover:underline underline-offset-2 transition-colors"
             >
               返回会员中心
             </button>
@@ -335,26 +273,16 @@ export default function PointsHistoryPage() {
         ) : (
           <>
             <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-100">
+              <thead className="bg-zinc-50 border-b border-zinc-100">
                 <tr>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-slate-600">
-                    记录类型
-                  </th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-slate-600">
-                    积分变化
-                  </th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-slate-600">
-                    时间
-                  </th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-zinc-500">记录类型</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-zinc-500">积分变化</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-zinc-500">时间</th>
                 </tr>
               </thead>
-              <tbody>
-                {history?.content.map((record, index) => (
-                  <PointsRecordRow
-                    key={record.id}
-                    record={record}
-                    index={index}
-                  />
+              <tbody className="divide-y divide-zinc-100">
+                {history?.content.map((record) => (
+                  <PointsRecordRow key={record.id} record={record} />
                 ))}
               </tbody>
             </table>

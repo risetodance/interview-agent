@@ -1,5 +1,4 @@
 import {useMemo, useState} from 'react';
-import {AnimatePresence, motion} from 'framer-motion';
 import {Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer} from 'recharts';
 import {getScoreColor} from '../utils/score';
 import type {CategoryScoreDTO, InterviewDetail} from '../api/history';
@@ -54,11 +53,7 @@ export default function InterviewDetailPanel({ interview }: InterviewDetailPanel
   }, [interview.categoryScores]);
 
   return (
-    <motion.div
-      className="space-y-6"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
+    <div className="space-y-5 fade-in">
       {/* 评分卡片 */}
       <ScoreCard
         score={interview.overallScore}
@@ -89,52 +84,49 @@ export default function InterviewDetailPanel({ interview }: InterviewDetailPanel
         expandedQuestions={expandedQuestions}
         toggleQuestion={toggleQuestion}
       />
-    </motion.div>
+    </div>
   );
 }
 
 // 能力画像雷达图组件
 function AbilityProfileSection({ radarData }: { radarData: any[] }) {
   return (
-    <motion.div
-      className="bg-white rounded-2xl p-6 shadow-sm"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.15 }}
-    >
-      <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-        <svg className="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="none">
-          <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        能力画像
-      </h4>
-      <div className="h-80">
-        <ResponsiveContainer width="100%" height="100%">
-          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-            <PolarGrid stroke="#e2e8f0" />
-            <PolarAngleAxis
-              dataKey="category"
-              tick={{ fill: '#64748b', fontSize: 12 }}
-            />
-            <PolarRadiusAxis
-              angle={30}
-              domain={[0, 100]}
-              tick={{ fill: '#94a3b8', fontSize: 10 }}
-            />
-            <Radar
-              name="得分"
-              dataKey="score"
-              stroke="#8b5cf6"
-              fill="#8b5cf6"
-              fillOpacity={0.3}
-              strokeWidth={2}
-            />
-          </RadarChart>
-        </ResponsiveContainer>
+    <div className="bg-white border border-zinc-200 rounded-lg">
+      <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
+        <h4 className="text-sm font-medium text-zinc-900">能力画像</h4>
+        <span className="font-mono text-xs text-zinc-400">{radarData.length} 个维度</span>
       </div>
-    </motion.div>
+      <div className="p-5">
+        <div className="h-80">
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+            initialDimension={{ width: 600, height: 320 }}
+          >
+            <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+              <PolarGrid stroke="#e4e4e7" />
+              <PolarAngleAxis
+                dataKey="category"
+                tick={{ fill: '#52525b', fontSize: 12 }}
+              />
+              <PolarRadiusAxis
+                angle={30}
+                domain={[0, 100]}
+                tick={{ fill: '#a1a1aa', fontSize: 10 }}
+              />
+              <Radar
+                name="得分"
+                dataKey="score"
+                stroke="#276f8d"
+                fill="#3589a5"
+                fillOpacity={0.2}
+                strokeWidth={2}
+              />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -153,48 +145,44 @@ function ScoreCard({
   strokeDashoffset: number;
 }) {
   return (
-    <div className="bg-gradient-to-br from-sky-600 via-sky-500 to-sky-400 rounded-2xl p-8 text-white">
-      <div className="flex flex-col items-center text-center">
+    <div className="bg-white border border-zinc-200 rounded-lg">
+      <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
+        <h4 className="text-sm font-medium text-zinc-900">面试评估</h4>
+        <span className="font-mono text-xs text-zinc-400">满分 100</span>
+      </div>
+      <div className="p-6 flex flex-col items-center text-center">
         {/* 圆环进度条 */}
-        <div className="relative w-32 h-32 mb-6">
+        <div className="relative w-32 h-32">
           <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 120 120">
             <circle
               cx="60"
               cy="60"
               r="54"
-              stroke="rgba(255,255,255,0.2)"
+              stroke="#e4e4e7"
               strokeWidth="8"
               fill="none"
             />
-            <motion.circle
+            <circle
               cx="60"
               cy="60"
               r="54"
-              stroke="white"
+              stroke="#276f8d"
               strokeWidth="8"
               fill="none"
               strokeLinecap="round"
               strokeDasharray={circumference}
-              initial={{ strokeDashoffset: circumference }}
-              animate={{ strokeDashoffset }}
-              transition={{ duration: 1.5, ease: "easeOut" }}
+              strokeDashoffset={strokeDashoffset}
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <motion.span 
-              className="text-4xl font-bold"
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5 }}
-            >
+            <span className="font-mono text-3xl font-semibold text-zinc-900 tabular-nums">
               {score ?? '-'}
-            </motion.span>
-            <span className="text-sm text-white/70">总分</span>
+            </span>
+            <span className="text-xs text-zinc-400 mt-0.5">总分</span>
           </div>
         </div>
-        
-        <h3 className="text-2xl font-bold mb-3">面试评估</h3>
-        <p className="text-white/90 max-w-2xl leading-relaxed">
+
+        <p className="mt-5 text-sm text-zinc-600 max-w-2xl leading-relaxed">
           {feedback || '表现良好，展示了扎实的技术基础。'}
         </p>
       </div>
@@ -205,57 +193,40 @@ function ScoreCard({
 // 优势部分组件
 function StrengthsSection({ strengths }: { strengths: string[] }) {
   return (
-    <motion.div 
-      className="bg-white rounded-2xl p-6 shadow-sm"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.1 }}
-    >
-      <h4 className="font-semibold text-emerald-600 mb-4 flex items-center gap-2">
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          <polyline points="22,4 12,14.01 9,11.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        表现优势
-      </h4>
-      <ul className="space-y-3">
+    <div className="bg-white border border-zinc-200 rounded-lg">
+      <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
+        <h4 className="text-sm font-medium text-zinc-900">表现优势</h4>
+        <span className="font-mono text-xs text-zinc-400">{strengths.length} 项</span>
+      </div>
+      <ul className="p-5 space-y-2.5">
         {strengths.map((s: string, i: number) => (
-          <li key={i} className="text-slate-700 flex items-start gap-3">
-            <span className="w-2 h-2 bg-primary-500 rounded-full mt-2 flex-shrink-0"></span>
+          <li key={i} className="text-sm text-zinc-700 flex items-start gap-2.5">
+            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-[7px] shrink-0"></span>
             <span>{s}</span>
           </li>
         ))}
       </ul>
-    </motion.div>
+    </div>
   );
 }
 
 // 改进建议部分组件
 function ImprovementsSection({ improvements }: { improvements: string[] }) {
   return (
-    <motion.div 
-      className="bg-white rounded-2xl p-6 shadow-sm"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
-    >
-      <h4 className="font-semibold text-amber-600 mb-4 flex items-center gap-2">
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-          <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        </svg>
-        改进建议
-      </h4>
-      <ul className="space-y-3">
+    <div className="bg-white border border-zinc-200 rounded-lg">
+      <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
+        <h4 className="text-sm font-medium text-zinc-900">改进建议</h4>
+        <span className="font-mono text-xs text-zinc-400">{improvements.length} 项</span>
+      </div>
+      <ul className="p-5 space-y-2.5">
         {improvements.map((s: string, i: number) => (
-          <li key={i} className="text-slate-700 flex items-start gap-3">
-            <span className="w-2 h-2 bg-amber-500 rounded-full mt-2 flex-shrink-0"></span>
+          <li key={i} className="text-sm text-zinc-700 flex items-start gap-2.5">
+            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full mt-[7px] shrink-0"></span>
             <span>{s}</span>
           </li>
         ))}
       </ul>
-    </motion.div>
+    </div>
   );
 }
 
@@ -271,19 +242,16 @@ function QuestionsSection({
 }) {
   return (
     <div>
-      <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-        <svg className="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="none">
-          <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        问答记录详情
-      </h4>
-      
-      <div className="space-y-4">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-medium text-zinc-900">问答记录详情</h4>
+        <span className="font-mono text-xs text-zinc-400">{answers.length} 题</span>
+      </div>
+
+      <div className="space-y-3">
         {answers.map((answer, idx) => (
           <QuestionCard
             key={idx}
             answer={answer}
-            index={idx}
             isExpanded={expandedQuestions.has(idx)}
             onToggle={() => toggleQuestion(idx)}
           />
@@ -296,115 +264,79 @@ function QuestionsSection({
 // 问题卡片组件
 function QuestionCard({
   answer,
-  index,
   isExpanded,
   onToggle
 }: {
   answer: any;
-  index: number;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
   return (
-    <motion.div 
-      className="bg-white rounded-2xl shadow-sm overflow-hidden"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.1 + index * 0.05 }}
-    >
+    <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
       {/* 问题头部 */}
-      <div 
-        className="px-5 py-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+      <div
+        className="px-5 py-3.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-zinc-50 transition-colors"
         onClick={onToggle}
       >
-        <div className="flex items-center gap-3">
-          <span className="w-8 h-8 bg-slate-100 text-slate-600 rounded-lg flex items-center justify-center text-sm font-semibold">
+        <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
+          <span className="w-7 h-7 bg-zinc-100 text-zinc-600 rounded-md flex items-center justify-center font-mono text-xs font-semibold tabular-nums shrink-0">
             {answer.questionIndex + 1}
           </span>
-          <span className="px-3 py-1 bg-primary-50 text-primary-600 text-xs font-medium rounded-full">
+          <span className="text-xs border rounded px-1.5 py-0.5 bg-primary-50 border-primary-200 text-primary-700">
             {answer.category || '综合'}
           </span>
-          <span className={`font-semibold ${getScoreColor(answer.score, [80, 60])}`}>
-            得分: {answer.score}
+          <span className={`text-xs font-medium rounded px-1.5 py-0.5 font-mono tabular-nums ${getScoreColor(answer.score, [80, 60])}`}>
+            得分 {answer.score}
           </span>
         </div>
-        <motion.svg 
-          className="w-5 h-5 text-slate-400"
-          animate={{ rotate: isExpanded ? 180 : 0 }}
-          transition={{ duration: 0.2 }}
-          viewBox="0 0 24 24" 
+        <svg
+          className={`w-4 h-4 text-zinc-400 shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+          viewBox="0 0 24 24"
           fill="none"
         >
           <polyline points="6,9 12,15 18,9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </motion.svg>
+        </svg>
       </div>
-      
+
       {/* 问题内容 */}
-      <div className="px-5 pb-2">
-        <p className="text-slate-800 font-medium leading-relaxed">{answer.question}</p>
+      <div className="px-5 pb-4">
+        <p className="text-sm text-zinc-800 font-medium leading-relaxed">{answer.question}</p>
       </div>
 
       {/* 展开内容 */}
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="overflow-hidden"
-          >
-            <div className="px-5 pb-5 space-y-4">
-              {/* 你的回答 */}
-              <div className="bg-slate-50 rounded-xl p-4">
-                <p className="text-sm text-slate-500 mb-2 flex items-center gap-1">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  你的回答
-                </p>
-                <p className={`leading-relaxed ${
-                  !answer.userAnswer || answer.userAnswer === '不知道' 
-                    ? 'text-red-500 font-medium' 
-                    : 'text-slate-700'
-                }`}>
-                  "{answer.userAnswer || '(未回答)'}"
-                </p>
-              </div>
-
-              {/* AI 深度评价 */}
-              {answer.feedback && (
-                <div>
-                  <p className="text-sm text-slate-600 mb-2 flex items-center gap-2 font-medium">
-                    <svg className="w-4 h-4 text-primary-500" viewBox="0 0 24 24" fill="none">
-                      <path d="M3 3V21H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M18 9L12 15L9 12L3 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    AI 深度评价
-                  </p>
-                  <p className="text-slate-700 leading-relaxed pl-6">{answer.feedback}</p>
-                </div>
-              )}
-
-              {/* 参考答案 */}
-              {answer.referenceAnswer && (
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                  <p className="text-sm text-slate-600 mb-3 flex items-center gap-2 font-medium">
-                    <svg className="w-4 h-4 text-primary-500" viewBox="0 0 24 24" fill="none">
-                      <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2"/>
-                      <path d="M9 12H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                      <path d="M12 9V15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
-                    参考答案
-                  </p>
-                  <div className="text-slate-700 leading-relaxed whitespace-pre-line">{answer.referenceAnswer}</div>
-                </div>
-              )}
+      {isExpanded && (
+        <div className="px-5 pb-5 fade-in">
+          <div className="space-y-3 border-t border-zinc-100 pt-4">
+            {/* 你的回答 */}
+            <div className="bg-zinc-50 border border-zinc-100 rounded-md p-4">
+              <p className="text-xs text-zinc-400 mb-1.5">你的回答</p>
+              <p className={`text-sm leading-relaxed ${
+                !answer.userAnswer || answer.userAnswer === '不知道'
+                  ? 'text-red-700 font-medium'
+                  : 'text-zinc-700'
+              }`}>
+                "{answer.userAnswer || '(未回答)'}"
+              </p>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+
+            {/* AI 深度评价 */}
+            {answer.feedback && (
+              <div>
+                <p className="text-xs font-medium text-zinc-500 mb-1.5">AI 深度评价</p>
+                <p className="text-sm text-zinc-700 leading-relaxed">{answer.feedback}</p>
+              </div>
+            )}
+
+            {/* 参考答案 */}
+            {answer.referenceAnswer && (
+              <div className="bg-zinc-50 border border-zinc-100 rounded-md p-4">
+                <p className="text-xs font-medium text-zinc-500 mb-2">参考答案</p>
+                <div className="text-sm text-zinc-700 leading-relaxed whitespace-pre-line">{answer.referenceAnswer}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
-

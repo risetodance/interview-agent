@@ -1,12 +1,12 @@
 import { useMemo, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import type { CurrentQuestionDTO, DifficultyLevel, InterviewSession } from '../types/interview';
 import { PROGRESS_LABELS, type ProgressStageKey } from '../api/interview';
 import {
   Send,
   User,
-  BookOpen
+  BookOpen,
+  Loader2
 } from 'lucide-react';
 
 interface Message {
@@ -86,29 +86,24 @@ export default function InterviewChatPanel({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)] max-w-4xl mx-auto">
-      {/* 进度条 */}
-      <div className="bg-white rounded-2xl p-6 mb-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-semibold text-slate-700">
-            题目 {session.currentQuestionIndex !== undefined ? session.currentQuestionIndex + 1 : (currentQuestion ? currentQuestion.questionIndex + 1 : 0)}{session.totalQuestions ? ` / ${session.totalQuestions}` : ''}
-          </span>
-          <span className="text-sm text-slate-500">
-            {Math.round(progress)}%
+    <div className="h-full max-w-4xl mx-auto flex flex-col">
+      {/* 答题进度 */}
+      <div className="bg-white border border-zinc-200 rounded-lg shrink-0">
+        <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
+          <span className="text-sm font-medium text-zinc-900">答题进度</span>
+          <span className="font-mono text-xs text-zinc-400 tabular-nums">
+            题目 {session.currentQuestionIndex !== undefined ? session.currentQuestionIndex + 1 : (currentQuestion ? currentQuestion.questionIndex + 1 : 0)}{session.totalQuestions ? ` / ${session.totalQuestions}` : ''} · {Math.round(progress)}%
           </span>
         </div>
-        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full"
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.3 }}
-          />
+        <div className="px-5 py-3.5">
+          <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+            <div className="h-full bg-primary-600 rounded-full" style={{ width: `${progress}%` }} />
+          </div>
         </div>
       </div>
 
       {/* 聊天区域 */}
-      <div className="flex-1 bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-0">
+      <div className="mt-4 flex-1 min-h-0 bg-white border border-zinc-200 rounded-lg overflow-hidden flex flex-col">
         <Virtuoso
           ref={virtuosoRef}
           data={messages}
@@ -123,32 +118,26 @@ export default function InterviewChatPanel({
         />
 
         {/* 输入区域 */}
-        <div className="border-t border-slate-200 p-4 bg-slate-50">
+        <div className="border-t border-zinc-100 bg-zinc-50 p-4 shrink-0">
           <div className="flex gap-3">
             <textarea
               value={answer}
               onChange={(e) => onAnswerChange(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder="输入你的回答... (Ctrl/Cmd + Enter 提交)"
-              className="flex-1 px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+              className="flex-1 px-3 py-2.5 border border-zinc-300 rounded-md bg-white text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors resize-none disabled:bg-zinc-100 disabled:text-zinc-400"
               rows={3}
               disabled={isSubmitting || isLoadingQuestion}
             />
-            <div className="flex flex-col gap-2">
-              <motion.button
+            <div className="flex flex-col gap-2 justify-end">
+              <button
                 onClick={onSubmit}
                 disabled={!answer.trim() || isSubmitting || isLoadingQuestion || !!progressStage}
-                className="px-6 py-3 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                whileHover={{ scale: isSubmitting || isLoadingQuestion || !!progressStage || !answer.trim() ? 1 : 1.02 }}
-                whileTap={{ scale: isSubmitting || isLoadingQuestion || !!progressStage || !answer.trim() ? 1 : 0.98 }}
+                className="h-9 px-5 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap"
               >
                 {isSubmitting || isLoadingQuestion || progressStage ? (
                   <>
-                    <motion.div
-                      className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                     {progressStage ? PROGRESS_LABELS[progressStage] : (isLoadingQuestion ? '加载中...' : '提交中')}
                   </>
                 ) : (
@@ -157,16 +146,14 @@ export default function InterviewChatPanel({
                     提交
                   </>
                 )}
-              </motion.button>
-              <motion.button
+              </button>
+              <button
                 onClick={() => onShowCompleteConfirm(true)}
                 disabled={isSubmitting || isLoadingQuestion || !!progressStage}
-                className="px-6 py-3 bg-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                whileHover={{ scale: isSubmitting || isLoadingQuestion || !!progressStage ? 1 : 1.02 }}
-                whileTap={{ scale: isSubmitting || isLoadingQuestion || !!progressStage ? 1 : 0.98 }}
+                className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
               >
                 提前交卷
-              </motion.button>
+              </button>
             </div>
           </div>
         </div>
@@ -183,51 +170,47 @@ function MessageBubble({ message }: { message: Message }) {
     const isFollowUp = message.isFollowUp || false;
 
     return (
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="flex items-start gap-3"
-      >
-        <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
-          <User className="w-4 h-4 text-primary-600" />
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 rounded-md bg-primary-50 border border-primary-100 flex items-center justify-center shrink-0">
+          <User className="w-4 h-4 text-primary-700" />
         </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="text-sm font-semibold text-slate-700">面试官</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+            <span className="text-xs font-medium text-zinc-500">面试官</span>
             {/* 视角标签（始终显示） */}
             {message.createdByPerspectiveName && (
-              <span className="px-2 py-0.5 bg-purple-50 text-purple-600 text-xs rounded-full border border-purple-200 font-medium">
-                [{message.createdByPerspectiveName}]
+              <span className="text-xs border rounded px-1.5 py-0.5 bg-primary-50 border-primary-200 text-primary-700 font-medium">
+                {message.createdByPerspectiveName}
               </span>
             )}
             {isFollowUp ? (
-              <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-xs rounded-full border border-amber-200">
+              <span className="text-xs border rounded px-1.5 py-0.5 bg-amber-50 border-amber-200 text-amber-700">
                 追问 {message.relatedIndex ? `· 关于问题${message.relatedIndex + 1}` : ''}
               </span>
             ) : null}
             {/* 分类（追问时也显示） */}
             {message.category && (
-              <span className="px-2 py-0.5 bg-primary-50 text-primary-600 text-xs rounded-full">
+              <span className="text-xs border rounded px-1.5 py-0.5 bg-zinc-50 border-zinc-200 text-zinc-600">
                 {message.category}
               </span>
             )}
             {/* 难度（追问时也显示） */}
             {difficultyStyle && difficulty && (
-              <span className={`px-2 py-0.5 ${difficultyStyle.bg} ${difficultyStyle.text} text-xs rounded-full border ${difficultyStyle.border}`}>
+              <span className={`text-xs border rounded px-1.5 py-0.5 ${difficultyStyle.bg} ${difficultyStyle.text} ${difficultyStyle.border}`}>
                 {difficultyLabels[difficulty]}
               </span>
             )}
           </div>
           {message.knowledgeBaseName && !isFollowUp && (
-            <div className="flex items-center gap-1 mb-2 text-xs text-slate-500">
+            <div className="flex items-center gap-1 mb-1.5 text-xs text-zinc-400">
               <BookOpen className="w-3 h-3" />
               <span>{message.knowledgeBaseName}</span>
             </div>
           )}
-          <div className="bg-slate-100 rounded-2xl rounded-tl-none p-4 text-slate-800 leading-relaxed">
+          <div className="bg-white border border-zinc-200 rounded-md px-4 py-3 text-sm text-zinc-800 leading-relaxed whitespace-pre-wrap">
             {isFollowUp && message.relatedQuestion ? (
               <>
-                <div className="text-xs text-amber-600 mb-2 pb-2 border-b border-amber-200">
+                <div className="text-xs text-amber-700 mb-2 pb-2 border-b border-amber-200">
                   {message.relatedIndex ? `关于问题${message.relatedIndex + 1}：` : ''}{message.relatedQuestion}
                 </div>
                 <div>{message.content}</div>
@@ -237,28 +220,20 @@ function MessageBubble({ message }: { message: Message }) {
             )}
           </div>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      className="flex items-start gap-3 justify-end"
-    >
+    <div className="flex items-start gap-3 justify-end">
       <div className="flex-1 max-w-[80%]">
-        <div className="bg-primary-500 text-white rounded-2xl rounded-tr-none p-4 leading-relaxed">
+        <div className="bg-primary-600 text-white rounded-md px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
           {message.content}
         </div>
       </div>
-      <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center flex-shrink-0">
-        <svg className="w-4 h-4 text-slate-600" viewBox="0 0 24 24" fill="none">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" />
-        </svg>
+      <div className="w-8 h-8 rounded-md bg-zinc-100 border border-zinc-200 flex items-center justify-center shrink-0">
+        <User className="w-4 h-4 text-zinc-500" />
       </div>
-    </motion.div>
+    </div>
   );
 }
-

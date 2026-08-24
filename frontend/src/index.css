@@ -1,22 +1,30 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* 自定义主题 */
+/*
+ * 设计 token —— 墨水蓝 + IBM Plex
+ * primary 色阶为全局主色：用户端与管理端共用，
+ * 管理端不做代码改动，主色变化通过 token 自动生效。
+ */
 @theme {
-  --color-primary-50: #f0f9ff;
-  --color-primary-100: #e0f2fe;
-  --color-primary-200: #bae6fd;
-  --color-primary-300: #7dd3fc;
-  --color-primary-400: #38bdf8;
-  --color-primary-500: #0ea5e9;
-  --color-primary-600: #0284c7;
-  --color-primary-700: #0369a1;
-  --color-primary-800: #075985;
-  --color-primary-900: #0c4a6e;
-  
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 
-    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, 
+  /* 主色阶：深青蓝（沉稳但有生气，区别于 sky/indigo 蓝紫系） */
+  --color-primary-50: #f0f7f9;
+  --color-primary-100: #dceef2;
+  --color-primary-200: #b8dfe7;
+  --color-primary-300: #8ac7d6;
+  --color-primary-400: #56a8bf;
+  --color-primary-500: #3589a5;
+  --color-primary-600: #276f8d;
+  --color-primary-700: #235b74;
+  --color-primary-800: #1f4d63;
+  --color-primary-900: #1d4254;
+  --color-primary-950: #132e3d;
+
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica,
     Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo,
+    Consolas, monospace;
 }
 
 /* 自定义基础样式 */
@@ -26,7 +34,7 @@
   }
 
   body {
-    @apply font-sans antialiased bg-linear-to-br from-slate-50 to-sky-50 text-slate-900;
+    @apply font-sans antialiased bg-zinc-50 text-zinc-900;
   }
 
   #root {
@@ -41,15 +49,15 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar-track {
-    @apply bg-slate-100 rounded;
+    @apply bg-zinc-100 rounded;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    @apply bg-slate-300 rounded hover:bg-slate-400;
+    @apply bg-zinc-300 rounded hover:bg-zinc-400;
   }
 }
 
-/* 侧边栏菜单滚动条 */
+/* 侧边栏菜单滚动条（管理端沿用） */
 @layer utilities {
   .sidebar-scrollbar::-webkit-scrollbar {
     width: 4px;
@@ -76,7 +84,7 @@
   }
 }
 
-/* 深色侧边栏滚动条 */
+/* 深色侧边栏滚动条（管理端沿用） */
 @layer utilities {
   .sidebar-scrollbar-dark::-webkit-scrollbar {
     width: 4px;
@@ -103,68 +111,40 @@
   }
 }
 
-/* 全局覆盖浏览器默认的紫色 focus outline */
+/* 全局 focus outline 色跟随主色 */
 *:focus,
 *:focus-visible {
-  outline-color: #0ea5e9 !important;
+  outline-color: #276f8d !important;
 }
 
 svg *:focus,
 svg *:focus-visible {
-  outline-color: #0ea5e9 !important;
+  outline-color: #276f8d !important;
 }
 
-/* 登录页圆点浮动动画 */
-@keyframes float-1 {
-  0%, 100% { transform: translate(0, 0); }
-  25% { transform: translate(10px, -15px); }
-  50% { transform: translate(-5px, -25px); }
-  75% { transform: translate(-15px, -10px); }
+/* 深色面板上的细网格纹理（登录页叙事面板） */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
-@keyframes float-2 {
-  0%, 100% { transform: translate(0, 0); }
-  25% { transform: translate(-15px, 10px); }
-  50% { transform: translate(5px, 20px); }
-  75% { transform: translate(10px, 5px); }
+/* 克制的进入动画（替代大面积入场位移） */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-@keyframes float-3 {
-  0%, 100% { transform: translate(0, 0); }
-  25% { transform: translate(8px, 12px); }
-  50% { transform: translate(-12px, 8px); }
-  75% { transform: translate(12px, -8px); }
+.fade-in {
+  animation: fade-in 0.18s ease-out both;
 }
 
-@keyframes float-4 {
-  0%, 100% { transform: translate(0, 0); }
-  25% { transform: translate(-8px, -12px); }
-  50% { transform: translate(12px, -5px); }
-  75% { transform: translate(-5px, 12px); }
+/* 隐藏滚动条（顶栏导航小屏横滑用） */
+.scrollbar-none {
+  scrollbar-width: none;
 }
 
-@keyframes float-5 {
-  0%, 100% { transform: translate(0, 0); }
-  25% { transform: translate(12px, 5px); }
-  50% { transform: translate(-8px, -8px); }
-  75% { transform: translate(5px, 12px); }
-}
-
-@keyframes float-6 {
-  0%, 100% { transform: translate(0, 0); }
-  25% { transform: translate(-5px, 15px); }
-  50% { transform: translate(15px, -5px); }
-  75% { transform: translate(-10px, -10px); }
-}
-
-.animate-float-1 { animation: float-1 6s ease-in-out infinite; }
-.animate-float-2 { animation: float-2 7s ease-in-out infinite; }
-.animate-float-3 { animation: float-3 8s ease-in-out infinite; }
-.animate-float-4 { animation: float-4 6.5s ease-in-out infinite; }
-.animate-float-5 { animation: float-5 7.5s ease-in-out infinite; }
-.animate-float-6 { animation: float-6 8.5s ease-in-out infinite; }
-
-/* 动画延迟类 */
-.animation-delay-2000 {
-  animation-delay: 2s;
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }

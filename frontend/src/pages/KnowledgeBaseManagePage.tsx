@@ -1,19 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Database,
   Search,
   Trash2,
   MessageSquare,
-  Upload,
-  HardDrive,
   FileText,
-  CheckCircle,
-  Clock,
-  AlertCircle,
   Loader2,
   ChevronDown,
-  Eye,
   Edit3,
   Check,
   X,
@@ -56,22 +48,6 @@ function formatDate(dateStr: string): string {
   });
 }
 
-// 状态图标组件
-function StatusIcon({ status }: { status: VectorStatus }) {
-  switch (status) {
-    case 'COMPLETED':
-      return <CheckCircle className="w-4 h-4 text-green-500" />;
-    case 'PROCESSING':
-      return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
-    case 'PENDING':
-      return <Clock className="w-4 h-4 text-yellow-500" />;
-    case 'FAILED':
-      return <AlertCircle className="w-4 h-4 text-red-500" />;
-    default:
-      return <CheckCircle className="w-4 h-4 text-green-500" />;
-  }
-}
-
 // 状态文本
 function getStatusText(status: VectorStatus): string {
   switch (status) {
@@ -88,35 +64,18 @@ function getStatusText(status: VectorStatus): string {
   }
 }
 
-// 统计卡片组件
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  color,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: number | string;
-  color: string;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-xl p-6 shadow-sm border border-slate-100"
-    >
-      <div className="flex items-center gap-4">
-        <div className={`p-3 rounded-lg ${color}`}>
-          <Icon className="w-6 h-6 text-white" />
-        </div>
-        <div>
-          <p className="text-sm text-slate-500">{label}</p>
-          <p className="text-2xl font-bold text-slate-800">{typeof value === 'number' ? value.toLocaleString() : value}</p>
-        </div>
-      </div>
-    </motion.div>
-  );
+// 状态 chip 样式（克制语义色）
+function getStatusCls(status: VectorStatus): string {
+  switch (status) {
+    case 'PROCESSING':
+      return 'text-amber-700 bg-amber-50 border-amber-200';
+    case 'FAILED':
+      return 'text-red-700 bg-red-50 border-red-200';
+    case 'COMPLETED':
+      return 'text-emerald-700 bg-emerald-50 border-emerald-200';
+    default:
+      return 'text-zinc-500 bg-zinc-50 border-zinc-200';
+  }
 }
 
 export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeBaseManagePageProps) {
@@ -287,72 +246,66 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
     loadData();
   };
 
+  const statCards = stats
+    ? [
+        { label: '知识库总数', value: stats.totalCount.toLocaleString() },
+        { label: '总访问次数', value: stats.totalAccessCount.toLocaleString() },
+        { label: '总存储大小', value: formatFileSize(stats.totalStorageSize) },
+      ]
+    : [];
+
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between mb-8">
+    <div className="fade-in">
+      {/* 页头 */}
+      <div className="flex items-end justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-            <Database className="w-7 h-7 text-primary-500" />
-            知识库管理
-          </h1>
-          <p className="text-slate-500 mt-1">管理您的知识库文件，查看使用统计</p>
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">知识库管理</h1>
+          <p className="mt-1 text-sm text-zinc-500">管理知识库文件，查看使用统计</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <button
             onClick={onUpload}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+            className="h-9 px-4 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors"
           >
-            <Upload className="w-4 h-4" />
             上传知识库
           </button>
           <button
             onClick={onChat}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+            className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors flex items-center gap-1.5"
           >
-            <MessageSquare className="w-4 h-4" />
+            <MessageSquare className="w-4 h-4 text-zinc-400" />
             问答助手
           </button>
         </div>
       </div>
 
-      {/* 统计卡片 */}
+      {/* 统计概览 */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <StatCard
-            icon={Database}
-            label="知识库总数"
-            value={stats.totalCount}
-            color="bg-primary-500"
-          />
-          <StatCard
-            icon={Eye}
-            label="总访问次数"
-            value={stats.totalAccessCount}
-            color="bg-emerald-500"
-          />
-          <StatCard
-            icon={HardDrive}
-            label="总存储大小"
-            value={formatFileSize(stats.totalStorageSize)}
-            color="bg-blue-500"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+          {statCards.map((card) => (
+            <div key={card.label} className="bg-white border border-zinc-200 rounded-lg px-5 py-4">
+              <p className="text-xs text-zinc-500">{card.label}</p>
+              <p className="mt-1.5 font-mono text-2xl font-semibold text-primary-800 tabular-nums">
+                {card.value}
+              </p>
+            </div>
+          ))}
         </div>
       )}
 
       {/* 搜索和筛选栏 */}
-      <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 mb-6">
-        <div className="flex flex-wrap items-center gap-4">
+      <div className="bg-white border border-zinc-200 rounded-lg p-4 mb-5">
+        <div className="flex flex-wrap items-center gap-3">
           {/* 搜索框 */}
           <form onSubmit={handleSearch} className="flex-1 min-w-[200px]">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
               <input
                 type="text"
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
-                placeholder="搜索知识库名称..."
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="搜索知识库名称…"
+                className="w-full h-9 pl-9 pr-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors"
               />
             </div>
           </form>
@@ -366,13 +319,13 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
                 setSearchKeyword('');
                 setSelectedCategory(null);
               }}
-              className="appearance-none pl-4 pr-10 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white cursor-pointer"
+              className="appearance-none h-9 pl-3 pr-8 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 cursor-pointer focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors"
             >
               <option value="time">按时间排序</option>
               <option value="size">按大小排序</option>
               <option value="access">按访问排序</option>
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
           </div>
 
           {/* 分类筛选 */}
@@ -383,7 +336,7 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
                 setSelectedCategory(e.target.value || null);
                 setSearchKeyword('');
               }}
-              className="appearance-none pl-4 pr-10 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white cursor-pointer"
+              className="appearance-none h-9 pl-3 pr-8 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 cursor-pointer focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors"
             >
               <option value="">全部分类</option>
               {categories.map((cat) => (
@@ -392,160 +345,144 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
                 </option>
               ))}
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
           </div>
         </div>
       </div>
 
       {/* 知识库列表 */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">
+      <div className="bg-white border border-zinc-200 rounded-lg overflow-x-auto">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-5 h-5 text-primary-600 animate-spin" />
           </div>
         ) : knowledgeBases.length === 0 ? (
-          <div className="text-center py-20">
-            <HardDrive className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-500">暂无知识库</p>
+          <div className="px-5 py-12 text-center">
+            <p className="text-xs text-zinc-400">暂无知识库，上传第一份开始构建问答</p>
             <button
               onClick={onUpload}
-              className="mt-4 text-primary-500 hover:text-primary-600"
+              className="mt-3 text-xs text-primary-700 hover:text-primary-800 hover:underline underline-offset-2 transition-colors"
             >
               上传第一个知识库
             </button>
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-100">
+            <thead className="bg-zinc-50 border-b border-zinc-100">
               <tr>
-                <th className="text-left px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-500 whitespace-nowrap">
                   名称
                 </th>
-                <th className="text-left px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-500 whitespace-nowrap">
                   分类
                 </th>
-                <th className="text-left px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-500 whitespace-nowrap">
                   大小
                 </th>
-                <th className="text-left px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-500 whitespace-nowrap">
                   状态
                 </th>
-                <th className="text-right px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
-                  操作
-                </th>
-                <th className="text-left px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-500 whitespace-nowrap">
                   上传时间
+                </th>
+                <th className="text-right px-4 py-2.5 text-xs font-medium text-zinc-500 whitespace-nowrap">
+                  操作
                 </th>
               </tr>
             </thead>
             <tbody>
-              {knowledgeBases.map((kb, index) => (
-                <motion.tr
+              {knowledgeBases.map((kb) => (
+                <tr
                   key={kb.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="border-b border-slate-50 hover:bg-slate-50 transition-colors"
+                  className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50 transition-colors"
                 >
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-slate-400" />
-                      <div>
-                        <p className="font-medium text-slate-800">{kb.name}</p>
-                        <p className="text-xs text-slate-400">{kb.originalFilename}</p>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <FileText className="w-4 h-4 text-zinc-400 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-zinc-800 truncate">{kb.name}</p>
+                        <p className="font-mono text-xs text-zinc-400 truncate">{kb.originalFilename}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-3">
-                    <AnimatePresence mode="wait">
-                      {editingCategoryId === kb.id ? (
-                        <motion.div
-                          key="editing"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="flex items-center gap-2"
+                  <td className="px-4 py-3">
+                    {editingCategoryId === kb.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          ref={categoryInputRef}
+                          type="text"
+                          value={editingCategoryValue}
+                          onChange={(e) => setEditingCategoryValue(e.target.value)}
+                          onKeyDown={(e) => handleCategoryKeyDown(e, kb.id)}
+                          placeholder="输入分类名称"
+                          list="category-suggestions"
+                          className="w-28 h-8 px-2 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors disabled:bg-zinc-100"
+                          disabled={savingCategory}
+                        />
+                        <datalist id="category-suggestions">
+                          {categories.map((cat) => (
+                            <option key={cat} value={cat} />
+                          ))}
+                        </datalist>
+                        <button
+                          onClick={() => handleSaveCategory(kb.id)}
+                          disabled={savingCategory}
+                          className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors disabled:opacity-50"
+                          title="保存"
                         >
-                          <input
-                            ref={categoryInputRef}
-                            type="text"
-                            value={editingCategoryValue}
-                            onChange={(e) => setEditingCategoryValue(e.target.value)}
-                            onKeyDown={(e) => handleCategoryKeyDown(e, kb.id)}
-                            placeholder="输入分类名称"
-                            list="category-suggestions"
-                            className="w-24 px-2 py-1 text-sm border border-primary-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
-                            disabled={savingCategory}
-                          />
-                          <datalist id="category-suggestions">
-                            {categories.map((cat) => (
-                              <option key={cat} value={cat} />
-                            ))}
-                          </datalist>
-                          <button
-                            onClick={() => handleSaveCategory(kb.id)}
-                            disabled={savingCategory}
-                            className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
-                            title="保存"
-                          >
-                            {savingCategory ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Check className="w-4 h-4" />
-                            )}
-                          </button>
-                          <button
-                            onClick={handleCancelEditCategory}
-                            disabled={savingCategory}
-                            className="p-1 text-slate-400 hover:bg-slate-100 rounded transition-colors disabled:opacity-50"
-                            title="取消"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </motion.div>
-                      ) : (
-                        <motion.div
-                          key="display"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="flex items-center gap-2 group/category"
-                        >
-                          {kb.category ? (
-                            <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-sm">
-                              {kb.category}
-                            </span>
+                          {savingCategory ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
-                            <span className="text-slate-400 text-sm">未分类</span>
+                            <Check className="w-4 h-4" />
                           )}
-                          <button
-                            onClick={() => handleStartEditCategory(kb)}
-                            className="p-1 text-slate-400 hover:text-primary-500 hover:bg-primary-50 rounded opacity-0 group-hover/category:opacity-100 transition-all"
-                            title="编辑分类"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                        </button>
+                        <button
+                          onClick={handleCancelEditCategory}
+                          disabled={savingCategory}
+                          className="p-1 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors disabled:opacity-50"
+                          title="取消"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 group/category">
+                        {kb.category ? (
+                          <span className="text-xs text-zinc-600 bg-zinc-50 border border-zinc-200 rounded px-1.5 py-0.5">
+                            {kb.category}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-zinc-400">未分类</span>
+                        )}
+                        <button
+                          onClick={() => handleStartEditCategory(kb)}
+                          className="p-1 text-zinc-400 hover:text-primary-700 hover:bg-zinc-100 rounded-md opacity-0 group-hover/category:opacity-100 transition-colors"
+                          title="编辑分类"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </td>
-                  <td className="px-3 py-3 text-sm text-slate-600">
+                  <td className="px-4 py-3 font-mono text-sm text-zinc-600 tabular-nums whitespace-nowrap">
                     {formatFileSize(kb.fileSize)}
                   </td>
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-2">
-                      <StatusIcon status={kb.vectorStatus} />
-                      <span className="text-sm text-slate-600">
-                        {getStatusText(kb.vectorStatus)}
-                      </span>
-                    </div>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`text-xs border rounded px-1.5 py-0.5 whitespace-nowrap ${getStatusCls(kb.vectorStatus)}`}
+                    >
+                      {getStatusText(kb.vectorStatus)}
+                    </span>
                   </td>
-                  <td className="px-3 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
+                  <td className="px-4 py-3 font-mono text-xs text-zinc-500 tabular-nums whitespace-nowrap">
+                    {formatDate(kb.uploadedAt)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-0.5">
                       {/* 下载按钮 */}
                       <button
                         onClick={() => handleDownload(kb)}
-                        className="p-2 text-slate-400 hover:text-primary-500 hover:bg-primary-50 rounded-lg transition-colors"
+                        className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors"
                         title="下载"
                       >
                         <Download className="w-4 h-4" />
@@ -555,7 +492,7 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
                         <button
                           onClick={() => handleRevectorize(kb.id)}
                           disabled={revectorizing === kb.id}
-                          className="p-2 text-slate-400 hover:text-primary-500 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50"
+                          className="p-1.5 text-zinc-400 hover:text-primary-700 hover:bg-primary-50 rounded-md transition-colors disabled:opacity-50"
                           title="重新向量化"
                         >
                           <RefreshCw className={`w-4 h-4 ${revectorizing === kb.id ? 'animate-spin' : ''}`} />
@@ -564,17 +501,14 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
                       {/* 删除按钮 */}
                       <button
                         onClick={() => setDeleteItem(kb)}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                         title="删除"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-sm text-slate-500 whitespace-nowrap">
-                    {formatDate(kb.uploadedAt)}
-                  </td>
-                </motion.tr>
+                </tr>
               ))}
             </tbody>
           </table>

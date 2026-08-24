@@ -1,6 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, Fragment } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   Upload,
@@ -14,8 +13,6 @@ import {
   Plus,
   Trash2,
   Edit3,
-  Tag,
-  BookOpen,
   PenLine,
 } from 'lucide-react';
 import {
@@ -28,6 +25,19 @@ import QuestionBankSelect from '../../components/question/QuestionBankSelect';
 
 type ImportMode = 'excel' | 'markdown' | 'manual';
 type ImportStep = 'select' | 'preview' | 'importing' | 'success' | 'error';
+
+const labelCls = 'block text-xs font-medium text-zinc-600 mb-1.5';
+const inputCls =
+  'w-full h-9 px-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors';
+const textareaCls =
+  'w-full px-3 py-2 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors resize-none';
+const primaryBtnCls =
+  'h-9 px-4 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2';
+const secondaryBtnCls =
+  'h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors';
+
+/** 导入流程步骤（mono 数字 + 细线连接） */
+const IMPORT_STEPS = ['选择来源', '预览确认', '执行导入'];
 
 export default function QuestionImport() {
   const navigate = useNavigate();
@@ -246,15 +256,27 @@ export default function QuestionImport() {
     }
   };
 
-  // 难度标签样式
+  // 难度标签样式（语义色：基础 emerald / 进阶 amber / 专家 red）
   const getDifficultyStyle = (difficulty: QuestionDifficulty) => {
     switch (difficulty) {
       case 'BASIC':
-        return 'bg-green-100 text-green-700';
+        return 'text-emerald-700 bg-emerald-50 border-emerald-200';
       case 'ADVANCED':
-        return 'bg-yellow-100 text-yellow-700';
+        return 'text-amber-700 bg-amber-50 border-amber-200';
       case 'EXPERT':
-        return 'bg-red-100 text-red-700';
+        return 'text-red-700 bg-red-50 border-red-200';
+    }
+  };
+
+  // 难度选择按钮激活样式（与 chip 同语义色）
+  const getDifficultyActiveStyle = (difficulty: QuestionDifficulty) => {
+    switch (difficulty) {
+      case 'BASIC':
+        return 'border-emerald-500 bg-emerald-50 text-emerald-700';
+      case 'ADVANCED':
+        return 'border-amber-500 bg-amber-50 text-amber-700';
+      case 'EXPERT':
+        return 'border-red-500 bg-red-50 text-red-700';
     }
   };
 
@@ -270,257 +292,264 @@ export default function QuestionImport() {
     }
   };
 
+  // 当前步骤索引（select=0 / preview=1 / importing·success·error=2）
+  const stepIndex = step === 'select' ? 0 : step === 'preview' ? 1 : 2;
+
+  // 导入方式选项
+  const modeOptions: { value: ImportMode; icon: typeof FileSpreadsheet; title: string; desc: string }[] = [
+    { value: 'excel', icon: FileSpreadsheet, title: 'Excel 导入', desc: '上传 .xlsx 文件批量导入' },
+    { value: 'markdown', icon: FileText, title: 'Markdown 导入', desc: '粘贴 Markdown 格式内容' },
+    { value: 'manual', icon: PenLine, title: '手动录入', desc: '表单方式逐题录入' },
+  ];
+
   return (
-    <div className="max-w-5xl mx-auto p-6">
+    <div className="fade-in">
       {/* 页面头部 */}
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => navigate(`/questions/bank/${bankId}`)}
-          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+          className="p-2 -ml-2 hover:bg-zinc-100 rounded-md transition-colors"
+          aria-label="返回题库"
         >
-          <ArrowLeft className="w-5 h-5 text-slate-600" />
+          <ArrowLeft className="w-5 h-5 text-zinc-500" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">导入题目</h1>
-          <p className="text-sm text-slate-500 mt-1">支持 Excel、Markdown 和手动录入</p>
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">导入题目</h1>
+          <p className="mt-0.5 text-sm text-zinc-500">支持 Excel、Markdown 和手动录入</p>
         </div>
       </div>
 
-      {/* 导入方式选择 */}
+      {/* 步骤指示：mono 数字 + 细线连接 */}
+      <div className="flex items-center gap-3 mb-6">
+        {IMPORT_STEPS.map((label, i) => (
+          <Fragment key={label}>
+            {i > 0 && (
+              <span
+                className={`flex-1 h-px ${i <= stepIndex ? 'bg-primary-500' : 'bg-zinc-200'}`}
+              />
+            )}
+            <div className="flex items-center gap-2 shrink-0">
+              <span
+                className={`font-mono text-xs tabular-nums ${
+                  i <= stepIndex ? 'text-primary-700' : 'text-zinc-300'
+                }`}
+              >
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <span
+                className={`text-sm ${
+                  i === stepIndex
+                    ? 'text-zinc-900 font-medium'
+                    : i < stepIndex
+                    ? 'text-zinc-500'
+                    : 'text-zinc-400'
+                }`}
+              >
+                {label}
+              </span>
+            </div>
+          </Fragment>
+        ))}
+      </div>
+
+      {/* 步骤：选择来源 */}
       {step === 'select' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
+        <div className="fade-in">
           {/* 题库选择 */}
           {!bankIdNum && (
-            <div className="bg-primary-50 border border-primary-200 rounded-xl p-4 mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <BookOpen className="w-5 h-5 text-primary-600" />
-                <span className="font-medium text-primary-800">选择目标题库</span>
+            <div className="bg-white border border-zinc-200 rounded-lg mb-5">
+              <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+                <h2 className="text-sm font-medium text-zinc-900">目标题库</h2>
+                <span className="font-mono text-xs text-zinc-400">必选</span>
               </div>
-              <QuestionBankSelect
-                selectedBankIds={selectedBankId ? [selectedBankId] : []}
-                onChange={(ids) => setSelectedBankId(ids[0] || 0)}
-                maxSelections={1}
-              />
+              <div className="p-5">
+                <QuestionBankSelect
+                  selectedBankIds={selectedBankId ? [selectedBankId] : []}
+                  onChange={(ids) => setSelectedBankId(ids[0] || 0)}
+                  maxSelections={1}
+                />
+              </div>
             </div>
           )}
 
           {/* 导入方式选择 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            {/* Excel 导入 */}
-            <div
-              className={`bg-white rounded-xl border-2 p-5 cursor-pointer transition-all ${
-                mode === 'excel'
-                  ? 'border-primary-500 shadow-lg shadow-primary-100'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
-              onClick={() => setMode('excel')}
-            >
-              <div className="flex flex-col items-center text-center gap-3">
-                <div className={`p-3 rounded-xl ${mode === 'excel' ? 'bg-primary-100' : 'bg-slate-100'}`}>
-                  <FileSpreadsheet className={`w-8 h-8 ${mode === 'excel' ? 'text-primary-600' : 'text-slate-500'}`} />
-                </div>
-                <div>
-                  <h3 className="font-medium text-slate-900">Excel 导入</h3>
-                  <p className="text-sm text-slate-500 mt-1">上传 .xlsx 文件批量导入</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Markdown 导入 */}
-            <div
-              className={`bg-white rounded-xl border-2 p-5 cursor-pointer transition-all ${
-                mode === 'markdown'
-                  ? 'border-primary-500 shadow-lg shadow-primary-100'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
-              onClick={() => setMode('markdown')}
-            >
-              <div className="flex flex-col items-center text-center gap-3">
-                <div className={`p-3 rounded-xl ${mode === 'markdown' ? 'bg-primary-100' : 'bg-slate-100'}`}>
-                  <FileText className={`w-8 h-8 ${mode === 'markdown' ? 'text-primary-600' : 'text-slate-500'}`} />
-                </div>
-                <div>
-                  <h3 className="font-medium text-slate-900">Markdown 导入</h3>
-                  <p className="text-sm text-slate-500 mt-1">粘贴 Markdown 格式内容</p>
-                </div>
-              </div>
-            </div>
-
-            {/* 手动录入 */}
-            <div
-              className={`bg-white rounded-xl border-2 p-5 cursor-pointer transition-all ${
-                mode === 'manual'
-                  ? 'border-primary-500 shadow-lg shadow-primary-100'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
-              onClick={() => setMode('manual')}
-            >
-              <div className="flex flex-col items-center text-center gap-3">
-                <div className={`p-3 rounded-xl ${mode === 'manual' ? 'bg-primary-100' : 'bg-slate-100'}`}>
-                  <PenLine className={`w-8 h-8 ${mode === 'manual' ? 'text-primary-600' : 'text-slate-500'}`} />
-                </div>
-                <div>
-                  <h3 className="font-medium text-slate-900">手动录入</h3>
-                  <p className="text-sm text-slate-500 mt-1">表单方式逐题录入</p>
-                </div>
-              </div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+            {modeOptions.map((option) => {
+              const Icon = option.icon;
+              const active = mode === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setMode(option.value)}
+                  className={`text-left border rounded-lg p-4 transition-colors ${
+                    active
+                      ? 'border-primary-600 bg-primary-50/50'
+                      : 'border-zinc-300 bg-white hover:border-zinc-400'
+                  }`}
+                >
+                  <Icon
+                    className={`w-5 h-5 ${active ? 'text-primary-700' : 'text-zinc-400'}`}
+                    strokeWidth={1.75}
+                  />
+                  <p className="mt-3 text-sm font-medium text-zinc-900">{option.title}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{option.desc}</p>
+                </button>
+              );
+            })}
           </div>
 
           {/* Excel 文件选择 */}
           {mode === 'excel' && (
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-medium text-slate-900">选择 Excel 文件</h3>
+            <div className="bg-white border border-zinc-200 rounded-lg">
+              <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+                <h2 className="text-sm font-medium text-zinc-900">选择 Excel 文件</h2>
                 <button
                   onClick={handleDownloadTemplate}
                   disabled={downloading}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+                  className="h-8 px-3 rounded-md border border-zinc-300 text-zinc-700 text-xs font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5"
                 >
                   {downloading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <Download className="w-4 h-4" />
+                    <Download className="w-3.5 h-3.5" />
                   )}
                   下载模板
                 </button>
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              <div
-                className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-primary-400 transition-colors cursor-pointer"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {file ? (
-                  <div className="flex items-center justify-center gap-2 text-green-600">
-                    <CheckCircle className="w-5 h-5" />
-                    <span className="font-medium">{file.name}</span>
+
+              <div className="p-5">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <div
+                  className={`border border-dashed rounded-lg px-6 py-10 text-center cursor-pointer transition-colors ${
+                    file ? 'border-zinc-300 bg-zinc-50/50' : 'border-zinc-300 hover:border-primary-400'
+                  }`}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {file ? (
+                    <div
+                      className="flex items-center gap-3 border border-zinc-200 bg-white rounded-md px-4 py-3 max-w-lg mx-auto text-left"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <FileText className="w-4 h-4 text-zinc-400 shrink-0" />
+                      <span className="flex-1 min-w-0 truncate font-mono text-sm text-zinc-800">
+                        {file.name}
+                      </span>
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    </div>
+                  ) : (
+                    <div>
+                      <Upload className="w-5 h-5 text-zinc-400 mx-auto" strokeWidth={1.75} />
+                      <p className="mt-3 text-sm text-zinc-600">点击选择文件或拖拽到此处</p>
+                      <p className="mt-1 text-xs text-zinc-400">支持 .xlsx / .xls 格式</p>
+                    </div>
+                  )}
+                </div>
+                {file && (
+                  <div className="mt-4 flex justify-end gap-3 fade-in">
+                    <button type="button" onClick={handleReselect} className={secondaryBtnCls}>
+                      重新选择
+                    </button>
+                    <button type="button" onClick={handlePreviewExcel} className={primaryBtnCls}>
+                      预览
+                    </button>
                   </div>
-                ) : (
-                  <>
-                    <Upload className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-                    <p className="text-slate-500">点击选择文件或拖拽到此处</p>
-                    <p className="text-sm text-slate-400 mt-1">支持 .xlsx, .xls 格式</p>
-                  </>
                 )}
               </div>
-              {file && (
-                <div className="mt-4 flex justify-end gap-3">
-                  <button
-                    onClick={handleReselect}
-                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                  >
-                    重新选择
-                  </button>
-                  <button
-                    onClick={handlePreviewExcel}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-                  >
-                    预览
-                  </button>
-                </div>
-              )}
             </div>
           )}
 
           {/* Markdown 内容输入 */}
           {mode === 'markdown' && (
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <h3 className="font-medium text-slate-900 mb-4">输入 Markdown 内容</h3>
-              <textarea
-                value={markdownContent}
-                onChange={(e) => setMarkdownContent(e.target.value)}
-                placeholder={`## 题目 1
+            <div className="bg-white border border-zinc-200 rounded-lg">
+              <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+                <h2 className="text-sm font-medium text-zinc-900">输入 Markdown 内容</h2>
+                <span className="font-mono text-xs text-zinc-400">MARKDOWN</span>
+              </div>
+              <div className="p-5">
+                <textarea
+                  value={markdownContent}
+                  onChange={(e) => setMarkdownContent(e.target.value)}
+                  placeholder={`## 题目 1
 Q: 你的优势是什么？
 
 A: 我的优势是...
 
 ### 难度: 进阶
 ### 标签: 自我介绍,个人优势`}
-                rows={12}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none font-mono text-sm"
-              />
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={handlePreviewMarkdown}
-                  disabled={!markdownContent.trim()}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
-                >
-                  预览
-                </button>
+                  rows={12}
+                  className={`${textareaCls} font-mono text-xs leading-relaxed`}
+                />
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handlePreviewMarkdown}
+                    disabled={!markdownContent.trim()}
+                    className={primaryBtnCls}
+                  >
+                    预览
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
           {/* 手动录入 */}
           {mode === 'manual' && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-6"
-            >
+            <div className="space-y-5 fade-in">
               {/* 题目表单 */}
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
-                <h3 className="font-medium text-slate-900 mb-4 flex items-center gap-2">
-                  <Plus className="w-5 h-5 text-primary-600" />
-                  添加题目
-                </h3>
+              <div className="bg-white border border-zinc-200 rounded-lg">
+                <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+                  <h2 className="text-sm font-medium text-zinc-900">添加题目</h2>
+                  <span className="font-mono text-xs text-zinc-400">逐题录入</span>
+                </div>
 
-                <div className="space-y-4">
+                <div className="p-5 space-y-5">
                   {/* 题目内容 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label className={labelCls}>
                       题目内容 <span className="text-red-500">*</span>
                     </label>
                     <textarea
                       value={currentQuestion.content}
                       onChange={(e) => setCurrentQuestion({ ...currentQuestion, content: e.target.value })}
-                      placeholder="请输入面试题目内容..."
+                      placeholder="请输入面试题目内容…"
                       rows={3}
-                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                      className={textareaCls}
                     />
                   </div>
 
                   {/* 答案 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      参考答案
-                    </label>
+                    <label className={labelCls}>参考答案</label>
                     <textarea
                       value={currentQuestion.answer}
                       onChange={(e) => setCurrentQuestion({ ...currentQuestion, answer: e.target.value })}
-                      placeholder="请输入参考答案（选填）..."
+                      placeholder="请输入参考答案（选填）…"
                       rows={3}
-                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                      className={textareaCls}
                     />
                   </div>
 
                   {/* 难度选择 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      难度
-                    </label>
-                    <div className="flex gap-3">
+                    <label className={`${labelCls} mb-2`}>难度</label>
+                    <div className="flex gap-2">
                       {(['BASIC', 'ADVANCED', 'EXPERT'] as QuestionDifficulty[]).map((diff) => (
                         <button
                           key={diff}
+                          type="button"
                           onClick={() => setCurrentQuestion({ ...currentQuestion, difficulty: diff })}
-                          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                          className={`h-8 px-3 rounded-md border text-sm transition-colors ${
                             currentQuestion.difficulty === diff
-                              ? diff === 'BASIC'
-                                ? 'bg-green-100 text-green-700 border-2 border-green-500'
-                                : diff === 'ADVANCED'
-                                ? 'bg-yellow-100 text-yellow-700 border-2 border-yellow-500'
-                                : 'bg-red-100 text-red-700 border-2 border-red-500'
-                              : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:border-slate-300'
+                              ? getDifficultyActiveStyle(diff)
+                              : 'border-zinc-300 text-zinc-600 hover:border-zinc-400 hover:bg-zinc-50'
                           }`}
                         >
                           {getDifficultyText(diff)}
@@ -531,37 +560,33 @@ A: 我的优势是...
 
                   {/* 标签 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      标签
-                    </label>
-                    <div className="flex gap-2 mb-2">
+                    <label className={labelCls}>标签</label>
+                    <div className="flex gap-2">
                       <input
                         type="text"
                         value={tagInput}
                         onChange={(e) => setTagInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
                         placeholder="输入标签后按回车添加"
-                        className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        className={inputCls}
                       />
-                      <button
-                        onClick={handleAddTag}
-                        className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
-                      >
+                      <button type="button" onClick={handleAddTag} className={`${secondaryBtnCls} shrink-0`}>
                         添加
                       </button>
                     </div>
                     {currentQuestion.tags && currentQuestion.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-1.5 mt-2.5">
                         {currentQuestion.tags.map((tag) => (
                           <span
                             key={tag}
-                            className="inline-flex items-center gap-1 px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-sm"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 border border-zinc-200 bg-zinc-50 text-zinc-600 rounded text-xs"
                           >
-                            <Tag className="w-3 h-3" />
                             {tag}
                             <button
+                              type="button"
                               onClick={() => handleRemoveTag(tag)}
-                              className="ml-1 hover:text-primary-900"
+                              className="text-zinc-400 hover:text-zinc-700 transition-colors"
+                              aria-label={`移除标签 ${tag}`}
                             >
                               <X className="w-3 h-3" />
                             </button>
@@ -572,11 +597,12 @@ A: 我的优势是...
                   </div>
 
                   {/* 添加按钮 */}
-                  <div className="flex justify-end pt-2">
+                  <div className="flex justify-end pt-1">
                     <button
+                      type="button"
                       onClick={handleAddQuestion}
                       disabled={!currentQuestion.content.trim()}
-                      className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+                      className={primaryBtnCls}
                     >
                       <Plus className="w-4 h-4" />
                       添加到列表
@@ -587,173 +613,169 @@ A: 我的优势是...
 
               {/* 已添加的题目列表 */}
               {manualQuestions.length > 0 && (
-                <div className="bg-white rounded-xl border border-slate-200 p-6">
-                  <h3 className="font-medium text-slate-900 mb-4">
-                    已添加 {manualQuestions.length} 道题目
-                  </h3>
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                    {manualQuestions.map((q, index) => (
-                      <div
-                        key={index}
-                        className="flex items-start justify-between p-4 bg-slate-50 rounded-lg border border-slate-100"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-medium text-slate-500">#{index + 1}</span>
-                            <span className={`px-2 py-0.5 rounded text-xs ${getDifficultyStyle(q.difficulty || 'ADVANCED')}`}>
-                              {getDifficultyText(q.difficulty || 'ADVANCED')}
-                            </span>
-                          </div>
-                          <p className="text-slate-900 line-clamp-2">{q.content}</p>
-                          {q.tags && q.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {q.tags.map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="px-2 py-0.5 bg-slate-200 text-slate-600 rounded text-xs"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 ml-3">
-                          <button
-                            onClick={() => handleEditQuestion(index)}
-                            className="p-2 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteQuestion(index)}
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                <div className="bg-white border border-zinc-200 rounded-lg">
+                  <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+                    <h2 className="text-sm font-medium text-zinc-900">已添加题目</h2>
+                    <span className="font-mono text-xs text-zinc-400 tabular-nums">
+                      {manualQuestions.length} 道
+                    </span>
                   </div>
-                  <div className="mt-4 flex justify-end gap-3">
-                    <button
-                      onClick={() => setManualQuestions([])}
-                      className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                    >
-                      清空列表
-                    </button>
-                    <button
-                      onClick={handleSubmitManual}
-                      disabled={submitting}
-                      className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
-                    >
-                      {submitting ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          导入中...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-4 h-4" />
-                          确认导入
-                        </>
-                      )}
-                    </button>
+
+                  <div className="p-5">
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                      {manualQuestions.map((q, index) => (
+                        <div
+                          key={index}
+                          className="flex items-start justify-between gap-3 p-4 border border-zinc-200 bg-zinc-50/50 rounded-md"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="font-mono text-xs text-zinc-400 tabular-nums">
+                                {String(index + 1).padStart(2, '0')}
+                              </span>
+                              <span
+                                className={`text-xs border rounded px-1.5 py-0.5 ${getDifficultyStyle(q.difficulty || 'ADVANCED')}`}
+                              >
+                                {getDifficultyText(q.difficulty || 'ADVANCED')}
+                              </span>
+                            </div>
+                            <p className="text-sm text-zinc-800 line-clamp-2">{q.content}</p>
+                            {q.tags && q.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {q.tags.map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="text-xs border border-zinc-200 bg-zinc-50 text-zinc-600 rounded px-1.5 py-0.5"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleEditQuestion(index)}
+                              className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors"
+                              title="编辑"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteQuestion(index)}
+                              className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                              title="删除"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setManualQuestions([])}
+                        className={secondaryBtnCls}
+                      >
+                        清空列表
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSubmitManual}
+                        disabled={submitting}
+                        className={primaryBtnCls}
+                      >
+                        {submitting ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            导入中…
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="w-4 h-4" />
+                            确认导入
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
-            </motion.div>
+            </div>
           )}
-        </motion.div>
+        </div>
       )}
 
       {/* 步骤：预览 */}
       {step === 'preview' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-slate-900">
-                预览导入 ({previewQuestions.length} 道题目)
-              </h3>
-              <button
-                onClick={handleReselect}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <div className="bg-white border border-zinc-200 rounded-lg fade-in">
+          <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+            <h2 className="text-sm font-medium text-zinc-900">预览确认</h2>
+            <span className="font-mono text-xs text-zinc-400 tabular-nums">
+              {previewQuestions.length} 道
+            </span>
+          </div>
 
+          <div className="p-5">
             <div className="space-y-3 max-h-[500px] overflow-y-auto">
               {previewQuestions.map((q, index) => (
-                <div key={index} className="border border-slate-200 rounded-lg p-4">
+                <div key={index} className="border border-zinc-200 rounded-md p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className={`px-2 py-0.5 rounded text-xs ${getDifficultyStyle(q.difficulty)}`}>
+                    <span className="font-mono text-xs text-zinc-400 tabular-nums">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <span
+                      className={`text-xs border rounded px-1.5 py-0.5 ${getDifficultyStyle(q.difficulty)}`}
+                    >
                       {getDifficultyText(q.difficulty)}
                     </span>
                     {q.tags && q.tags.length > 0 && (
-                      <span className="text-xs text-slate-400">
-                        {q.tags.join(', ')}
-                      </span>
+                      <span className="text-xs text-zinc-400 truncate">{q.tags.join(' · ')}</span>
                     )}
                   </div>
-                  <p className="text-slate-900 line-clamp-2">{q.content}</p>
+                  <p className="text-sm text-zinc-900 line-clamp-2">{q.content}</p>
                   {q.answer && (
-                    <p className="text-sm text-slate-500 mt-1 line-clamp-1">
-                      答案: {q.answer}
-                    </p>
+                    <p className="mt-1.5 text-xs text-zinc-500 line-clamp-1">答案：{q.answer}</p>
                   )}
                 </div>
               ))}
             </div>
 
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                onClick={handleReselect}
-                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              >
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button type="button" onClick={handleReselect} className={secondaryBtnCls}>
                 重新选择
               </button>
-              <button
-                onClick={handleImport}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-              >
+              <button type="button" onClick={handleImport} className={primaryBtnCls}>
                 确认导入
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* 步骤：导入中 */}
       {step === 'importing' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-xl border border-slate-200 p-12 text-center"
-        >
-          <Loader2 className="w-12 h-12 text-primary-500 mx-auto mb-4 animate-spin" />
-          <h3 className="text-lg font-medium text-slate-900 mb-2">正在导入...</h3>
-          <p className="text-slate-500">请稍候</p>
-        </motion.div>
+        <div className="bg-white border border-zinc-200 rounded-lg px-6 py-16 text-center fade-in">
+          <Loader2 className="w-8 h-8 text-primary-600 mx-auto animate-spin" />
+          <h3 className="mt-4 text-sm font-medium text-zinc-900">正在导入…</h3>
+          <p className="mt-1 text-xs text-zinc-500">请稍候，完成后自动进入下一步</p>
+        </div>
       )}
 
       {/* 步骤：导入成功 */}
       {step === 'success' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-xl border border-slate-200 p-12 text-center"
-        >
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="w-8 h-8 text-green-600" />
+        <div className="bg-white border border-zinc-200 rounded-lg px-6 py-14 text-center fade-in">
+          <div className="mx-auto w-11 h-11 rounded-md bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+            <CheckCircle className="w-5 h-5 text-emerald-600" strokeWidth={1.75} />
           </div>
-          <h3 className="text-lg font-medium text-slate-900 mb-2">导入成功</h3>
-          <p className="text-slate-500 mb-6">{importResult?.message}</p>
-          <div className="flex items-center justify-center gap-3">
+          <h3 className="mt-4 text-sm font-medium text-zinc-900">导入成功</h3>
+          <p className="mt-1.5 text-sm text-zinc-500">{importResult?.message}</p>
+          <div className="mt-6 flex items-center justify-center gap-3">
             <button
+              type="button"
               onClick={() => {
                 setStep('select');
                 setManualQuestions([]);
@@ -765,47 +787,42 @@ A: 我的优势是...
                   tags: [],
                 });
               }}
-              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              className={secondaryBtnCls}
             >
               继续导入
             </button>
             <button
+              type="button"
               onClick={() => navigate(`/questions/bank/${selectedBankId || bankIdNum}`)}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              className={primaryBtnCls}
             >
               查看题库
             </button>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* 步骤：导入失败 */}
       {step === 'error' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-xl border border-slate-200 p-12 text-center"
-        >
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="w-8 h-8 text-red-600" />
+        <div className="bg-white border border-zinc-200 rounded-lg px-6 py-14 text-center fade-in">
+          <div className="mx-auto w-11 h-11 rounded-md bg-red-50 border border-red-100 flex items-center justify-center">
+            <AlertCircle className="w-5 h-5 text-red-600" strokeWidth={1.75} />
           </div>
-          <h3 className="text-lg font-medium text-slate-900 mb-2">导入失败</h3>
-          <p className="text-slate-500 mb-6">{importResult?.message}</p>
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={handleReselect}
-              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-            >
+          <h3 className="mt-4 text-sm font-medium text-zinc-900">导入失败</h3>
+          <p className="mt-1.5 text-sm text-zinc-500">{importResult?.message}</p>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <button type="button" onClick={handleReselect} className={secondaryBtnCls}>
               重新选择
             </button>
             <button
+              type="button"
               onClick={() => navigate(`/questions/bank/${selectedBankId || bankIdNum}`)}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              className={primaryBtnCls}
             >
               返回题库
             </button>
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   );

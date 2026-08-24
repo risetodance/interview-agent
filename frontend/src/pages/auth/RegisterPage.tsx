@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import { useUser } from '../../store/user';
 import { getErrorMessage } from '../../api/request';
 import { authApi } from '../../api/auth';
 import { useCodeCountdown } from '../../hooks/useCodeCountdown';
 import { isValidEmail } from '../../utils/validate';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import BrandMark from '../../components/BrandMark';
 
+/**
+ * 注册页面
+ * 用户名 + 邮箱验证码 + 密码注册
+ * 视觉：左墨水蓝叙事面板 + 右表单区，细边框控件语言（与登录页同构）
+ */
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { register } = useUser();
@@ -129,196 +134,248 @@ export default function RegisterPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-100 via-sky-50 to-white py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* 背景装饰 - 玻璃态圆形 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-sky-200/40 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-sky-300/30 rounded-full blur-3xl animate-pulse animation-delay-2000" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-sky-100/20 rounded-full blur-3xl" />
-      </div>
+  const labelCls = 'block text-xs font-medium text-zinc-600 mb-1.5';
+  const inputCls =
+    'w-full h-9 px-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors disabled:bg-zinc-100 disabled:text-zinc-400';
+  const primaryBtnCls =
+    'w-full h-9 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2';
 
-      {/* 装饰性星星 - 动画效果 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-32 right-32 w-5 h-5 bg-sky-400/60 animate-float-1" style={{clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'}} />
-        <div className="absolute top-48 right-48 w-4 h-4 bg-sky-300/80 animate-float-2" style={{clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'}} />
-        <div className="absolute bottom-40 left-32 w-6 h-6 bg-sky-400/50 animate-float-3" style={{clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'}} />
-        <div className="absolute bottom-60 left-48 w-4 h-4 bg-sky-300/70 animate-float-4" style={{clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'}} />
-        <div className="absolute top-40 left-1/4 w-3 h-3 bg-sky-400/40 animate-float-5" style={{clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'}} />
-        <div className="absolute bottom-32 right-1/3 w-5 h-5 bg-sky-400/50 animate-float-6" style={{clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'}} />
-      </div>
-        <motion.div
-        className="relative w-full max-w-md"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        {/* 标题 */}
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-slate-900">创建账户</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            已有账户？{' '}
-            <Link to="/login" className="font-medium text-primary-600 hover:text-primary-500">
-              立即登录
-            </Link>
-          </p>
+  return (
+    <div className="min-h-screen flex bg-white">
+      {/* 左侧叙事面板（大屏显示） */}
+      <aside className="hidden lg:flex w-[420px] xl:w-[480px] shrink-0 flex-col justify-between bg-primary-950 bg-grid p-12 relative">
+        {/* 品牌区 */}
+        <div className="flex items-center gap-3">
+          <BrandMark className="w-7 h-7" />
+          <div>
+            <span className="block text-sm font-semibold text-white tracking-tight">智能面试助手</span>
+            <span className="block text-xs text-white/50">AI Assistant</span>
+          </div>
         </div>
 
-        {/* 表单 */}
-        <form className="mt-8 space-y-6 bg-white/80 backdrop-blur-sm py-8 px-6 shadow-lg rounded-xl border border-white/50" onSubmit={handleSubmit}>
-          {/* 错误提示 */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+        {/* 主文案与流程 */}
+        <div>
+          <p className="font-mono text-xs tracking-[0.2em] text-primary-300/70 uppercase mb-5">
+            AI Interview Workspace
+          </p>
+          <h2 className="text-3xl xl:text-4xl font-semibold text-white leading-snug tracking-tight">
+            创建账户，
+            <br />
+            开启面试训练
+          </h2>
 
-          <div className="space-y-5">
-            {/* 用户名 */}
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-slate-700">
-                用户名 <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="请输入用户名（3-50个字符）"
-                className="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
-                disabled={loading}
-              />
-            </div>
-
-            {/* 邮箱 */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700">
-                邮箱 <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="请输入邮箱地址"
-                className="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
-                disabled={loading}
-              />
-            </div>
-
-            {/* 邮箱验证码 */}
-            <div>
-              <label htmlFor="emailCode" className="block text-sm font-medium text-slate-700">
-                验证码 <span className="text-red-500">*</span>
-              </label>
-              <div className="mt-1 flex gap-3">
-                <input
-                  id="emailCode"
-                  type="text"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="请输入邮箱验证码"
-                  className="block w-full flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
-                  disabled={loading}
-                  inputMode="numeric"
-                />
-                <button
-                  type="button"
-                  onClick={handleGetCode}
-                  disabled={counting || sending || !email}
-                  className="px-4 py-3 bg-primary-50 text-primary-600 rounded-xl text-sm font-semibold whitespace-nowrap transition-all hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {codeText}
-                </button>
+          <div className="mt-12 divide-y divide-white/10 border-t border-white/10">
+            <div className="py-4 flex items-start gap-4">
+              <span className="font-mono text-xs text-primary-300/70 pt-1">01</span>
+              <div>
+                <p className="text-sm font-medium text-white">注册账户</p>
+                <p className="text-sm text-white/50 mt-0.5">邮箱验证，一分钟完成注册</p>
               </div>
             </div>
-
-            {/* 密码 */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700">
-                密码 <span className="text-red-500">*</span>
-              </label>
-              <div className="mt-1 relative">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="请输入密码（6-100个字符）"
-                  className="block w-full px-4 py-3 pr-12 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  disabled={loading}
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
+            <div className="py-4 flex items-start gap-4">
+              <span className="font-mono text-xs text-primary-300/70 pt-1">02</span>
+              <div>
+                <p className="text-sm font-medium text-white">上传简历</p>
+                <p className="text-sm text-white/50 mt-0.5">上传即得结构化的简历分析</p>
               </div>
             </div>
-
-            {/* 确认密码 */}
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700">
-                确认密码 <span className="text-red-500">*</span>
-              </label>
-              <div className="mt-1 relative">
-                <input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="请再次输入密码"
-                  className="block w-full px-4 py-3 pr-12 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  disabled={loading}
-                >
-                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
+            <div className="py-4 flex items-start gap-4">
+              <span className="font-mono text-xs text-primary-300/70 pt-1">03</span>
+              <div>
+                <p className="text-sm font-medium text-white">模拟面试</p>
+                <p className="text-sm text-white/50 mt-0.5">多位 AI 面试官轮番提问</p>
               </div>
-            </div>
-
-            {/* 昵称 */}
-            <div>
-              <label htmlFor="nickname" className="block text-sm font-medium text-slate-700">
-                昵称 <span className="text-slate-400">（可选）</span>
-              </label>
-              <input
-                id="nickname"
-                type="text"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder="请输入昵称（可选）"
-                className="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
-                disabled={loading}
-              />
             </div>
           </div>
+        </div>
 
-          {/* 注册按钮 */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5" />
-                注册中...
-              </>
-            ) : (
-              '注册'
+        {/* 底部信息 */}
+        <p className="font-mono text-xs text-white/35">AI Assistant · Interview Workspace</p>
+      </aside>
+
+      {/* 右侧表单区 */}
+      <div className="flex-1 flex flex-col">
+        {/* 移动端品牌行 */}
+        <div className="lg:hidden flex items-center gap-2.5 px-6 pt-6">
+          <BrandMark className="w-6 h-6" />
+          <span className="text-sm font-semibold text-zinc-900">智能面试助手</span>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center px-6 py-12">
+          <div className="w-full max-w-sm fade-in">
+            {/* 标题 */}
+            <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">创建账户</h1>
+            <p className="mt-1.5 text-sm text-zinc-500">注册后即可上传简历并开始模拟面试</p>
+
+            {/* 错误提示 */}
+            {error && (
+              <div className="mt-5 flex items-center gap-2 border border-red-200 bg-red-50 rounded-md px-3 py-2.5 text-sm text-red-700 fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span className="break-all">{error}</span>
+              </div>
             )}
-          </button>
-        </form>
-      </motion.div>
+
+            {/* 注册表单 */}
+            <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+              {/* 用户名 */}
+              <div>
+                <label htmlFor="username" className={labelCls}>
+                  用户名 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="请输入用户名（3-50个字符）"
+                  className={inputCls}
+                  disabled={loading}
+                  autoComplete="username"
+                />
+              </div>
+
+              {/* 邮箱 */}
+              <div>
+                <label htmlFor="email" className={labelCls}>
+                  邮箱 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="请输入邮箱地址"
+                  className={inputCls}
+                  disabled={loading}
+                  autoComplete="email"
+                />
+              </div>
+
+              {/* 邮箱验证码 */}
+              <div>
+                <label htmlFor="emailCode" className={labelCls}>
+                  验证码 <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="emailCode"
+                    type="text"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="请输入邮箱验证码"
+                    className={`${inputCls} flex-1 font-mono tracking-widest`}
+                    disabled={loading}
+                    inputMode="numeric"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGetCode}
+                    disabled={counting || sending || !email}
+                    className="h-9 px-3.5 border border-zinc-300 rounded-md text-sm text-zinc-700 font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {codeText}
+                  </button>
+                </div>
+              </div>
+
+              {/* 密码 */}
+              <div>
+                <label htmlFor="password" className={labelCls}>
+                  密码 <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="请输入密码（6-100个字符）"
+                    className={`${inputCls} pr-10`}
+                    disabled={loading}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-700 transition-colors"
+                    tabIndex={-1}
+                    disabled={loading}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* 确认密码 */}
+              <div>
+                <label htmlFor="confirmPassword" className={labelCls}>
+                  确认密码 <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="请再次输入密码"
+                    className={`${inputCls} pr-10`}
+                    disabled={loading}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-700 transition-colors"
+                    tabIndex={-1}
+                    disabled={loading}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* 昵称 */}
+              <div>
+                <label htmlFor="nickname" className={labelCls}>
+                  昵称 <span className="font-normal text-zinc-400">（可选）</span>
+                </label>
+                <input
+                  id="nickname"
+                  type="text"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="请输入昵称（可选）"
+                  className={inputCls}
+                  disabled={loading}
+                />
+              </div>
+
+              {/* 注册按钮 */}
+              <button type="submit" disabled={loading} className={primaryBtnCls}>
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    注册中...
+                  </>
+                ) : (
+                  '注册'
+                )}
+              </button>
+            </form>
+
+            {/* 登录链接 */}
+            <p className="mt-8 text-sm text-zinc-500">
+              已有账户？{' '}
+              <Link
+                to="/login"
+                className="text-primary-700 font-medium hover:text-primary-800 hover:underline underline-offset-2 transition-colors"
+              >
+                立即登录
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { questionApi, QuestionDifficulty } from '../../api/question';
+
+const labelCls = 'block text-xs font-medium text-zinc-600 mb-1.5';
+const inputCls =
+  'w-full h-9 px-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors';
+const textareaCls =
+  'w-full px-3 py-2 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors resize-none';
 
 export default function QuestionEditPage() {
   const navigate = useNavigate();
@@ -76,109 +81,120 @@ export default function QuestionEditPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+        <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="fade-in">
       {/* 页面头部 */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-3">
         <button
           onClick={() => navigate(-1)}
-          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+          className="p-2 -ml-2 hover:bg-zinc-100 rounded-md transition-colors"
+          aria-label="返回"
         >
-          <ArrowLeft className="w-5 h-5 text-slate-600" />
+          <ArrowLeft className="w-5 h-5 text-zinc-500" />
         </button>
-        <h1 className="text-2xl font-bold text-slate-900">编辑题目</h1>
+        <div>
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">编辑题目</h1>
+          <p className="mt-0.5 text-sm text-zinc-500">修改题目内容、答案、难度与标签</p>
+        </div>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-xl border border-slate-200 p-6"
-      >
-        {/* 题目内容 */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            题目内容
-          </label>
-          <textarea
-            value={formData.content}
-            onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-            rows={4}
-            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-            placeholder="请输入题目内容"
-          />
+      {/* 题目表单 */}
+      <div className="mt-6 bg-white border border-zinc-200 rounded-lg">
+        <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+          <h2 className="text-sm font-medium text-zinc-900">题目信息</h2>
+          <span className="font-mono text-xs text-zinc-400 tabular-nums">ID {questionId}</span>
         </div>
 
-        {/* 答案 */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            参考答案
-          </label>
-          <textarea
-            value={formData.answer}
-            onChange={(e) => setFormData({ ...formData, answer: e.target.value })}
-            rows={6}
-            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-            placeholder="请输入参考答案"
-          />
-        </div>
+        <div className="p-5">
+          {/* 题目内容 */}
+          <div className="mb-5">
+            <label htmlFor="content" className={labelCls}>
+              题目内容 <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="content"
+              value={formData.content}
+              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+              rows={4}
+              className={textareaCls}
+              placeholder="请输入题目内容"
+            />
+          </div>
 
-        {/* 难度 */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            难度
-          </label>
-          <select
-            value={formData.difficulty}
-            onChange={(e) => setFormData({ ...formData, difficulty: e.target.value as QuestionDifficulty })}
-            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value="BASIC">基础</option>
-            <option value="ADVANCED">进阶</option>
-            <option value="EXPERT">专家</option>
-          </select>
-        </div>
+          {/* 答案 */}
+          <div className="mb-5">
+            <label htmlFor="answer" className={labelCls}>
+              参考答案
+            </label>
+            <textarea
+              id="answer"
+              value={formData.answer}
+              onChange={(e) => setFormData({ ...formData, answer: e.target.value })}
+              rows={6}
+              className={textareaCls}
+              placeholder="请输入参考答案"
+            />
+          </div>
 
-        {/* 标签 */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            标签（用逗号分隔）
-          </label>
-          <input
-            type="text"
-            value={formData.tags}
-            onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            placeholder="标签1, 标签2, 标签3"
-          />
-        </div>
+          {/* 难度 + 标签 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label htmlFor="difficulty" className={labelCls}>
+                难度
+              </label>
+              <select
+                id="difficulty"
+                value={formData.difficulty}
+                onChange={(e) => setFormData({ ...formData, difficulty: e.target.value as QuestionDifficulty })}
+                className={inputCls}
+              >
+                <option value="BASIC">基础</option>
+                <option value="ADVANCED">进阶</option>
+                <option value="EXPERT">专家</option>
+              </select>
+            </div>
 
-        {/* 操作按钮 */}
-        <div className="flex items-center justify-end gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-          >
-            取消
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || !formData.content.trim()}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
-          >
-            {saving ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Save className="w-5 h-5" />
-            )}
-            保存
-          </button>
+            <div>
+              <label htmlFor="tags" className={labelCls}>
+                标签（用逗号分隔）
+              </label>
+              <input
+                id="tags"
+                type="text"
+                value={formData.tags}
+                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                className={inputCls}
+                placeholder="标签1, 标签2, 标签3"
+              />
+            </div>
+          </div>
         </div>
-      </motion.div>
+      </div>
+
+      {/* 操作按钮 */}
+      <div className="mt-5 flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || !formData.content.trim()}
+          className="h-9 px-5 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+          {saving ? '保存中…' : '保存'}
+        </button>
+      </div>
     </div>
   );
 }

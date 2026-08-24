@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   BookOpen,
   Check,
@@ -75,20 +74,20 @@ export default function QuestionBankSelect({
     <div className="relative">
       {/* 已选题库显示 */}
       <div
-        className={`min-h-[48px] border rounded-lg p-2 cursor-pointer flex items-center gap-2 flex-wrap ${
+        className={`min-h-[38px] w-full border rounded-md px-2 py-1.5 flex items-center gap-1.5 flex-wrap transition-colors ${
           disabled
-            ? 'bg-slate-50 border-slate-200 cursor-not-allowed'
-            : 'bg-white border-slate-200 hover:border-slate-300'
+            ? 'bg-zinc-100 border-zinc-200 cursor-not-allowed'
+            : 'bg-white border-zinc-300 hover:border-zinc-400 cursor-pointer'
         }`}
         onClick={() => !disabled && setIsOpen(!isOpen)}
       >
         {selectedBanks.length === 0 ? (
-          <span className="text-slate-400">点击选择题库</span>
+          <span className="text-sm text-zinc-400 px-1">点击选择题库</span>
         ) : (
           selectedBanks.map(bank => (
             <span
               key={bank.id}
-              className="inline-flex items-center gap-1 px-2 py-1 bg-primary-100 text-primary-700 rounded text-sm"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 border border-primary-200 bg-primary-50 text-primary-700 rounded text-xs"
             >
               {bank.name}
               {!disabled && (
@@ -97,7 +96,8 @@ export default function QuestionBankSelect({
                     e.stopPropagation();
                     handleSelectBank(bank.id);
                   }}
-                  className="hover:text-primary-900"
+                  className="text-primary-400 hover:text-primary-800 transition-colors"
+                  aria-label={`移除题库 ${bank.name}`}
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -106,102 +106,89 @@ export default function QuestionBankSelect({
           ))
         )}
         {selectedBanks.length > 0 && selectedBanks.length < maxSelections && !disabled && (
-          <span className="text-xs text-slate-400 ml-auto">
-            还可以选择 {maxSelections - selectedBanks.length} 个
+          <span className="font-mono text-xs text-zinc-400 ml-auto tabular-nums">
+            还可选 {maxSelections - selectedBanks.length} 个
           </span>
         )}
       </div>
 
       {/* 下拉选择框 */}
-      <AnimatePresence>
-        {isOpen && !disabled && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg max-h-[400px] overflow-hidden"
-          >
-            {/* 搜索框 */}
-            <div className="p-3 border-b border-slate-200">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="搜索题库..."
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </div>
+      {isOpen && !disabled && (
+        <div className="absolute z-50 w-full mt-1.5 bg-white border border-zinc-200 rounded-md shadow-lg max-h-[400px] overflow-hidden fade-in">
+          {/* 搜索框 */}
+          <div className="p-2.5 border-b border-zinc-100">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="搜索题库…"
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                className="w-full h-9 pl-8 pr-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              />
             </div>
+          </div>
 
-            {/* 题库列表 */}
-            <div className="overflow-y-auto max-h-[300px] p-2">
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 text-primary-500 animate-spin" />
-                </div>
-              ) : filteredBanks.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">
-                  暂无题库
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {filteredBanks.map(bank => {
-                    const isSelected = selectedBankIds.includes(bank.id);
-                    const isDisabled = !isSelected && selectedBankIds.length >= maxSelections;
+          {/* 题库列表 */}
+          <div className="overflow-y-auto max-h-[300px] p-2">
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 text-primary-600 animate-spin" />
+              </div>
+            ) : filteredBanks.length === 0 ? (
+              <p className="py-8 text-xs text-zinc-400 text-center">暂无题库</p>
+            ) : (
+              <div className="space-y-0.5">
+                {filteredBanks.map(bank => {
+                  const isSelected = selectedBankIds.includes(bank.id);
+                  const isDisabled = !isSelected && selectedBankIds.length >= maxSelections;
 
-                    return (
-                      <div
-                        key={bank.id}
-                        className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
-                          isDisabled
-                            ? 'opacity-50 cursor-not-allowed'
-                            : isSelected
-                            ? 'bg-primary-50'
-                            : 'hover:bg-slate-50'
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!isDisabled) {
-                            handleSelectBank(bank.id);
-                          }
-                        }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${bank.type === 'SYSTEM' ? 'bg-blue-100' : 'bg-green-100'}`}>
-                            <BookOpen className={`w-4 h-4 ${bank.type === 'SYSTEM' ? 'text-blue-600' : 'text-green-600'}`} />
-                          </div>
-                          <div>
-                            <div className="font-medium text-slate-900">{bank.name}</div>
-                            <div className="text-xs text-slate-500">
-                              {bank.questionCount} 道题目
-                              {bank.type === 'SYSTEM' ? ' · 系统题库' : ''}
-                            </div>
+                  return (
+                    <div
+                      key={bank.id}
+                      className={`flex items-center justify-between gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors ${
+                        isDisabled
+                          ? 'opacity-50 cursor-not-allowed'
+                          : isSelected
+                          ? 'bg-primary-50'
+                          : 'hover:bg-zinc-50'
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isDisabled) {
+                          handleSelectBank(bank.id);
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <BookOpen className="w-4 h-4 text-zinc-400 shrink-0" strokeWidth={1.75} />
+                        <div className="min-w-0">
+                          <div className="text-sm text-zinc-800 truncate">{bank.name}</div>
+                          <div className="font-mono text-xs text-zinc-400 tabular-nums">
+                            {bank.questionCount} 道
+                            {bank.type === 'SYSTEM' ? ' · 系统题库' : ''}
                           </div>
                         </div>
-                        {isSelected && (
-                          <div className="w-5 h-5 rounded-full bg-primary-600 flex items-center justify-center">
-                            <Check className="w-3 h-3 text-white" />
-                          </div>
-                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* 底部提示 */}
-            {filteredBanks.length > 0 && (
-              <div className="p-3 border-t border-slate-200 text-xs text-slate-400">
-                已选择 {selectedBankIds.length}/{maxSelections} 个题库
+                      {isSelected && (
+                        <Check className="w-4 h-4 text-primary-600 shrink-0" strokeWidth={2} />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+
+          {/* 底部提示 */}
+          {filteredBanks.length > 0 && (
+            <div className="px-3 py-2 border-t border-zinc-100 font-mono text-xs text-zinc-400 tabular-nums">
+              已选择 {selectedBankIds.length}/{maxSelections} 个题库
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 点击外部关闭 */}
       {isOpen && (

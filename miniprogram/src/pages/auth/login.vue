@@ -257,7 +257,7 @@ const goToForgotPassword = () => {
     <!-- 顶部品牌区 -->
     <view class="hero">
       <view class="brand-badge">
-        <Icon name="sparkles" :size="44" color="#fff" />
+        <Icon name="message" :size="44" color="#fff" />
       </view>
       <text class="brand-title">AI 面试指南</text>
       <text class="brand-sub">多视角面试官 · 自适应难度 · 实时评分</text>

@@ -1,5 +1,4 @@
 import {useMemo, useState} from 'react';
-import {motion} from 'framer-motion';
 import {CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
 import {formatDateOnly} from '../utils/date';
 import {getScoreColor} from '../utils/score';
@@ -7,8 +6,7 @@ import type {InterviewItem} from '../api/history';
 import {historyApi} from '../api/history';
 import ConfirmDialog from './ConfirmDialog';
 import {
-  Mic,
-  TrendingUp,
+  Loader2,
   Calendar,
   MessageSquare,
   Download,
@@ -48,7 +46,7 @@ export default function InterviewPanel({
 
   const handleDeleteConfirm = async () => {
     if (!deleteConfirm) return;
-    
+
     const { sessionId } = deleteConfirm;
     setDeletingSessionId(sessionId);
     try {
@@ -75,92 +73,80 @@ export default function InterviewPanel({
 
   if (interviews.length === 0) {
     return (
-      <div className="bg-white rounded-2xl p-12 text-center">
-        <div className="w-16 h-16 mx-auto mb-6 bg-slate-100 rounded-full flex items-center justify-center">
-          <Mic className="w-8 h-8 text-slate-400" />
-        </div>
-        <h3 className="text-xl font-semibold text-slate-700 mb-2">暂无面试记录</h3>
-        <p className="text-slate-500 mb-6">开始模拟面试，获取专业评估</p>
-        <motion.button
+      <div className="bg-white border border-zinc-200 rounded-lg py-16 flex flex-col items-center justify-center fade-in">
+        <p className="text-sm text-zinc-500">暂无面试记录</p>
+        <p className="mt-1 mb-5 text-xs text-zinc-400">开始模拟面试，获取专业评估</p>
+        <button
           onClick={onStartInterview}
-          className="px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-medium shadow-lg shadow-primary-500/30"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+          className="h-9 px-5 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors"
         >
           开始模拟面试
-        </motion.button>
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* 面试表现趋势图 */}
       {chartData.length > 0 && (
-        <motion.div 
-          className="bg-white rounded-2xl p-6"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-primary-500" />
-              <span className="font-semibold text-slate-800">面试表现趋势</span>
+        <div className="bg-white border border-zinc-200 rounded-lg fade-in">
+          <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
+            <h3 className="text-sm font-medium text-zinc-900">面试表现趋势</h3>
+            <span className="font-mono text-xs text-zinc-400">共 {chartData.length} 场</span>
+          </div>
+          <div className="p-5">
+            <div className="h-48">
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+                initialDimension={{ width: 600, height: 192 }}
+              >
+                <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#a1a1aa', fontSize: 12 }}
+                  />
+                  <YAxis
+                    domain={[0, 100]}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#a1a1aa', fontSize: 12 }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e4e4e7',
+                      borderRadius: '6px'
+                    }}
+                    formatter={(value) => [`${value} 分`, '得分']}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="score"
+                    stroke="#276f8d"
+                    strokeWidth={2}
+                    dot={{ fill: '#276f8d', stroke: '#276f8d', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 5, fill: '#276f8d', stroke: '#276f8d', strokeWidth: 2 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
-            <span className="text-sm text-slate-500">共 {chartData.length} 场练习</span>
           </div>
-          
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#94a3b8', fontSize: 12 }}
-                />
-                <YAxis 
-                  domain={[0, 100]}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#94a3b8', fontSize: 12 }}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#fff', 
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '12px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }}
-                  formatter={(value) => [`${value} 分`, '得分']}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="score"
-                  stroke="#0ea5e9"
-                  strokeWidth={3}
-                  dot={{ fill: '#0ea5e9', stroke: '#0ea5e9', strokeWidth: 2, r: 5 }}
-                  activeDot={{ r: 8, fill: '#0ea5e9', stroke: '#0ea5e9', strokeWidth: 2 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
+        </div>
       )}
 
       {/* 历史面试场次 */}
-      <motion.div 
-        className="bg-white rounded-2xl p-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <span className="font-semibold text-slate-800">历史面试场次</span>
+      <div className="bg-white border border-zinc-200 rounded-lg">
+        <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
+          <h3 className="text-sm font-medium text-zinc-900">历史面试</h3>
+          <span className="font-mono text-xs text-zinc-400">{interviews.length} 场</span>
         </div>
 
-        <div className="space-y-4">
+        <div className="p-5 space-y-3">
           {interviews.map((interview, index) => (
             <InterviewItemCard
               key={interview.id}
@@ -191,17 +177,13 @@ export default function InterviewPanel({
 
         {loadingInterview && (
           <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl p-6 flex items-center gap-4">
-              <motion.div 
-                className="w-8 h-8 border-3 border-slate-200 border-t-primary-500 rounded-full"
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              />
-              <span className="text-slate-600">加载面试详情...</span>
+            <div className="bg-white border border-zinc-200 rounded-md px-5 py-4 flex items-center gap-3">
+              <Loader2 className="w-4 h-4 text-primary-600 animate-spin" />
+              <span className="text-sm text-zinc-600">加载面试详情...</span>
             </div>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }
@@ -227,74 +209,69 @@ function InterviewItemCard({
   onDelete: (e: React.MouseEvent) => void;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.1 }}
+    <div
       onClick={onView}
-      className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors group"
+      className="flex items-center gap-4 px-4 py-3 bg-white border border-zinc-200 rounded-md hover:bg-zinc-50 cursor-pointer transition-colors"
     >
       {/* 得分 */}
-      <div className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg ${
-        interview.overallScore !== null 
+      <div className={`w-11 h-11 rounded-md flex items-center justify-center font-mono text-base font-semibold tabular-nums shrink-0 ${
+        interview.overallScore !== null
           ? getScoreColor(interview.overallScore, [85, 70])
-          : 'bg-slate-100 text-slate-400'
+          : 'bg-zinc-100 text-zinc-400'
       }`}>
         {interview.overallScore ?? '-'}
       </div>
 
       {/* 信息 */}
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-slate-800 truncate">
-          模拟面试 #{total - index}
+        <p className="text-sm font-medium text-zinc-800 truncate">
+          模拟面试 <span className="font-mono">#{total - index}</span>
         </p>
-        <div className="flex items-center gap-4 text-sm text-slate-500">
+        <div className="flex items-center gap-4 mt-1 text-xs text-zinc-400">
           <span className="flex items-center gap-1">
-            <Calendar className="w-4 h-4" />
-            {formatDateOnly(interview.createdAt)}
+            <Calendar className="w-3.5 h-3.5" />
+            <span className="font-mono">{formatDateOnly(interview.createdAt)}</span>
           </span>
           <span className="flex items-center gap-1">
-            <MessageSquare className="w-4 h-4" />
-            {interview.totalQuestions} 题
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span className="font-mono">{interview.totalQuestions} 题</span>
           </span>
         </div>
       </div>
 
       {/* 操作按钮 */}
-      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100">
-      {/* 导出按钮 */}
-      <motion.button
-        onClick={(e) => { e.stopPropagation(); onExport(); }}
-        disabled={exporting}
-          className="px-3 py-2 text-slate-400 hover:text-primary-500 hover:bg-white rounded-lg transition-all"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-      >
-        <Download className="w-5 h-5" />
-      </motion.button>
-        
+      <div className="flex items-center gap-1 shrink-0">
+        {/* 导出按钮 */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onExport(); }}
+          disabled={exporting}
+          className="p-2 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="导出面试记录"
+        >
+          {exporting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Download className="w-4 h-4" />
+          )}
+        </button>
+
         {/* 删除按钮 */}
         <button
           onClick={onDelete}
           disabled={deleting}
-          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="删除面试记录"
         >
           {deleting ? (
-            <motion.div
-              className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            />
+            <Loader2 className="w-4 h-4 animate-spin text-red-600" />
           ) : (
-            <Trash2 className="w-5 h-5" />
+            <Trash2 className="w-4 h-4" />
           )}
         </button>
       </div>
 
       {/* 箭头 */}
-      <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-primary-500 group-hover:translate-x-1 transition-all flex-shrink-0" />
-    </motion.div>
+      <ChevronRight className="w-4 h-4 text-zinc-300 shrink-0" />
+    </div>
   );
 }
-

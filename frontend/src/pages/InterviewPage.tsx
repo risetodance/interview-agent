@@ -1,5 +1,5 @@
 import {useEffect, useState, useRef} from 'react';
-import {AnimatePresence, motion} from 'framer-motion';
+import {Loader2} from 'lucide-react';
 import {interviewApi, PROGRESS_LABELS} from '../api/interview';
 import {interviewerRoleApi} from '../api/interviewerRole';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -264,10 +264,10 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
       setCheckingUnfinished(false);
     }
   };
-  
+
   const checkUnfinishedSession = async () => {
     if (!resumeId) return;
-    
+
     setCheckingUnfinished(true);
     try {
       const foundSession = await interviewApi.findUnfinishedSession(resumeId);
@@ -287,7 +287,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
     await restoreSessionById(sessionId);
     setUnfinishedSession(null);
   };
-  
+
   const handleStartNew = () => {
     setUnfinishedSession(null);
     setForceCreateNew(true);  // 标记需要强制创建新会话
@@ -350,7 +350,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
       setIsCreating(false);
     }
   };
-  
+
   const handleSubmitAnswer = async () => {
     if (!answer.trim() || !session || !currentQuestion) return;
 
@@ -395,7 +395,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
       setIsSubmitting(false);
     }
   };
-  
+
   // 配置界面
   const renderConfig = () => {
     return (
@@ -420,7 +420,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
       />
     );
   };
-  
+
   // 面试对话界面
   const renderInterview = () => {
     if (!session) return null;
@@ -429,10 +429,10 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
       <div className="relative flex-1 min-h-0">
         {/* 加载下一题时的遮罩 */}
         {isLoadingQuestion && (
-          <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-white/90 z-50 flex items-center justify-center fade-in">
             <div className="text-center">
-              <div className="w-10 h-10 border-3 border-slate-200 border-t-primary-500 rounded-full mx-auto mb-4 animate-spin" />
-              <p className="text-slate-500">正在出题中...</p>
+              <Loader2 className="w-6 h-6 text-primary-600 animate-spin mx-auto mb-3" />
+              <p className="text-sm text-zinc-500">正在出题中…</p>
             </div>
           </div>
         )}
@@ -458,55 +458,33 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
     config: '配置您的面试参数',
     interview: '认真回答每个问题，展示您的实力'
   };
-  
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex-1 flex flex-col">
       {/* 页面头部 */}
-      <motion.div 
-        className="text-center mb-10"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <h1 className="text-3xl font-bold text-slate-900 mb-2 flex items-center justify-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center">
-            <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <line x1="8" y1="23" x2="16" y2="23" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          模拟面试
-        </h1>
-        <p className="text-slate-500">{stageSubtitles[stage]}</p>
-      </motion.div>
-      
-      <AnimatePresence mode="wait" initial={false}>
-        {stage === 'config' && (
-          <motion.div
-            key="config"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            {renderConfig()}
-          </motion.div>
+      <div className="flex items-end justify-between mb-6 shrink-0">
+        <div>
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">模拟面试</h1>
+          <p className="mt-1 text-sm text-zinc-500">{stageSubtitles[stage]}</p>
+        </div>
+        {stage === 'interview' && session && (
+          <span className="font-mono text-xs text-zinc-400">
+            ID {session.sessionId.slice(0, 8)}
+          </span>
         )}
-        {stage === 'interview' && (
-          <motion.div
-            key="interview"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="flex-1 min-h-0 flex flex-col"
-          >
-            {renderInterview()}
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
+      </div>
+
+      {stage === 'config' && (
+        <div className="fade-in">
+          {renderConfig()}
+        </div>
+      )}
+      {stage === 'interview' && (
+        <div className="flex-1 min-h-0 flex flex-col fade-in">
+          {renderInterview()}
+        </div>
+      )}
+
       {/* 提前交卷确认对话框 */}
       <ConfirmDialog
         open={showCompleteConfirm}

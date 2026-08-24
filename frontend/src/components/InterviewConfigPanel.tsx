@@ -1,8 +1,7 @@
-import {AnimatePresence, motion} from 'framer-motion';
 import type {InterviewSession} from '../types/interview';
 import type {InterviewerRole} from '../types/interviewerRole';
 import PerspectiveSelector from './interview/PerspectiveSelector';
-import {Loader2} from 'lucide-react';
+import {Loader2, ArrowLeft, AlertCircle} from 'lucide-react';
 import {useState} from 'react';
 
 interface InterviewConfigPanelProps {
@@ -53,221 +52,156 @@ export default function InterviewConfigPanel({
   const [weightError, setWeightError] = useState<string | null>(null);
 
   return (
-    <motion.div 
-      className="max-w-2xl mx-auto"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
-      <div className="bg-white rounded-2xl p-8 shadow-sm">
-        <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
-            <svg className="w-5 h-5 text-primary-600" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-              <circle cx="12" cy="12" r="6" stroke="currentColor" strokeWidth="2"/>
-              <circle cx="12" cy="12" r="2" fill="currentColor"/>
-            </svg>
-          </div>
-          面试配置
-        </h2>
-        
-        {/* 未完成面试提示 */}
-        <AnimatePresence>
-          {checkingUnfinished && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-sm text-center"
-            >
-              <div className="flex items-center justify-center gap-2">
-                <motion.div 
-                  className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                />
-                正在检查是否有未完成的面试...
-              </div>
-            </motion.div>
-          )}
-          
-          {unfinishedSession && !checkingUnfinished && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="mb-6 p-5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl"
-            >
-              <div className="flex items-start gap-3 mb-4">
-                <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <svg className="w-5 h-5 text-amber-600" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-amber-900 mb-1">检测到未完成的模拟面试</h3>
-                  <p className="text-sm text-amber-700">
-                    已完成 {(unfinishedSession.answeredCount ?? unfinishedSession.currentQuestionIndex)} / {unfinishedSession.totalQuestions} 题
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <motion.button
-                  onClick={() => onContinueUnfinished(unfinishedSession.sessionId)}
-                  className="flex-1 px-4 py-2.5 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  继续完成
-                </motion.button>
-                <motion.button
-                  onClick={onStartNew}
-                  className="flex-1 px-4 py-2.5 bg-white border border-amber-300 text-amber-700 rounded-lg font-medium hover:bg-amber-50 transition-colors"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  开始新的
-                </motion.button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        
-        <div className="space-y-6">
-          {/* 视角选择器 */}
-          {onPerspectivesChange && (
-            <div>
-              {loadingRoles ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 text-primary-500 animate-spin" />
-                  <span className="ml-2 text-sm text-slate-500">加载面试官角色...</span>
-                </div>
-              ) : availableRoles.length > 0 ? (
-                <PerspectiveSelector
-                  roles={availableRoles}
-                  selectedIds={selectedPerspectives}
-                  onChange={onPerspectivesChange}
-                  weights={perspectiveWeights}
-                  onWeightsChange={onPerspectiveWeightsChange}
-                  onWeightValidationChange={(isValid, totalWeight) => {
-                    if (!isValid && selectedPerspectives.length > 0) {
-                      setWeightError(`权重总和需为100%（当前${(totalWeight * 100).toFixed(0)}%），请调整后开始面试`);
-                    } else {
-                      setWeightError(null);
-                    }
-                  }}
-                />
-              ) : (
-                <div className="p-4 bg-slate-50 rounded-xl text-sm text-slate-500 text-center">
-                  暂无可用面试官角色，请先在管理后台配置
-                </div>
-              )}
-            </div>
-          )}
+    <div className="bg-white border border-zinc-200 rounded-lg fade-in">
+      {/* 卡头 */}
+      <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+        <h2 className="text-sm font-medium text-zinc-900">面试配置</h2>
+        <span className="font-mono text-xs text-zinc-400">视角 · 权重 · 题量</span>
+      </div>
 
+      <div className="p-5 space-y-6">
+        {/* 未完成面试检查中 */}
+        {checkingUnfinished && (
+          <div className="flex items-center justify-center gap-2 border border-zinc-200 bg-zinc-50 rounded-md px-3 py-2.5 text-sm text-zinc-500 fade-in">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            正在检查是否有未完成的面试...
+          </div>
+        )}
+
+        {/* 未完成面试处理 */}
+        {unfinishedSession && !checkingUnfinished && (
+          <div className="border border-amber-200 bg-amber-50 rounded-md p-4 fade-in">
+            <div className="mb-3">
+              <h3 className="text-sm font-medium text-amber-900 mb-0.5">检测到未完成的模拟面试</h3>
+              <p className="text-xs text-amber-700">
+                已完成 {(unfinishedSession.answeredCount ?? unfinishedSession.currentQuestionIndex)} / {unfinishedSession.totalQuestions} 题
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onContinueUnfinished(unfinishedSession.sessionId)}
+                className="h-9 px-4 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors"
+              >
+                继续完成
+              </button>
+              <button
+                onClick={onStartNew}
+                className="h-9 px-4 rounded-md border border-zinc-300 bg-white text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors"
+              >
+                开始新的
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 视角选择器 */}
+        {onPerspectivesChange && (
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-3">
-              题目数量
-            </label>
-            <div className="grid grid-cols-5 gap-3">
-              {questionCounts.map((count) => (
-                <motion.button
-                  key={count}
-                  onClick={() => onQuestionCountChange(count)}
-                  className={`px-4 py-3 rounded-xl font-medium transition-all ${
-                    questionCount === count
-                      ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/30'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  {count}
-                </motion.button>
-              ))}
-            </div>
-          </div>
-          
-          <div className="mb-6">
-            <label className="block text-sm font-semibold text-slate-600 mb-3">简历预览（前500字）</label>
-            <textarea 
-              value={resumeText.substring(0, 500) + (resumeText.length > 500 ? '...' : '')}
-              readOnly
-              className="w-full h-32 p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-sm resize-none"
-            />
-          </div>
-          
-
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm"
-              >
-                ⚠️ {error}
-              </motion.div>
+            {loadingRoles ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-4 h-4 text-zinc-400 animate-spin" />
+                <span className="ml-2 text-sm text-zinc-500">加载面试官角色...</span>
+              </div>
+            ) : availableRoles.length > 0 ? (
+              <PerspectiveSelector
+                roles={availableRoles}
+                selectedIds={selectedPerspectives}
+                onChange={onPerspectivesChange}
+                weights={perspectiveWeights}
+                onWeightsChange={onPerspectiveWeightsChange}
+                onWeightValidationChange={(isValid, totalWeight) => {
+                  if (!isValid && selectedPerspectives.length > 0) {
+                    setWeightError(`权重总和需为100%（当前${(totalWeight * 100).toFixed(0)}%），请调整后开始面试`);
+                  } else {
+                    setWeightError(null);
+                  }
+                }}
+              />
+            ) : (
+              <p className="px-5 py-8 text-xs text-zinc-400 text-center border border-zinc-200 rounded-md">
+                暂无可用面试官角色，请先在管理后台配置
+              </p>
             )}
-          </AnimatePresence>
+          </div>
+        )}
 
-          <AnimatePresence>
-            {weightError && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm"
+        {/* 题目数量 */}
+        <div>
+          <label className="block text-xs font-medium text-zinc-600 mb-1.5">
+            题目数量
+          </label>
+          <div className="grid grid-cols-5 gap-2">
+            {questionCounts.map((count) => (
+              <button
+                key={count}
+                onClick={() => onQuestionCountChange(count)}
+                className={`h-9 rounded-md text-sm font-medium border transition-colors tabular-nums ${
+                  questionCount === count
+                    ? 'border-primary-600 bg-primary-50 text-primary-700'
+                    : 'border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400'
+                }`}
               >
-                ⚠️ {weightError}
-              </motion.div>
-            )}
-          </AnimatePresence>
-          
-          <div className="flex justify-center gap-4">
-            <motion.button
-              onClick={onBack}
-              className="px-6 py-3 border border-slate-200 rounded-xl text-slate-600 font-medium hover:bg-slate-50 transition-all"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              ← 返回
-            </motion.button>
-            <motion.button
-              onClick={onStart}
-              disabled={isCreating || checkingUnfinished || !!weightError || selectedPerspectives.length === 0 || !!unfinishedSession}
-              className="px-8 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-semibold shadow-lg shadow-primary-500/30 hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-              whileHover={{ scale: isCreating || checkingUnfinished || !!weightError || selectedPerspectives.length === 0 || !!unfinishedSession ? 1 : 1.02, y: isCreating || checkingUnfinished || !!weightError || selectedPerspectives.length === 0 || !!unfinishedSession ? 0 : -1 }}
-              whileTap={{ scale: isCreating || checkingUnfinished || !!weightError || selectedPerspectives.length === 0 || !!unfinishedSession ? 1 : 0.98 }}
-            >
-              {isCreating ? (
-                <>
-                  <motion.span
-                    className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  />
-                  正在生成题目...
-                </>
-              ) : selectedPerspectives.length === 0 ? (
-                <>
-                  请选择面试官
-                </>
-              ) : unfinishedSession ? (
-                <>
-                  请先处理未完成的面试选项
-                </>
-              ) : (
-                <>
-                  开始面试 →
-                </>
-              )}
-            </motion.button>
+                {count}
+              </button>
+            ))}
           </div>
         </div>
+
+        {/* 简历预览 */}
+        <div>
+          <label className="block text-xs font-medium text-zinc-600 mb-1.5">简历预览（前500字）</label>
+          <textarea
+            value={resumeText.substring(0, 500) + (resumeText.length > 500 ? '...' : '')}
+            readOnly
+            className="w-full h-32 p-3 bg-zinc-50 border border-zinc-200 rounded-md text-zinc-600 text-sm resize-none focus:outline-none"
+          />
+        </div>
+
+        {/* 错误提示 */}
+        {error && (
+          <div className="flex items-start gap-2 border border-red-200 bg-red-50 rounded-md px-3 py-2.5 text-sm text-red-700 fade-in">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="break-all">{error}</span>
+          </div>
+        )}
+
+        {/* 权重校验提示 */}
+        {weightError && (
+          <div className="flex items-start gap-2 border border-amber-200 bg-amber-50 rounded-md px-3 py-2.5 text-sm text-amber-700 fade-in">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{weightError}</span>
+          </div>
+        )}
+
+        {/* 操作按钮 */}
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onBack}
+            className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors flex items-center gap-1.5"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            返回
+          </button>
+          <button
+            onClick={onStart}
+            disabled={isCreating || checkingUnfinished || !!weightError || selectedPerspectives.length === 0 || !!unfinishedSession}
+            className="h-9 px-5 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {isCreating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                正在生成题目...
+              </>
+            ) : selectedPerspectives.length === 0 ? (
+              '请选择面试官'
+            ) : unfinishedSession ? (
+              '请先处理未完成的面试选项'
+            ) : (
+              '开始面试'
+            )}
+          </button>
+        </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
-

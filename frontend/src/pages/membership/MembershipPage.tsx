@@ -1,15 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
   Crown,
   Star,
   FileText,
   MessageSquare,
   Sparkles,
-  Calendar,
   Loader2,
-  CreditCard,
   Gift,
   TrendingUp,
 } from 'lucide-react';
@@ -20,26 +17,6 @@ import SignInButton from '../../components/membership/SignInButton';
 // 会员类型文本
 function getMembershipText(type: MembershipType): string {
   return type === 'PREMIUM' ? 'VIP 会员' : '免费用户';
-}
-
-// 会员类型样式
-function getMembershipStyle(type: MembershipType): {
-  badge: string;
-  text: string;
-  bg: string;
-} {
-  if (type === 'PREMIUM') {
-    return {
-      badge: 'bg-gradient-to-r from-amber-400 to-orange-500',
-      text: 'text-white',
-      bg: 'from-amber-50 to-orange-50',
-    };
-  }
-  return {
-    badge: 'bg-slate-200',
-    text: 'text-slate-600',
-    bg: 'from-slate-50 to-slate-100',
-  };
 }
 
 // 格式化日期
@@ -53,54 +30,32 @@ function formatDate(dateStr: string | undefined): string {
   });
 }
 
-// 额度卡片组件
-function QuotaCard({
+// 额度条目组件
+function QuotaItem({
   icon: Icon,
   label,
   quota,
-  color,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   quota: number;
-  color: string;
 }) {
   // Integer.MAX_VALUE = 2147483647，表示 VIP 无限额度
   const isUnlimited = quota === -1 || quota >= 2147483647;
-  const displayQuota = isUnlimited ? '无限' : quota;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-xl p-5 shadow-sm border border-slate-100"
-    >
-      <div className="flex items-center gap-3 mb-4">
-        <div className={`p-2.5 rounded-lg ${color}`}>
-          <Icon className="w-5 h-5 text-white" />
-        </div>
-        <span className="font-medium text-slate-700">{label}</span>
+    <div className="px-5 py-4">
+      <div className="flex items-center gap-2">
+        <Icon className="w-4 h-4 text-zinc-400" />
+        <span className="text-xs text-zinc-500">{label}</span>
       </div>
-      <div className="space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="text-slate-500">可用额度</span>
-          <span className="font-medium text-slate-700">
-            {displayQuota} 次
-          </span>
-        </div>
-        {!isUnlimited && (
-          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-            <motion.div
-              className="h-full"
-              initial={{ width: 0 }}
-              animate={{ width: '100%' }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
-              style={{ backgroundColor: color.includes('primary') ? '#0ea5e9' : color.includes('emerald') ? '#10b981' : '#f59e0b' }}
-            />
-          </div>
-        )}
-      </div>
-    </motion.div>
+      <p className="mt-2 flex items-baseline gap-1">
+        <span className="font-mono text-2xl font-semibold text-primary-800 tabular-nums">
+          {isUnlimited ? '无限' : quota}
+        </span>
+        {!isUnlimited && <span className="text-xs text-zinc-400">次</span>}
+      </p>
+    </div>
   );
 }
 
@@ -158,194 +113,143 @@ export default function MembershipPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+        <Loader2 className="w-5 h-5 text-zinc-400 animate-spin" />
       </div>
     );
   }
 
   if (error || !membership) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-red-50 text-red-600 p-4 rounded-lg">
-          {error || '加载失败，请稍后重试'}
-        </div>
+      <div className="border border-red-200 bg-red-50 rounded-lg px-4 py-3 text-sm text-red-700">
+        {error || '加载失败，请稍后重试'}
       </div>
     );
   }
 
-  const membershipStyle = getMembershipStyle(membership.membership);
+  const isFree = membership.membership === 'FREE';
+
+  // VIP 会员特权（免费用户引导升级）
+  const vipPrivileges = [
+    { icon: Crown, title: '无限额度', desc: '简历分析、模拟面试、AI 调用次数无限制' },
+    { icon: Gift, title: '积分赠送', desc: '升级即送 1000 积分' },
+    { icon: Star, title: '专属客服', desc: '享受优先客服支持' },
+    { icon: TrendingUp, title: '功能优先', desc: '新功能优先体验' },
+  ];
 
   return (
-    <div className="max-w-5xl mx-auto">
-      {/* 页面标题 */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-          <Crown className="w-7 h-7 text-amber-500" />
-          会员中心
-        </h1>
-        <p className="text-slate-500 mt-1">查看会员状态和额度使用情况</p>
+    <div className="fade-in">
+      {/* 页头 */}
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">会员中心</h1>
+        <p className="mt-1 text-sm text-zinc-500">查看会员状态、积分与额度使用情况</p>
       </div>
 
-      {/* 会员状态卡片 */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`bg-gradient-to-br ${membershipStyle.bg} rounded-2xl p-8 mb-8 border border-slate-200`}
-      >
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className={`p-4 rounded-2xl ${membershipStyle.badge}`}>
-              {membership.membership === 'PREMIUM' ? (
-                <Crown className="w-8 h-8 text-white" />
-              ) : (
-                <Star className="w-8 h-8 text-slate-500" />
-              )}
+      {/* 会员状态（当前档位突出）+ 积分 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+        {/* 当前档位卡片 */}
+        <div className="lg:col-span-2 rounded-lg border border-primary-600 bg-primary-50/50 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-medium text-zinc-900">{getMembershipText(membership.membership)}</h2>
+              <span className="text-xs border rounded px-1.5 py-0.5 text-primary-700 bg-primary-50 border-primary-200">
+                当前档位
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-bold text-slate-800">
-                  {getMembershipText(membership.membership)}
-                </h2>
-                {membership.membership === 'PREMIUM' && (
-                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
-                    当前
-                  </span>
-                )}
-              </div>
-              {membership.vipExpiryDate && (
-                <div className="flex items-center gap-2 mt-2 text-slate-500">
-                  <Calendar className="w-4 h-4" />
-                  <span className="text-sm">
-                    VIP 到期时间: {formatDate(membership.vipExpiryDate)}
-                  </span>
-                </div>
-              )}
-            </div>
+            {membership.vipExpiryDate ? (
+              <p className="mt-2 font-mono text-xs text-zinc-500">
+                VIP 到期时间：{formatDate(membership.vipExpiryDate)}
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-zinc-500">基础额度版，可升级 VIP 解锁无限额度</p>
+            )}
           </div>
 
           {/* 升级按钮 - 仅免费用户显示 */}
-          {membership.membership === 'FREE' && (
+          {isFree && (
             <button
               onClick={handleUpgrade}
               disabled={upgrading}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white font-medium rounded-xl hover:from-amber-500 hover:to-orange-600 transition-all shadow-lg shadow-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-9 px-5 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2 shrink-0"
             >
-              {upgrading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>升级中...</span>
-                </>
-              ) : (
-                <>
-                  <Crown className="w-5 h-5" />
-                  <span>立即升级 VIP</span>
-                </>
-              )}
+              {upgrading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {upgrading ? '升级中…' : '立即升级 VIP'}
             </button>
           )}
         </div>
 
-        {/* 积分余额展示 */}
-        <div className="mt-8 pt-6 border-t border-slate-200/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-primary-100 rounded-xl">
-                <Gift className="w-6 h-6 text-primary-600" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">当前积分</p>
-                <p className="text-3xl font-bold text-slate-800">{points.toLocaleString()}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <SignInButton
-                signedIn={signInStatus?.signedIn ?? false}
-                consecutiveDays={signInStatus?.consecutiveDays ?? 0}
-                onSignInSuccess={() => {
-                  // 签到成功后刷新数据
-                  loadData();
-                }}
-              />
-              <button
-                onClick={handleViewPointsHistory}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                <TrendingUp className="w-4 h-4" />
-                <span>查看积分记录</span>
-              </button>
-            </div>
+        {/* 积分卡片 */}
+        <div className="bg-white border border-zinc-200 rounded-lg p-5 flex flex-col justify-between gap-4">
+          <div>
+            <p className="text-xs text-zinc-500">当前积分</p>
+            <p className="mt-1.5 font-mono text-2xl font-semibold text-primary-800 tabular-nums">
+              {points.toLocaleString()}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <SignInButton
+              signedIn={signInStatus?.signedIn ?? false}
+              consecutiveDays={signInStatus?.consecutiveDays ?? 0}
+              onSignInSuccess={() => {
+                // 签到成功后刷新数据
+                loadData();
+              }}
+            />
+            <button
+              onClick={handleViewPointsHistory}
+              className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors"
+            >
+              查看积分记录
+            </button>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* 额度使用情况 */}
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-          <CreditCard className="w-5 h-5 text-slate-500" />
-          额度使用情况
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <QuotaCard
-            icon={FileText}
-            label="简历分析额度"
-            quota={membership.resumeQuota}
-            color="bg-primary-500"
-          />
-          <QuotaCard
-            icon={MessageSquare}
-            label="模拟面试额度"
-            quota={membership.interviewQuota}
-            color="bg-emerald-500"
-          />
-          <QuotaCard
-            icon={Sparkles}
-            label="AI 调用额度"
-            quota={membership.aiCallQuota}
-            color="bg-amber-500"
-          />
+      <div className="bg-white border border-zinc-200 rounded-lg mb-5">
+        <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+          <h2 className="text-sm font-medium text-zinc-900">额度使用</h2>
+          <span className="font-mono text-xs text-zinc-400">
+            {isFree ? 'FREE' : 'PREMIUM'}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-zinc-100">
+          <QuotaItem icon={FileText} label="简历分析额度" quota={membership.resumeQuota} />
+          <QuotaItem icon={MessageSquare} label="模拟面试额度" quota={membership.interviewQuota} />
+          <QuotaItem icon={Sparkles} label="AI 调用额度" quota={membership.aiCallQuota} />
         </div>
       </div>
 
       {/* 会员特权说明 - 仅免费用户显示 */}
-      {membership.membership === 'FREE' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-xl p-6 border border-slate-100"
-        >
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">VIP 会员特权</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-lg">
-              <Crown className="w-5 h-5 text-amber-500 mt-0.5" />
-              <div>
-                <p className="font-medium text-slate-800">无限额度</p>
-                <p className="text-sm text-slate-500">简历分析、模拟面试、AI 调用次数无限制</p>
-              </div>
+      {isFree && (
+        <div className="bg-white border border-zinc-200 rounded-lg">
+          <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
+            <h2 className="text-sm font-medium text-zinc-900">VIP 会员特权</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 md:divide-x divide-zinc-100">
+            <div className="divide-y divide-zinc-100">
+              {vipPrivileges.slice(0, 2).map((p) => (
+                <div key={p.title} className="px-5 py-4 flex items-start gap-3">
+                  <p.icon className="w-4 h-4 text-zinc-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-zinc-800">{p.title}</p>
+                    <p className="mt-0.5 text-xs text-zinc-500">{p.desc}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-lg">
-              <Gift className="w-5 h-5 text-amber-500 mt-0.5" />
-              <div>
-                <p className="font-medium text-slate-800">积分赠送</p>
-                <p className="text-sm text-slate-500">升级即送 1000 积分</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-lg">
-              <Star className="w-5 h-5 text-amber-500 mt-0.5" />
-              <div>
-                <p className="font-medium text-slate-800">专属客服</p>
-                <p className="text-sm text-slate-500">享受优先客服支持</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-amber-500 mt-0.5" />
-              <div>
-                <p className="font-medium text-slate-800">功能优先</p>
-                <p className="text-sm text-slate-500">新功能优先体验</p>
-              </div>
+            <div className="divide-y divide-zinc-100">
+              {vipPrivileges.slice(2, 4).map((p) => (
+                <div key={p.title} className="px-5 py-4 flex items-start gap-3">
+                  <p.icon className="w-4 h-4 text-zinc-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-zinc-800">{p.title}</p>
+                    <p className="mt-0.5 text-xs text-zinc-500">{p.desc}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   );

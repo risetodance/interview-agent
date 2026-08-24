@@ -40,10 +40,10 @@ export default function NotificationBell({ className = '' }: NotificationBellPro
   return (
     <button
       onClick={handleClick}
-      className={`relative p-2 hover:bg-slate-100 rounded-xl transition-colors ${className}`}
+      className={`relative p-2 hover:bg-zinc-100 rounded-md transition-colors ${className}`}
       title="通知中心"
     >
-      <Bell className="w-5 h-5 text-slate-600" />
+      <Bell className="w-5 h-5 text-zinc-600" />
       {!loading && unreadCount > 0 && (
         <span
           className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center px-1 bg-red-500 text-white text-xs font-medium rounded-full ${
