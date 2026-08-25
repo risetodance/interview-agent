@@ -1,12 +1,20 @@
 // 小程序全局配色变量
-// 与 Web 前端保持一致，使用天蓝清新配色
+// 与 Web 前端保持一致：深青蓝（primary）色阶
+// 色值与 frontend/src/index.css 的 @theme primary 色阶同源
 
-// 主色调
-$primary: #0ea5e9;
-$primary-color: #0ea5e9;  // 兼容有些页面使用 $primary-color
-$primary-light: #7dd3fc;
-$primary-dark: #0284c7;
-$accent: #38bdf8;
+// 主色调（完整色阶，与 frontend/src/index.css @theme 同源）
+// 页面里禁止硬编码 hex，一律引用这里的变量；script 内用 src/styles/colors.ts
+$primary: #276f8d;
+$primary-color: #276f8d;  // 兼容有些页面使用 $primary-color
+$primary-light: #56a8bf;
+$primary-dark: #235b74;
+$accent: #3589a5;
+$primary-50: #f0f7f9;
+$primary-100: #dceef2;
+$primary-200: #b8dfe7;
+$primary-800: #1f4d63;
+$amber-deep: #d97706;
+$teal: #0d9488;
 
 // 背景色
 $bg: #f8fafc;
@@ -19,7 +27,7 @@ $text-secondary: #475569;
 $text-muted: #94a3b8;
 
 // 功能色
-$success: #0ea5e9;
+$success: #10b981;
 $warning: #f59e0b;
 $danger: #ef4444;
-$info: #38bdf8;
+$info: #3589a5;

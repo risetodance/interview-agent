@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import Icon from '../../components/common/Icon.vue'
 import { uploadResume, reanalyzeResume, type UploadResumeResult } from '../../api/resume'
 import { apiBaseUrl } from '../../utils/env'
+import { BRAND } from '@/styles/colors'
 
 // 简历名称
 const resumeName = ref('')
@@ -253,7 +254,7 @@ const goBack = () => {
         @click="chooseFile"
       >
         <view class="upload-icon">
-          <Icon name="upload" :size="56" color="#0ea5e9" />
+          <Icon name="upload" :size="56" :color="BRAND.PRIMARY" />
         </view>
         <text class="upload-text">点击选择简历文件</text>
         <text class="upload-hint">支持 PDF、DOC、DOCX 格式，最大 10MB</text>
@@ -263,7 +264,7 @@ const goBack = () => {
       <view v-else class="file-card">
         <view class="file-info">
           <view class="file-icon" :class="selectedFile.type.toLowerCase()">
-            <Icon name="file-text" :size="28" color="#0ea5e9" />
+            <Icon name="file-text" :size="28" :color="BRAND.PRIMARY" />
           </view>
           <view class="file-detail">
             <text class="file-name">{{ selectedFile.name }}</text>
@@ -361,7 +362,7 @@ const goBack = () => {
   .back-btn,
   .placeholder {
     font-size: 30rpx;
-    color: #0ea5e9;
+    color: $primary;
     width: 120rpx;
   }
 
@@ -392,7 +393,7 @@ const goBack = () => {
   transition: all 0.3s;
 
   &:active {
-    border-color: #0ea5e9;
+    border-color: $primary;
     background-color: #f8fbf8;
   }
 
@@ -402,13 +403,13 @@ const goBack = () => {
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #eef2ff;
+    background-color: $primary-50;
     border-radius: 50%;
     margin-bottom: 30rpx;
 
     .iconfont {
       font-size: 64rpx;
-      color: #0ea5e9;
+      color: $primary;
     }
   }
 
@@ -486,7 +487,7 @@ const goBack = () => {
 
 .change-btn {
   font-size: 28rpx;
-  color: #0ea5e9;
+  color: $primary;
   padding: 10rpx 20rpx;
 }
 
@@ -530,7 +531,7 @@ const goBack = () => {
 
   .progress-percent {
     font-size: 28rpx;
-    color: #0ea5e9;
+    color: $primary;
     font-weight: 500;
   }
 }
@@ -545,7 +546,7 @@ const goBack = () => {
 
 .progress-inner {
   height: 100%;
-  background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+  background: linear-gradient(90deg, $primary, $accent);
   border-radius: 6rpx;
   transition: width 0.3s ease;
 }
@@ -577,10 +578,10 @@ const goBack = () => {
 }
 
 .success-icon {
-  background-color: #eef2ff;
+  background-color: $primary-50;
 
   .iconfont {
-    color: #0ea5e9;
+    color: $primary;
   }
 }
 
@@ -600,7 +601,7 @@ const goBack = () => {
 }
 
 .success-text {
-  color: #0ea5e9;
+  color: $primary;
 }
 
 .error-text {
@@ -616,9 +617,9 @@ const goBack = () => {
 
 .retry-btn {
   font-size: 28rpx;
-  color: #0ea5e9;
+  color: $primary;
   padding: 16rpx 40rpx;
-  border: 2rpx solid #0ea5e9;
+  border: 2rpx solid $primary;
   border-radius: 40rpx;
 }
 
@@ -630,7 +631,7 @@ const goBack = () => {
   height: 96rpx;
   line-height: 96rpx;
   width: 100%;
-  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+  background: linear-gradient(135deg, $primary, $accent);
   border-radius: 16rpx;
   color: #fff;
   font-size: 32rpx;

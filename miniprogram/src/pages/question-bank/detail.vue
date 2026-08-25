@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { useQuestionBankStore, type QuestionDTO, type QuestionDifficulty } from '../../stores/question-bank'
 import Icon from '../../components/common/Icon.vue'
+import { BRAND } from '@/styles/colors'
 
 // Store
 const questionBankStore = useQuestionBankStore()
@@ -129,7 +130,7 @@ const handleDelete = (question: QuestionDTO) => {
 const getDifficultyStyle = (difficulty: QuestionDifficulty) => {
   switch (difficulty) {
     case 'BASIC':
-      return { color: '#67C23A', bgColor: '#f0f9ff' }
+      return { color: '#67C23A', bgColor: BRAND.PRIMARY_50 }
     case 'ADVANCED':
       return { color: '#E6A23C', bgColor: '#fdf6ec' }
     case 'EXPERT':

@@ -322,6 +322,7 @@ export interface InterviewerRoleDTO {
   weight: number
   icon: string
   status: boolean  // true = ACTIVE, false = INACTIVE
+  defaultTemplate?: boolean  // 默认模板角色（创建会话时预选）
 }
 
 /**

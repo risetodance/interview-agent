@@ -426,7 +426,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
     if (!session) return null;
 
     return (
-      <div className="relative flex-1 min-h-0">
+      <div className="relative flex-1 min-h-0 flex flex-col">
         {/* 加载下一题时的遮罩 */}
         {isLoadingQuestion && (
           <div className="absolute inset-0 bg-white/90 z-50 flex items-center justify-center fade-in">
@@ -460,7 +460,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
   };
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex flex-col h-[var(--workspace-h)]">
       {/* 页面头部 */}
       <div className="flex items-end justify-between mb-6 shrink-0">
         <div>
@@ -475,7 +475,7 @@ export default function Interview({ resumeText, resumeId, sessionId, onBack, onI
       </div>
 
       {stage === 'config' && (
-        <div className="fade-in">
+        <div className="flex-1 min-h-0 flex flex-col fade-in">
           {renderConfig()}
         </div>
       )}

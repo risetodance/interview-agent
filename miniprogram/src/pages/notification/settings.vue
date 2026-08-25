@@ -6,6 +6,7 @@ import {
   subscribeWechatMessage,
   type NotificationSettings
 } from '../../api/notification'
+import { BRAND } from '@/styles/colors'
 
 // 加载状态
 const isLoading = ref(false)
@@ -59,7 +60,7 @@ const settingsItems = computed(() => [
     title: '知识库通知',
     desc: '接收知识库更新、分享等通知',
     icon: '知识',
-    color: '#0ea5e9'
+    color: BRAND.PRIMARY
   },
   {
     key: 'systemNotification',
@@ -225,7 +226,7 @@ onMounted(() => {
         <switch
           :checked="allNotificationsEnabled"
           @change="(e: any) => allNotificationsEnabled = e.detail.value"
-          color="$primary-color"
+          :color="BRAND.PRIMARY"
         />
       </view>
 
@@ -247,7 +248,7 @@ onMounted(() => {
           <switch
             :checked="settings[item.key as keyof NotificationSettings]"
             @change="() => handleToggle(item.key as keyof NotificationSettings)"
-            color="$primary-color"
+            :color="BRAND.PRIMARY"
             :disabled="isSubmitting"
           />
         </view>

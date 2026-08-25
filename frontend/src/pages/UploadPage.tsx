@@ -178,7 +178,7 @@ export default function UploadPage({ onUploadComplete }: UploadPageProps) {
   ];
 
   return (
-    <div className="fade-in flex-1 flex flex-col">
+    <div className="fade-in flex flex-col h-[var(--workspace-h)]">
       {/* 页头 */}
       <div className="flex items-end justify-between mb-6">
         <div>

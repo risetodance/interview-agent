@@ -10,6 +10,7 @@ import {
   type ResumeSuggestion
 } from '../../api/resume'
 import { isH5 } from '../../utils/env'
+import { BRAND } from '@/styles/colors'
 
 // 简历详情数据
 const resumeDetail = ref<ResumeDetail | null>(null)
@@ -61,7 +62,7 @@ const getPriorityBadgeColor = (priority: string) => {
 const getCategoryStyle = (category: string) => {
   const colors: Record<string, { bg: string; text: string }> = {
     '项目': { bg: '#f3e8ff', text: '#7c3aed' },    // purple-100, purple-700
-    '技能': { bg: '#e0f2fe', text: '#0284c7' },    // sky-100, sky-700
+    '技能': { bg: BRAND.PRIMARY_100, text: BRAND.PRIMARY_DARK },    // sky-100, sky-700
     '内容': { bg: '#d1fae5', text: '#059669' },    // emerald-100, emerald-700
     '格式': { bg: '#fce7f3', text: '#db2777' },    // pink-100, pink-700
     '结构': { bg: '#cffafe', text: '#0891b2' },    // cyan-100, cyan-700
@@ -804,15 +805,15 @@ const formatAnalysisItem = (item: any): string => {
     <!-- 底部操作栏 -->
     <view v-if="resumeDetail" class="action-bar">
       <view class="action-item" @click="handleReupload">
-        <Icon name="upload" :size="20" color="#0ea5e9" />
+        <Icon name="upload" :size="20" :color="BRAND.PRIMARY" />
         <text>重新上传</text>
       </view>
       <view class="action-item" @click="handleReanalyze" :class="{ disabled: analyzing }">
-        <view :class="{ spinning: analyzing }"><Icon name="refresh" :size="20" color="#0ea5e9" /></view>
+        <view :class="{ spinning: analyzing }"><Icon name="refresh" :size="20" :color="BRAND.PRIMARY" /></view>
         <text>{{ analyzing ? '分析中' : '重分析' }}</text>
       </view>
       <view class="action-item" @click="handleDownload">
-        <Icon name="download" :size="20" color="#0ea5e9" />
+        <Icon name="download" :size="20" :color="BRAND.PRIMARY" />
         <text>导出</text>
       </view>
     </view>
@@ -841,7 +842,7 @@ const formatAnalysisItem = (item: any): string => {
   .back-btn,
   .action-btn {
     font-size: 30rpx;
-    color: #0ea5e9;
+    color: $primary;
     width: 120rpx;
   }
 
@@ -893,7 +894,7 @@ const formatAnalysisItem = (item: any): string => {
   width: 80rpx;
   height: 80rpx;
   border: 6rpx solid #f0f0f0;
-  border-top-color: #0ea5e9;
+  border-top-color: $primary;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -937,7 +938,7 @@ const formatAnalysisItem = (item: any): string => {
   color: #333;
   margin-bottom: 24rpx;
   padding-left: 20rpx;
-  border-left: 6rpx solid #0ea5e9;
+  border-left: 6rpx solid $primary;
 }
 
 // 附件简历卡片
@@ -952,14 +953,14 @@ const formatAnalysisItem = (item: any): string => {
     width: 80rpx;
     height: 80rpx;
     border-radius: 50%;
-    background-color: #eef2ff;
+    background-color: $primary-50;
     display: flex;
     align-items: center;
     justify-content: center;
 
     .icon-text {
       font-size: 32rpx;
-      color: #0ea5e9;
+      color: $primary;
       font-weight: 600;
     }
   }
@@ -1188,8 +1189,8 @@ const formatAnalysisItem = (item: any): string => {
 
     .tag {
       padding: 8rpx 20rpx;
-      background-color: #eef2ff;
-      color: #0ea5e9;
+      background-color: $primary-50;
+      color: $primary;
       border-radius: 20rpx;
       font-size: 24rpx;
     }
@@ -1246,7 +1247,7 @@ const formatAnalysisItem = (item: any): string => {
 
       &.medium {
         background-color: #fffbeb;
-        color: #d97706;
+        color: $amber-deep;
       }
 
       &.low {
@@ -1382,9 +1383,9 @@ const formatAnalysisItem = (item: any): string => {
     width: 20rpx;
     height: 20rpx;
     border-radius: 50%;
-    background-color: #0ea5e9;
+    background-color: $primary;
     border: 4rpx solid #fff;
-    box-shadow: 0 0 0 4rpx #eef2ff;
+    box-shadow: 0 0 0 4rpx $primary-50;
   }
 
   .timeline-content {
@@ -1504,9 +1505,9 @@ const formatAnalysisItem = (item: any): string => {
 
   .skill-level {
     font-size: 24rpx;
-    color: #0ea5e9;
+    color: $primary;
     padding: 4rpx 12rpx;
-    background-color: #eef2ff;
+    background-color: $primary-50;
     border-radius: 8rpx;
   }
 }
@@ -1567,7 +1568,7 @@ const formatAnalysisItem = (item: any): string => {
   .interview-score {
     font-size: 32rpx;
     font-weight: 700;
-    color: #0ea5e9;
+    color: $primary;
   }
 }
 

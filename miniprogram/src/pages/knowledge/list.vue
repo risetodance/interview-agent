@@ -16,6 +16,7 @@ import {
   type SortOption,
   type VectorStatus
 } from '../../api/knowledgebase'
+import { BRAND } from '@/styles/colors'
 
 // 状态
 const loading = ref(false)
@@ -383,7 +384,7 @@ const getStatColor = (index: number): string => {
 
 // 知识库卡片图标颜色（按向量化状态）
 const statusIconColor = (status: VectorStatus): string => {
-  return statusMap[status]?.color || '#0ea5e9'
+  return statusMap[status]?.color || BRAND.PRIMARY
 }
 
 onMounted(() => {
@@ -509,7 +510,7 @@ onMounted(() => {
             </template>
             <template v-else>
               <text class="cat-tag" :class="{ empty: !item.category }" @click.stop="startEditCategory(item)">
-                <Icon name="tag" :size="11" :color="item.category ? '#0ea5e9' : '#94a3b8'" />
+                <Icon name="tag" :size="11" :color="item.category ? '$primary' : '#94a3b8'" />
                 {{ item.category || '未分类' }}
               </text>
             </template>
@@ -589,7 +590,7 @@ onMounted(() => {
           <view class="form-item">
             <text class="form-label">上传文档 *</text>
             <view class="file-upload" @click="chooseFile">
-              <view class="fu-icon"><Icon name="upload" :size="20" color="#0ea5e9" /></view>
+              <view class="fu-icon"><Icon name="upload" :size="20" :color="BRAND.PRIMARY" /></view>
               <text v-if="selectedFileName" class="file-name">{{ selectedFileName }}</text>
               <text v-else class="file-ph">点击选择文件（PDF/DOC/DOCX/TXT/MD）</text>
             </view>
@@ -804,7 +805,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: #f0f9ff;
+  background: $primary-50;
 
   &.status-failed { background: #fef2f2; }
   &.status-processing { background: #eff6ff; }

@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { getResumeList, type Resume } from '../../api/resume'
 import Icon from '../../components/common/Icon.vue'
+import { BRAND } from '@/styles/colors'
 
 // 简历列表
 const resumeList = ref<Resume[]>([])
@@ -17,6 +18,15 @@ const loadResumeList = async () => {
 }
 
 // 选择简历
+// 格式化时间：yyyy-MM-dd HH:mm:ss（去掉 ISO 的 T 与毫秒）
+const formatDateTime = (iso?: string): string => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
 const selectResume = (resume: Resume) => {
   selectedResume.value = resume
 }
@@ -73,12 +83,12 @@ onMounted(() => {
         @click="selectResume(resume)"
       >
         <view class="resume-icon">
-          <Icon name="file-text" size="40rpx" color="#0ea5e9" />
+          <Icon name="file-text" size="40rpx" :color="BRAND.PRIMARY" />
         </view>
         <view class="resume-info">
           <text class="resume-name">{{ resume.name || '未命名简历' }}</text>
           <text class="resume-file">{{ resume.fileName || '' }}</text>
-          <text class="resume-date">上传于 {{ resume.updatedAt || resume.createdAt }}</text>
+          <text class="resume-date">上传于 {{ formatDateTime(resume.updatedAt || resume.createdAt) }}</text>
         </view>
         <view v-if="selectedResume?.id === resume.id" class="check-icon">
           <Icon name="check" size="24rpx" color="#ffffff" :stroke-width="3" />
@@ -162,7 +172,8 @@ onMounted(() => {
 
 .resume-list {
   flex: 1;
-  padding: 0 20rpx;
+  height: 0;
+  padding: 0 20rpx 160rpx; // 底部避让悬浮操作条
 }
 
 .resume-card {
@@ -184,7 +195,7 @@ onMounted(() => {
     width: 80rpx;
     height: 80rpx;
     border-radius: 16rpx;
-    background-color: #eef2ff;
+    background-color: $primary-50;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -265,9 +276,11 @@ onMounted(() => {
 }
 
 .bottom-action {
-  padding: 24rpx;
-  background-color: #fff;
-  border-top: 1rpx solid #f0f0f0;
+  position: fixed;
+  left: 24rpx;
+  right: 24rpx;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 24rpx);
+  z-index: 10;
 }
 
 .start-btn {
@@ -277,6 +290,7 @@ onMounted(() => {
   justify-content: center;
   background: linear-gradient(135deg, $primary-color 0%, $primary-light 100%);
   border-radius: 48rpx;
+  box-shadow: 0 8rpx 24rpx rgba($primary, 0.3);
   font-size: 34rpx;
   font-weight: 600;
   color: #fff;

@@ -453,7 +453,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
     'w-full h-9 px-3 text-sm border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors disabled:bg-zinc-100';
 
   return (
-    <div className="fade-in w-full flex flex-col flex-1">
+    <div className="fade-in w-full flex flex-col h-[var(--workspace-h)]">
       {/* 页头 */}
       <div className="flex items-end justify-between mb-5">
         <div>
@@ -479,8 +479,8 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
       <div className="flex gap-4 flex-1 min-h-0">
         {/* 左侧：对话历史 */}
         {leftPanelOpen && (
-          <div className="shrink-0 w-64 fade-in">
-            <div className="w-full bg-white border border-zinc-200 rounded-lg h-full flex flex-col">
+          <div className="shrink-0 w-64 flex flex-col fade-in">
+            <div className="flex-1 min-h-0 bg-white border border-zinc-200 rounded-lg flex flex-col">
               <div className="flex items-center justify-between h-[46px] px-4 border-b border-zinc-100 shrink-0">
                 <h2 className="text-sm font-medium text-zinc-900">对话历史</h2>
                 <div className="flex items-center gap-0.5">
@@ -596,7 +596,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
         )}
 
         {/* 中间：聊天区域 */}
-        <div className="flex-1 min-w-0 flex flex-col h-full">
+        <div className="flex-1 min-w-0 flex flex-col">
           <div className="bg-white border border-zinc-200 rounded-lg flex flex-col flex-1 min-h-0">
             {selectedKbIds.size > 0 ? (
               <>
@@ -846,8 +846,8 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
 
         {/* 右侧：知识库选择 */}
         {rightPanelOpen && (
-          <div className="shrink-0 w-[280px] fade-in">
-            <div className="w-full bg-white border border-zinc-200 rounded-lg h-full flex flex-col">
+          <div className="shrink-0 w-[280px] flex flex-col fade-in">
+            <div className="flex-1 min-h-0 bg-white border border-zinc-200 rounded-lg flex flex-col">
               <div className="flex items-center justify-between h-[46px] px-4 border-b border-zinc-100 shrink-0">
                 <h2 className="text-sm font-medium text-zinc-900">选择知识库</h2>
                 <button

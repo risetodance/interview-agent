@@ -4,6 +4,7 @@ import { onUnload, onHide } from '@dcloudio/uni-app'
 import { useInterviewStore } from '../../stores/interview'
 import { getCurrentQuestion, getSessionProgress, PROGRESS_LABELS, submitAnswerAdaptive, endInterview, type StreamCurrentQuestionDTO } from '../../api/interview'
 import Icon from '../../components/common/Icon.vue'
+import { BRAND } from '@/styles/colors'
 
 // 进度阶段 key（对应 PROGRESS_LABELS 的 key，用于轮询时显示"正在评分/正在决策..."等节点）
 const STAGE_SCORING = 'progress_scoring'
@@ -41,7 +42,7 @@ const recordingTime = ref(0)
 const recordingTimer = ref<number | null>(null)
 
 // 滚动相关
-const scrollTop = ref(0)
+const intoView = ref('')
 const scrollViewRef = ref<any>(null)
 
 // 面试状态
@@ -112,8 +113,8 @@ const getDifficultyStyle = (difficulty?: string) => {
   const styles: Record<string, { bg: string; color: string }> = {
     'BASIC': { bg: '#d1fae5', color: '#059669' },
     '基础': { bg: '#d1fae5', color: '#059669' },
-    'ADVANCED': { bg: '#fef3c7', color: '#d97706' },
-    '进阶': { bg: '#fef3c7', color: '#d97706' },
+    'ADVANCED': { bg: '#fef3c7', color: BRAND.AMBER_DEEP },
+    '进阶': { bg: '#fef3c7', color: BRAND.AMBER_DEEP },
     'EXPERT': { bg: '#fee2e2', color: '#dc2626' },
     '专家': { bg: '#fee2e2', color: '#dc2626' }
   }
@@ -137,7 +138,7 @@ const getDifficultyLabel = (difficulty?: string) => {
 const getScoreColor = (score?: number | null) => {
   if (score === undefined || score === null) return '#64748b'
   if (score >= 80) return '#16a34a'
-  if (score >= 60) return '#d97706'
+  if (score >= 60) return BRAND.AMBER_DEEP
   return '#dc2626'
 }
 
@@ -488,25 +489,12 @@ const addAnswerMessage = (answer: string, questionIndex: number) => {
   scrollToBottom()
 }
 
-// 滚动到底部（N16：用 selectorQuery 取实际内容高度，替代魔法数 99999）
+// 滚动到底部（锚点法：scroll-into-view 定位尾部锚点实时位置，不依赖测量，
+// 避开 rich-text 异步渲染导致的测量滞后，微信端/ H5 行为一致）
 const scrollToBottom = () => {
+  intoView.value = ''
   nextTick(() => {
-    const query = uni.createSelectorQuery()
-    query.select('.chat-section').boundingClientRect()
-    query.selectAll('.message-item').boundingClientRect()
-    query.exec((res) => {
-      const container = res[0] as { height: number } | null
-      const items = res[1] as Array<{ height: number }> | undefined
-      if (container && items && items.length) {
-        const contentHeight = items.reduce((sum, it) => sum + (it.height || 0), 0)
-        // scroll-top 设为内容高度；微信 scroll-view 对相同值不触发滚动，故同值时 +1 强制刷新
-        const target = contentHeight > 0 ? contentHeight : container.height
-        scrollTop.value = scrollTop.value >= target ? target + 1 : target
-      } else {
-        // 兜底（首次无数据或查询失败）：递增触发滚动
-        scrollTop.value = scrollTop.value + 1
-      }
-    })
+    intoView.value = 'chat-bottom-anchor'
   })
 }
 
@@ -713,7 +701,7 @@ onUnmounted(() => {
       <scroll-view
         class="chat-section"
         scroll-y
-        :scroll-top="scrollTop"
+        :scroll-into-view="intoView"
         :refresher-enabled="false"
       >
         <!-- 欢迎消息 -->
@@ -734,7 +722,7 @@ onUnmounted(() => {
         >
           <!-- 面试官消息 -->
           <view v-if="msg.type === 'interviewer'" class="avatar interviewer-avatar">
-            <Icon name="user" size="36rpx" color="#0ea5e9" />
+            <Icon name="user" size="36rpx" :color="BRAND.PRIMARY" />
           </view>
           <view v-if="msg.type === 'interviewer'" class="message-body">
             <view class="message-tags">
@@ -779,6 +767,7 @@ onUnmounted(() => {
           </view>
           <text class="loading-text">{{ progressStage ? PROGRESS_LABELS_LOCAL[progressStage] || progressStage : (isLoadingNextQuestion ? '正在出题中...' : 'AI 正在分析你的回答...') }}</text>
         </view>
+              <view id="chat-bottom-anchor"></view>
       </scroll-view>
 
       <!-- 输入区域 -->
@@ -916,7 +905,7 @@ onUnmounted(() => {
     }
 
     .category-tag {
-      background-color: rgba(99, 102, 241, 0.1);
+      background-color: rgba(13, 148, 136, 0.1);
       color: $primary-color;
     }
 
@@ -929,6 +918,7 @@ onUnmounted(() => {
 // 聊天区域
 .chat-section {
   flex: 1;
+  height: 0;
   min-height: 0;
   padding: 0 20rpx;
   overflow-y: auto;
@@ -1029,12 +1019,12 @@ onUnmounted(() => {
       }
 
       .category-tag {
-        background-color: rgba(99, 102, 241, 0.1);
+        background-color: rgba(13, 148, 136, 0.1);
         color: $primary-color;
       }
 
       .perspective-tag {
-        background-color: rgba(99, 102, 241, 0.2);
+        background-color: rgba(13, 148, 136, 0.2);
         color: $primary-dark;
         font-weight: 600;
       }

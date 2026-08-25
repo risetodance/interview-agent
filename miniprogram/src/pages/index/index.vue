@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '../../stores/user'
 import Icon from '../../components/common/Icon.vue'
+import { BRAND } from '@/styles/colors'
 
 const userStore = useUserStore()
 const isLoggedIn = computed(() => userStore.isLoggedIn)
@@ -14,8 +15,8 @@ const features = ref([
     title: '简历管理',
     desc: '智能分析简历',
     icon: 'file-text',
-    accent: '#0ea5e9',
-    tint: '#f0f9ff',
+    accent: BRAND.PRIMARY,
+    tint: BRAND.PRIMARY_50,
     path: '/pages/resume/list'
   },
   {
@@ -23,8 +24,8 @@ const features = ref([
     title: 'AI面试',
     desc: '模拟面试实战',
     icon: 'mic',
-    accent: '#6366f1',
-    tint: '#eef2ff',
+    accent: BRAND.AMBER_DEEP,
+    tint: '#fffbeb',
     path: '/pages/interview/list'
   },
   {
@@ -141,7 +142,7 @@ const startInterview = () => {
           <text class="hero-sub">多视角面试官 · 自适应难度 · 实时评分</text>
           <view class="hero-cta">
             <text class="hero-cta-text">{{ isLoggedIn ? '立即开始' : '登录后开始' }}</text>
-            <Icon name="chevron-right" :size="16" color="#0284c7" />
+            <Icon name="chevron-right" :size="16" color="$primary-dark" />
           </view>
         </view>
       </view>
@@ -252,10 +253,10 @@ const startInterview = () => {
   position: relative;
   overflow: hidden;
   border-radius: 28rpx;
-  background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 60%, #7dd3fc 100%);
+  background: linear-gradient(135deg, $primary 0%, $accent 60%, $primary-light 100%);
   padding: 48rpx 40rpx;
   margin: 0 32rpx 48rpx;
-  box-shadow: 0 12rpx 32rpx rgba(14, 165, 233, 0.28);
+  box-shadow: 0 12rpx 32rpx rgba(39, 111, 141, 0.28);
 }
 
 .hero-pattern {

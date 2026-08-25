@@ -12,6 +12,7 @@ import {
   toggleRagSessionPin,
   type ChatMessage
 } from '../../api/knowledgebase'
+import { BRAND } from '@/styles/colors'
 
 // 路由参数
 const knowledgebaseIds = ref<number[]>([])
@@ -32,7 +33,7 @@ const isLoading = ref(false)
 
 // ===== 智能滚动 =====
 // 核心思路：流式输出时只有"用户在底部"才自动滚到底；用户主动上滑后不强制拉回，改显示跳转按钮
-const scrollTop = ref(0)
+const intoView = ref('')            // scroll-into-view 锚点 id（尾部锚点定位，等价 web 端 followOutput）
 const isAtBottom = ref(true)          // 用户是否贴在底部
 const showScrollBottom = ref(false)    // 是否显示"跳转到底部"按钮
 const scrollViewHeight = ref(0)        // scroll-view 可视高度
@@ -40,11 +41,18 @@ const scrollViewHeight = ref(0)        // scroll-view 可视高度
 // scroll-view 滚动事件：判断是否在底部
 const onScroll = (e: any) => {
   const { scrollTop: st, scrollHeight } = e.detail
-  if (scrollViewHeight.value === 0) return
-  // 距底部小于 120rpx 算"在底部"
+  // 首次触发时懒测量容器可视高度
+  if (scrollViewHeight.value === 0) {
+    uni.createSelectorQuery().select('.message-list').boundingClientRect().exec((r) => {
+      const rect = r && (r[0] as { height: number } | null)
+      if (rect && rect.height > 0) scrollViewHeight.value = rect.height
+    })
+    return
+  }
+  // 距底部小于 120px 算"在底部"（放宽阈值：流式渲染间隙的程序滚动不误判掉出跟随）
   const distanceToBottom = scrollHeight - st - scrollViewHeight.value
   const wasAtBottom = isAtBottom.value
-  isAtBottom.value = distanceToBottom < 60
+  isAtBottom.value = distanceToBottom < 120
   // 用户主动上滑（不在底部了）→ 显示跳转按钮
   if (!isAtBottom.value) {
     showScrollBottom.value = true
@@ -60,23 +68,12 @@ const scrollToBottom = () => {
 }
 
 // 强制滚动到底部（跳转按钮点击 / 发送新消息时用）
+// 锚点法：scroll-into-view 由原生滚动定位锚点元素的实际位置，
+// 内容流式增长时无需测量高度，避开 rich-text 异步渲染导致的测量滞后
 const doScrollToBottom = () => {
+  intoView.value = ''
   nextTick(() => {
-    const query = uni.createSelectorQuery()
-    query.select('.message-list').boundingClientRect()
-    query.selectAll('.message-item').boundingClientRect()
-    query.exec((res) => {
-      const container = res[0] as { height: number } | null
-      const items = res[1] as Array<{ height: number }> | undefined
-      if (container && items && items.length) {
-        scrollViewHeight.value = container.height
-        const contentHeight = items.reduce((sum, it) => sum + (it.height || 0), 0)
-        const target = contentHeight > 0 ? contentHeight : container.height
-        scrollTop.value = scrollTop.value >= target ? target + 1 : target
-      } else {
-        scrollTop.value = scrollTop.value + 1
-      }
-    })
+    intoView.value = 'chat-bottom-anchor'
   })
 }
 
@@ -360,7 +357,8 @@ const handleSaveSessionTitle = async () => {
 const handleTogglePin = async (session: { id: number; isPinned: boolean }) => {
   try {
     await toggleRagSessionPin(session.id, !session.isPinned)
-    session.isPinned = !session.isPinned
+    // 重拉列表：后端按置顶优先排序，置顶后应立即浮到最上
+    await loadSessions()
   } catch (error) {
     uni.showToast({ title: '操作失败', icon: 'none' })
   }
@@ -413,7 +411,7 @@ onUnmounted(() => {
     <scroll-view
       class="message-list"
       scroll-y
-      :scroll-top="scrollTop"
+      :scroll-into-view="intoView"
       :scroll-with-animation="false"
       @scroll="onScroll"
     >
@@ -435,7 +433,7 @@ onUnmounted(() => {
               <view v-for="(think, i) in getThinkBlocks(msg.content).thinks" :key="i" class="think-block">
                 <view class="think-header" @click="toggleThink(index, i)">
                   <view class="think-label">
-                    <Icon name="brain" :size="12" color="#0ea5e9" />
+                    <Icon name="brain" :size="12" :color="BRAND.PRIMARY" />
                     <text>AI 思考过程</text>
                   </view>
                   <Icon :name="isThinkExpanded(index, i, index === messages.length - 1) ? 'chevron-up' : 'chevron-down'" :size="12" color="#94a3b8" />
@@ -447,7 +445,7 @@ onUnmounted(() => {
               <view v-if="getThinkBlocks(msg.content).streamingThink" class="think-block think-streaming">
                 <view class="think-header">
                   <view class="think-label">
-                    <Icon name="brain" :size="12" color="#0ea5e9" />
+                    <Icon name="brain" :size="12" :color="BRAND.PRIMARY" />
                     <text>AI 思考中...</text>
                   </view>
                 </view>
@@ -480,11 +478,12 @@ onUnmounted(() => {
         </template>
       </view>
       <view class="msg-padding-bottom"></view>
+      <view id="chat-bottom-anchor"></view>
     </scroll-view>
 
     <!-- 跳转到底部按钮 -->
     <view v-if="showScrollBottom" class="scroll-bottom-btn" @click="jumpToBottom">
-      <Icon name="chevron-down" :size="18" color="#0ea5e9" />
+      <Icon name="chevron-down" :size="18" :color="BRAND.PRIMARY" />
     </view>
 
     <!-- 输入区 -->
@@ -512,7 +511,7 @@ onUnmounted(() => {
         <view class="session-header">
           <text class="session-title">对话历史</text>
           <view class="session-actions">
-            <view class="sa-btn" @click="handleNewSession"><Icon name="plus" :size="18" color="#0ea5e9" /></view>
+            <view class="sa-btn" @click="handleNewSession"><Icon name="plus" :size="18" :color="BRAND.PRIMARY" /></view>
             <view class="sa-btn" @click="showSessionList = false"><Icon name="x" :size="18" color="#94a3b8" /></view>
           </view>
         </view>
@@ -524,7 +523,7 @@ onUnmounted(() => {
           </view>
           <view v-for="session in sessions" :key="session.id" class="session-item" :class="{ active: currentSessionId === session.id }">
             <view class="session-main" @click="handleSelectSession(session)">
-              <view v-if="session.isPinned" class="session-pin"><Icon name="pin" :size="12" color="#0ea5e9" /></view>
+              <view v-if="session.isPinned" class="session-pin"><Icon name="pin" :size="12" :color="BRAND.PRIMARY" /></view>
               <template v-if="editingSessionId === session.id">
                 <input v-model="editingSessionTitle" class="session-edit" @click.stop @confirm="handleSaveSessionTitle" @blur="handleSaveSessionTitle" />
               </template>
@@ -534,7 +533,7 @@ onUnmounted(() => {
               </template>
             </view>
             <view class="session-ops">
-              <view class="op-btn" @click.stop="handleTogglePin(session)"><Icon :name="session.isPinned ? 'pin' : 'bookmark'" :size="15" :color="session.isPinned ? '#0ea5e9' : '#94a3b8'" /></view>
+              <view class="op-btn" @click.stop="handleTogglePin(session)"><Icon :name="session.isPinned ? 'pin' : 'bookmark'" :size="15" :color="session.isPinned ? BRAND.PRIMARY : '#94a3b8'" /></view>
               <view class="op-btn" @click.stop="startEditSession(session)"><Icon name="edit" :size="15" color="#94a3b8" /></view>
               <view class="op-btn danger" @click.stop="handleDeleteSession(session)"><Icon name="trash" :size="15" color="#ef4444" /></view>
             </view>
@@ -568,7 +567,7 @@ onUnmounted(() => {
 .hd-sub { font-size: 20rpx; color: rgba(255,255,255,0.65); margin-top: 2rpx; }
 
 // ===== 消息列表 =====
-.message-list { flex: 1; }
+.message-list { flex: 1; height: 0; min-height: 0; }
 .msg-padding-top { height: 24rpx; }
 .msg-padding-bottom { height: 24rpx; }
 
@@ -616,7 +615,7 @@ onUnmounted(() => {
 
 // ===== 思考块 =====
 .think-block { border: 1rpx solid #e2e8f0; border-radius: 12rpx; overflow: hidden; margin-bottom: 12rpx; background: #f8fafc; }
-.think-block.think-streaming { border-color: #bfdbfe; background: #f0f9ff; }
+.think-block.think-streaming { border-color: #bfdbfe; background: $primary-50; }
 .think-header {
   display: flex; align-items: center; justify-content: space-between; padding: 14rpx 18rpx; background: #f1f5f9;
   &:active { background: #e2e8f0; }
@@ -670,7 +669,7 @@ onUnmounted(() => {
 .session-title { font-size: 32rpx; font-weight: 700; color: $text-primary; }
 .session-actions { display: flex; gap: 12rpx; }
 .sa-btn { width: 56rpx; height: 56rpx; border-radius: 50%; background: $bg; display: flex; align-items: center; justify-content: center; &:active { background: #e2e8f0; } }
-.session-scroll { flex: 1; }
+.session-scroll { flex: 1; height: 0; min-height: 0; }
 .session-empty { display: flex; flex-direction: column; align-items: center; padding: 120rpx 0; }
 .se-icon { width: 96rpx; height: 96rpx; display: flex; align-items: center; justify-content: center; margin-bottom: 20rpx; }
 .se-text { font-size: 26rpx; color: $text-muted; }

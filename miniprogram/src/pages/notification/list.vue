@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { getNotificationList, markNotificationAsRead, type Notification } from '../../api/notification'
+import { BRAND } from '@/styles/colors'
 
 // 加载状态
 const isLoading = ref(false)
@@ -16,9 +17,9 @@ const hasMore = computed(() => notifications.value.length < total.value)
 
 // 通知类型映射
 const notificationTypeMap: Record<string, { label: string; icon: string; color: string }> = {
-  SYSTEM: { label: '系统通知', icon: '系统', color: '#0ea5e9' },
-  INTERVIEW: { label: '面试通知', icon: '面试', color: '#38bdf8' },
-  RESUME: { label: '简历通知', icon: '简历', color: '#7dd3fc' },
+  SYSTEM: { label: '系统通知', icon: '系统', color: BRAND.PRIMARY },
+  INTERVIEW: { label: '面试通知', icon: '面试', color: BRAND.ACCENT },
+  RESUME: { label: '简历通知', icon: '简历', color: BRAND.PRIMARY_LIGHT },
   MEMBERSHIP: { label: '会员通知', icon: '会员', color: '#ffeaa7' },
   POINTS: { label: '积分通知', icon: '积分', color: '#fab1a0' },
   KNOWLEDGE: { label: '知识库', icon: '知识', color: '#81ecec' }

@@ -52,14 +52,14 @@ export default function InterviewConfigPanel({
   const [weightError, setWeightError] = useState<string | null>(null);
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg fade-in">
+    <div className="flex-1 min-h-0 flex flex-col bg-white border border-zinc-200 rounded-lg fade-in">
       {/* 卡头 */}
       <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
         <h2 className="text-sm font-medium text-zinc-900">面试配置</h2>
         <span className="font-mono text-xs text-zinc-400">视角 · 权重 · 题量</span>
       </div>
 
-      <div className="p-5 space-y-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-6">
         {/* 未完成面试检查中 */}
         {checkingUnfinished && (
           <div className="flex items-center justify-center gap-2 border border-zinc-200 bg-zinc-50 rounded-md px-3 py-2.5 text-sm text-zinc-500 fade-in">
@@ -172,35 +172,35 @@ export default function InterviewConfigPanel({
             <span>{weightError}</span>
           </div>
         )}
+      </div>
 
-        {/* 操作按钮 */}
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onBack}
-            className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors flex items-center gap-1.5"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            返回
-          </button>
-          <button
-            onClick={onStart}
-            disabled={isCreating || checkingUnfinished || !!weightError || selectedPerspectives.length === 0 || !!unfinishedSession}
-            className="h-9 px-5 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isCreating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                正在生成题目...
-              </>
-            ) : selectedPerspectives.length === 0 ? (
-              '请选择面试官'
-            ) : unfinishedSession ? (
-              '请先处理未完成的面试选项'
-            ) : (
-              '开始面试'
-            )}
-          </button>
-        </div>
+      {/* 底部操作条（贴底固定） */}
+      <div className="shrink-0 border-t border-zinc-100 px-5 py-4 flex justify-end gap-2">
+        <button
+          onClick={onBack}
+          className="h-9 px-4 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors flex items-center gap-1.5"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          返回
+        </button>
+        <button
+          onClick={onStart}
+          disabled={isCreating || checkingUnfinished || !!weightError || selectedPerspectives.length === 0 || !!unfinishedSession}
+          className="h-9 px-5 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          {isCreating ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              正在生成题目...
+            </>
+          ) : selectedPerspectives.length === 0 ? (
+            '请选择面试官'
+          ) : unfinishedSession ? (
+            '请先处理未完成的面试选项'
+          ) : (
+            '开始面试'
+          )}
+        </button>
       </div>
     </div>
   );

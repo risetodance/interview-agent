@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Icon from '../../components/common/Icon.vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useInterviewStore, type Interview } from '../../stores/interview'
+import { BRAND } from '@/styles/colors'
 
 // Store
 const interviewStore = useInterviewStore()
@@ -62,7 +63,7 @@ const stopPolling = () => {
 const statusMap: Record<string, { text: string; color: string; bgColor: string }> = {
   pending: { text: '待开始', color: '#909399', bgColor: '#f4f4f5' },
   in_progress: { text: '进行中', color: '#409EFF', bgColor: '#ecf5ff' },
-  completed: { text: '已完成', color: '#67C23A', bgColor: '#f0f9ff' },
+  completed: { text: '已完成', color: '#67C23A', bgColor: BRAND.PRIMARY_50 },
   cancelled: { text: '已取消', color: '#F56C6C', bgColor: '#fef0f0' }
 }
 

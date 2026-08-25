@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import Icon from '../../components/common/Icon.vue'
 import { getResumeDetail } from '../../api/resume'
 import { createSession, getPerspectives, findUnfinishedSession, type InterviewerRoleDTO } from '../../api/interview'
+import { BRAND } from '@/styles/colors'
 
 // 题目数量选项
 const questionCountOptions = [
@@ -40,9 +41,9 @@ const perspectiveIcons: Record<string, string> = {
 
 // 视角图标强调色（替代 emoji 的彩色字符，用品牌色线性图标更克制）
 const perspectiveIconColor: Record<string, string> = {
-  'TECH_INTERVIEWER': '#0ea5e9',
+  'TECH_INTERVIEWER': BRAND.PRIMARY,
   'HR_INTERVIEWER': '#f59e0b',
-  'TECH_DIRECTOR': '#6366f1'
+  'TECH_DIRECTOR': BRAND.TEAL
 }
 const fallbackIcon = 'user'
 const fallbackColor = '#94a3b8'
@@ -138,10 +139,13 @@ const loadPerspectives = async () => {
     // 后端返回数组直接使用
     perspectives.value = Array.isArray(result) ? result : (result.list || [])
 
-    // 自动选中所有 status=true 且 defaultTemplate=true 的视角（最多3个）
-    // 初始化权重时，按各角色默认权重的比例归一化，使总和为1（与前端行为一致）
+    // 自动选中 status=true 且 defaultTemplate=true 的视角（最多3个，与 web 端一致）
+    // 初始化权重时，按各角色默认权重的比例归一化，使总和为1
     const enabledRoles = perspectives.value.filter(p => p.status)
-    const defaultRoleIds = enabledRoles.slice(0, MAX_PERSPECTIVES).map(p => p.id)
+    const defaultRoleIds = enabledRoles
+      .filter(p => p.defaultTemplate)
+      .slice(0, MAX_PERSPECTIVES)
+      .map(p => p.id)
     selectedPerspectiveIds.value = defaultRoleIds
 
     // 初始化权重：按默认权重比例分配，每个量化为 5 的倍数且总和恰为 100%（避免出现 31/37 这种非 5 倍数）
@@ -401,7 +405,7 @@ onMounted(() => {
               :min="5"
               :max="90"
               :step="5"
-              activeColor="#0ea5e9"
+              activeColor="$primary"
               backgroundColor="#e5e7eb"
               block-size="18"
               @change="(e: any) => onWeightChange(perspective.id, e.detail.value / 100)"

@@ -1,24 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <!-- 背景圆角方块：沿用原版色值 sky-500 → sky-400（补 gradientUnits 让渐变真正生效） -->
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0ea5e9"/>
-      <stop offset="1" stop-color="#38bdf8"/>
-    </linearGradient>
-  </defs>
-  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
-
-  <!-- 天线：白色杆，天线球沿用原版 #38bdf8 -->
-  <circle cx="16" cy="5" r="2.5" fill="#38bdf8"/>
-  <line x1="16" y1="6.5" x2="16" y2="11.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
-
-  <!-- 机器人头部：白色超圆角矩形，水平垂直均严格居中 -->
-  <rect x="7.5" y="10" width="17" height="14.5" rx="4.5" fill="#fff"/>
-
-  <!-- 眼睛：竖向胶囊，AI 屏幕感，小尺寸下依然清晰（颜色沿用原版 #0ea5e9） -->
-  <rect x="10.8" y="13.8" width="3.2" height="5.6" rx="1.6" fill="#0ea5e9"/>
-  <rect x="18" y="13.8" width="3.2" height="5.6" rx="1.6" fill="#0ea5e9"/>
-
-  <!-- 嘴：微笑弧，传达面试官的亲和（颜色沿用原版 #0ea5e9） -->
-  <path d="M12.8 20.8 Q16 23.6 19.2 20.8" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <!-- 品牌 mark：墨青方块 + 白色对话气泡 + 问句圆点（与 web 端 frontend/public/favicon.svg 同款） -->
+  <rect width="32" height="32" rx="6" fill="#24394e"/>
+  <rect x="8" y="7" width="16" height="13" rx="3" fill="#ffffff"/>
+  <path d="M12 20 L12 25.5 L17.5 20 Z" fill="#ffffff"/>
+  <circle cx="16" cy="13.5" r="2.5" fill="#24394e"/>
 </svg>

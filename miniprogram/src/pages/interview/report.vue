@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import Icon from '../../components/common/Icon.vue'
 import { getInterviewDetail, getAbilityProfile, getComprehensiveReport, getSessionPerspectives, getPerspectiveDetail, type ComprehensiveReportDTO, type PerspectiveScoreDTO, type PerspectiveDetailDTO, type AbilityProfile, type CategoryScore } from '../../api/interview'
 import { renderMarkdown } from '../../utils/marked'
+import { BRAND } from '@/styles/colors'
 
 // 路由参数
 const pageId = ref<string>('')
@@ -25,7 +26,7 @@ const perspectiveTabs = ref<{ id: number; name: string }[]>([])
 // 计算分数颜色 - 与Web端一致
 const getScoreColor = (score: number) => {
   if (score >= 80) return '#16a34a'  // green-600
-  if (score >= 60) return '#d97706'  // amber-600
+  if (score >= 60) return BRAND.AMBER_DEEP  // amber-600
   return '#dc2626'  // red-600
 }
 
@@ -220,12 +221,12 @@ const perspectiveIcons: Record<string, string> = {
 
 // 视角图标强调色（配合 Icon 组件上色）
 const perspectiveIconColors: Record<string, string> = {
-  '技术面试官': '#0ea5e9',
+  '技术面试官': BRAND.PRIMARY,
   'HR面试官': '#f59e0b',
-  '技术总监': '#6366f1',
-  'code': '#0ea5e9',
+  '技术总监': BRAND.TEAL,
+  'code': BRAND.PRIMARY,
   'user': '#f59e0b',
-  'admin': '#6366f1'
+  'admin': BRAND.TEAL
 }
 
 // 获取视角图标
@@ -306,7 +307,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
                   v-if="index === 0"
                   name="bar-chart"
                   :size="16"
-                  :color="currentTabIndex === index ? '#0ea5e9' : '#94a3b8'"
+                  :color="currentTabIndex === index ? '$primary' : '#94a3b8'"
                 />
                 <Icon
                   v-else
@@ -342,7 +343,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
           <!-- 各视角得分 -->
           <view class="card perspectives-card">
             <view class="card-header">
-              <view class="card-icon"><Icon name="trending-up" :size="18" color="#0ea5e9" /></view>
+              <view class="card-icon"><Icon name="trending-up" :size="18" :color="BRAND.PRIMARY" /></view>
               <text class="card-title">各视角得分</text>
             </view>
             <view class="perspectives-list">
@@ -384,7 +385,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
           <!-- 评估统计 -->
           <view class="card stats-card">
             <view class="card-header">
-              <view class="card-icon"><Icon name="list" :size="18" color="#0ea5e9" /></view>
+              <view class="card-icon"><Icon name="list" :size="18" :color="BRAND.PRIMARY" /></view>
               <text class="card-title">评估统计</text>
             </view>
             <view class="stats-list">
@@ -403,7 +404,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
                 </view>
               </view>
              <view class="stat-item">
-                <view class="stat-icon info"><Icon name="users" :size="18" color="#0ea5e9" /></view>
+                <view class="stat-icon info"><Icon name="users" :size="18" :color="BRAND.PRIMARY" /></view>
                 <view class="stat-info">
                   <text class="stat-label">视角数量</text>
                   <text class="stat-value">{{ comprehensiveReport?.perspectives?.length || 0 }}</text>
@@ -416,13 +417,13 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
         <!-- 综合评价（父容器） -->
         <view v-if="comprehensiveReport?.evaluation || comprehensiveReport?.developmentSuggestions" class="card">
           <view class="card-header">
-            <view class="card-icon"><Icon name="message" :size="18" color="#0ea5e9" /></view>
+            <view class="card-icon"><Icon name="message" :size="18" :color="BRAND.PRIMARY" /></view>
             <text class="card-title">综合评价</text>
           </view>
           <view class="evaluation-content">
             <view v-if="comprehensiveReport?.evaluation" class="eval-section">
               <view class="eval-subheader">
-                <view class="eval-subicon"><Icon name="file-text" :size="14" color="#0ea5e9" /></view>
+                <view class="eval-subicon"><Icon name="file-text" :size="14" :color="BRAND.PRIMARY" /></view>
                 <text class="eval-subtitle">评价</text>
               </view>
               <text class="eval-text">{{ comprehensiveReport.evaluation }}</text>
@@ -468,7 +469,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
         <!-- 能力画像（N1：原 getAbilityProfile 返回值被丢弃，现绑定渲染） -->
         <view v-if="abilityProfile" class="card ability-profile-card">
           <view class="card-header">
-            <view class="card-icon info"><Icon name="target" :size="18" color="#0ea5e9" /></view>
+            <view class="card-icon info"><Icon name="target" :size="18" :color="BRAND.PRIMARY" /></view>
             <text class="card-title">能力画像</text>
           </view>
           <view class="ability-overall">
@@ -539,7 +540,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
           <!-- 综合评价 -->
           <view v-if="currentPerspectiveDetail.feedback" class="card perspective-feedback">
             <view class="card-header">
-              <view class="card-icon"><Icon name="message" :size="18" color="#0ea5e9" /></view>
+              <view class="card-icon"><Icon name="message" :size="18" :color="BRAND.PRIMARY" /></view>
               <text class="card-title">综合评价</text>
             </view>
             <text class="feedback-content">{{ currentPerspectiveDetail.feedback }}</text>
@@ -576,7 +577,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
           <!-- 该视角的问答记录 -->
           <view v-if="currentPerspectiveDetail.questionScores?.length" class="card questions-card">
             <view class="card-header">
-              <view class="card-icon"><Icon name="help-circle" :size="18" color="#0ea5e9" /></view>
+              <view class="card-icon"><Icon name="help-circle" :size="18" :color="BRAND.PRIMARY" /></view>
               <text class="card-title">问题详情</text>
             </view>
             <view class="questions-list">
@@ -1327,7 +1328,7 @@ $text-secondary: #64748b;  // slate-500
     }
 
     &.diff-advanced, &.diff-hard, &.diff-expert {
-      color: #d97706;
+      color: $amber-deep;
       background: #fef3c7;
     }
   }

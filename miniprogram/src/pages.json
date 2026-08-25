@@ -77,7 +77,8 @@
       "path": "pages/interview/session",
       "style": {
         "navigationBarTitleText": "面试会话",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "disableScroll": true
       }
     },
     {
@@ -97,7 +98,8 @@
       "path": "pages/knowledge/chat",
       "style": {
         "navigationBarTitleText": "知识库问答",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "disableScroll": true
       }
     },
     {

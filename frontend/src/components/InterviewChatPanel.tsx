@@ -86,7 +86,7 @@ export default function InterviewChatPanel({
   };
 
   return (
-    <div className="h-full max-w-4xl mx-auto flex flex-col">
+    <div className="flex-1 min-h-0 w-full max-w-4xl mx-auto flex flex-col">
       {/* 答题进度 */}
       <div className="bg-white border border-zinc-200 rounded-lg shrink-0">
         <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
