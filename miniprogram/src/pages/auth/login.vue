@@ -1,15 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useUserStore } from '../../stores/user'
 import Icon from '../../components/common/Icon.vue'
-import { wechatLogin, emailLogin, emailRegister } from '../../api/auth'
-import { login } from '../../api/user'
+import { wechatLogin, emailLogin, emailRegister, login } from '../../api/auth'
 import { isH5 } from '../../utils/env'
 import { useEmailCode } from '../../composables/useEmailCode'
+import { useLoginSuccess } from '../../composables/useLoginSuccess'
 import { isValidEmail } from '../../utils/validate'
-
-// 用户 Store
-const userStore = useUserStore()
 
 // 加载状态
 const isLoading = ref(false)
@@ -17,7 +13,11 @@ const isLoading = ref(false)
 // N8：用户协议勾选状态（原硬编码 ✓ 纯展示，登录前必须真实校验）
 const agreed = ref(false)
 
-// 微信小程序登录
+// 登录成功后的统一处理（存 token → 拉取用户信息 → 回首页）
+const { handleLoginSuccess } = useLoginSuccess()
+
+// 微信小程序登录（账号关联模式）
+// 已绑定 → 直接登录；未绑定 → 后端返回 needsBind + 5 分钟一次性票据，跳关联页输 Web 端凭证
 const handleWechatLogin = async () => {
   if (isLoading.value) return
   // N8：协议未勾选禁止登录
@@ -28,56 +28,18 @@ const handleWechatLogin = async () => {
   isLoading.value = true
 
   try {
-    let loginCode = ''
-    let userInfo: any = null
-
-    if (isH5) {
-      // H5环境下mock微信登录的code（因为uni.login在H5不工作）
-      // 但仍然调用后端API进行验证
-      loginCode = 'h5_mock_wechat_code_' + Date.now()
-      userInfo = { nickName: 'H5测试用户' }
-    } else {
-      // 小程序环境
-      const loginRes = await uni.login({ provider: 'weixin' })
-      if (!loginRes.code) {
-        throw new Error('获取授权码失败')
-      }
-      loginCode = loginRes.code
-
-      try {
-        const profileRes = await uni.getUserProfile({ desc: '用于完善用户资料' })
-        userInfo = profileRes.userInfo
-      } catch (profileError) {
-        // ignore profile error
-      }
+    const loginRes = await uni.login({ provider: 'weixin' })
+    if (!loginRes.code) {
+      throw new Error('获取授权码失败')
     }
 
-    const loginData = {
-      code: loginCode,
-      encryptedData: userInfo?.encryptedData,
-      iv: userInfo?.iv,
-      nickName: userInfo?.nickName || '微信用户',
-      avatarUrl: userInfo?.avatarUrl,
-      gender: userInfo?.gender
+    const result = await wechatLogin({ code: loginRes.code })
+    if (result.needsBind) {
+      // openid 暂存后端 Redis（不下发前端），凭 ticket 完成关联
+      uni.navigateTo({ url: `/pages/auth/bind-account?ticket=${result.ticket}` })
+      return
     }
-
-    const result = await wechatLogin(loginData)
-    // C1：后端 LoginResponse 不含 refreshToken，setToken 第二参可省略
-    userStore.setToken(result.token)
-    // B9/N3: 后端 LoginResponse 仅含 token/userId/username/role（无 nickname/avatar），
-    // 统一调用 fetchUserInfo 拉取权威用户信息，确保登录态成立（isLoggedIn = !!token && !!userInfo）
-    // B9 回归修复：fetchUserInfo 失败不阻塞登录主流程（token 已存），后续 401 兜底重登
-    try {
-      await userStore.fetchUserInfo()
-    } catch (e) {
-      console.error('获取用户信息失败:', e)
-    }
-
-    uni.showToast({ title: '登录成功', icon: 'success' })
-    setTimeout(() => {
-      // B10: reLaunch 清空页面栈，避免返回到登录页重复登录
-      uni.reLaunch({ url: '/pages/index/index' })
-    }, 500)
+    await handleLoginSuccess(result.login!)
   } catch (error: any) {
     uni.showToast({ title: error.message || '登录失败，请重试', icon: 'none' })
   } finally {
@@ -99,23 +61,6 @@ const { codeText, isCounting, send: sendCode } = useEmailCode('LOGIN')
 const isRegisterStep = ref(false)
 const regUsername = ref('')
 const regPassword = ref('')
-
-// 登录成功后的统一处理：存 token → 拉取用户信息 → 回首页
-// C1：LoginResult 已收窄为无 refreshToken，仅需 token（setToken 第二参可选）
-const handleLoginSuccess = async (result: { token: string }) => {
-  userStore.setToken(result.token)
-  // B9 回归修复：fetchUserInfo 失败不阻塞登录主流程
-  try {
-    await userStore.fetchUserInfo()
-  } catch (e) {
-    console.error('获取用户信息失败:', e)
-  }
-  uni.showToast({ title: '登录成功', icon: 'success' })
-  setTimeout(() => {
-    // B10: reLaunch 清空页面栈
-    uni.reLaunch({ url: '/pages/index/index' })
-  }, 500)
-}
 
 const handleAccountLogin = async () => {
   if (isLoading.value) return
@@ -265,14 +210,14 @@ const goToForgotPassword = () => {
 
     <!-- 登录卡片 -->
     <view class="login-card">
-      <!-- 主登录按钮 -->
-      <button class="primary-btn" :disabled="isLoading" @click="handleWechatLogin">
+      <!-- 主登录按钮（仅小程序环境展示：H5 无 wx.login，微信登录入口隐藏） -->
+      <button v-if="!isH5" class="primary-btn" :disabled="isLoading" @click="handleWechatLogin">
         <Icon name="message" :size="20" color="#fff" />
         <text class="btn-text">{{ isLoading ? '登录中...' : '微信一键登录' }}</text>
       </button>
 
-      <!-- 分割线 -->
-      <view class="divider">
+      <!-- 分割线（随微信按钮一同隐藏，避免 H5 下出现悬空分割线） -->
+      <view v-if="!isH5" class="divider">
         <view class="divider-line"></view>
         <text class="divider-text">其他方式</text>
         <view class="divider-line"></view>

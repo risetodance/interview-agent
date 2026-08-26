@@ -100,7 +100,14 @@ public enum ErrorCode {
     EMAIL_CODE_TOO_MANY_FAILURES(12004, "验证码错误次数过多，请重新获取"),
     EMAIL_SEND_FAILED(12005, "邮件发送失败，请稍后重试"),
     EMAIL_NOT_CONFIGURED(12006, "邮件服务未配置，请联系管理员"),
-    EMAIL_SCENE_INVALID(12007, "不支持的验证码场景");
+    EMAIL_SCENE_INVALID(12007, "不支持的验证码场景"),
+
+    // ========== 微信登录绑定模块错误 13xxx ==========
+    WECHAT_AUTH_FAILED(13001, "微信授权失败，请重试"),
+    WECHAT_TICKET_INVALID(13002, "微信登录凭证无效或已过期，请重新微信登录"),
+    WECHAT_BIND_CONFLICT_WECHAT(13003, "该微信已绑定其他账号"),
+    WECHAT_BIND_CONFLICT_ACCOUNT(13004, "该账号已绑定其他微信，请先解绑"),
+    WECHAT_BIND_TOO_MANY_FAILURES(13005, "尝试次数过多，请重新微信登录");
     
     private final Integer code;
     private final String message;

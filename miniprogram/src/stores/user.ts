@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getUserProfile, updateUserProfile, logout as apiLogout } from '../api/user'
+import { getUserProfile, updateUserProfile } from '../api/user'
+import { logout as apiLogout } from '../api/auth'
 
 // 用户类型定义
 export interface UserInfo {

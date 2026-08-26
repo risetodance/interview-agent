@@ -2,27 +2,34 @@ package interview.guide.modules.user.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import interview.guide.common.exception.BusinessException;
+import interview.guide.common.exception.ErrorCode;
 import interview.guide.common.security.JwtTokenProvider;
 import interview.guide.modules.user.dto.LoginResponse;
+import interview.guide.modules.user.dto.WechatAuthDTOs.WechatLoginResponse;
 import interview.guide.modules.user.dto.WechatLoginRequest;
 import interview.guide.modules.user.model.UserEntity;
-import interview.guide.modules.user.model.UserRole;
 import interview.guide.modules.user.model.UserStatus;
+import interview.guide.modules.user.model.UserWechatBinding;
+import interview.guide.modules.user.model.WechatChannel;
 import interview.guide.modules.user.repository.UserRepository;
+import interview.guide.modules.user.repository.UserWechatBindingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * 微信授权服务
  * 处理微信小程序登录相关的业务逻辑
+ * <p>
+ * 登录策略（账号关联模式）：
+ * - openid 已绑定账号 → 直接签发该账号的 JWT，无缝登录
+ * - openid 未绑定 → 不自动建号，openid 暂存 Redis 并签发 5 分钟一次性票据，
+ *   前端凭 ticket 进入关联账号页输 Web 端凭证完成绑定（见 WechatBindService）
  */
 @Slf4j
 @Service
@@ -30,6 +37,8 @@ import java.util.UUID;
 public class WechatAuthService {
 
     private final UserRepository userRepository;
+    private final UserWechatBindingRepository wechatBindingRepository;
+    private final WechatBindTicketService bindTicketService;
     private final JwtTokenProvider jwtTokenProvider;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -43,55 +52,48 @@ public class WechatAuthService {
     /**
      * 微信登录
      *
-     * @param request 微信登录请求
-     * @return 登录响应（包含JWT token）
+     * @param request 微信登录请求（code）
+     * @return 已绑定返回登录态（needsBind=false）；未绑定返回关联票据（needsBind=true）
      */
-    @Transactional
-    public LoginResponse wechatLogin(WechatLoginRequest request) {
+    public WechatLoginResponse wechatLogin(WechatLoginRequest request) {
         log.info("收到微信小程序登录请求");
 
-        // 1. 通过code获取openid
-        String openid = getOpenidFromWechat(request.code());
-        if (openid == null || openid.isEmpty()) {
-            throw new IllegalArgumentException("微信授权失败，无法获取用户标识");
+        // 1. 通过code换取 openid/unionid
+        WechatIdentity identity = getIdentityFromWechat(request.code());
+        if (identity == null || identity.openid() == null || identity.openid().isBlank()) {
+            throw new BusinessException(ErrorCode.WECHAT_AUTH_FAILED);
+        }
+        log.info("成功获取微信openid: {}", identity.openid());
+
+        // 2. 查绑定关系：已绑定直接登录
+        Optional<UserWechatBinding> binding = wechatBindingRepository
+                .findByChannelAndOpenid(WechatChannel.MINIAPP, identity.openid());
+        if (binding.isPresent()) {
+            UserEntity user = userRepository.findById(binding.get().getUserId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+            LoginResponse login = buildLoginResponse(user);
+            log.info("微信用户登录成功: userId={}, username={}", user.getId(), user.getUsername());
+            return new WechatLoginResponse(false, null, login);
         }
 
-        log.info("成功获取微信openid: {}", openid);
-
-        // 2. 根据openid查找或创建用户
-        UserEntity user = findOrCreateWechatUser(openid);
-
-        // 3. 检查用户状态
-        UserStatus status = user.getStatus();
-        if (status != null && status != UserStatus.ACTIVE) {
-            throw new IllegalStateException("用户账号状态异常，请联系管理员");
-        }
-
-        // 4. 生成JWT token
-        String token = jwtTokenProvider.generateToken(
-            user.getId(),
-            user.getUsername(),
-            user.getRole().name()
-        );
-
-        log.info("微信用户登录成功: userId={}, username={}", user.getId(), user.getUsername());
-
-        // 5. 返回登录结果
-        return new LoginResponse(
-            token,
-            user.getId(),
-            user.getUsername(),
-            user.getRole().name()
-        );
+        // 3. 未绑定：openid 暂存 Redis（5min 一次性票据），不下发前端
+        String ticket = bindTicketService.issue(identity.openid(), identity.unionid());
+        log.info("微信未绑定账号，签发关联票据: openid={}", identity.openid());
+        return new WechatLoginResponse(true, ticket, null);
     }
 
     /**
-     * 通过微信code换取openid
+     * jscode2session 返回的微信身份
+     */
+    private record WechatIdentity(String openid, String unionid) {}
+
+    /**
+     * 通过微信code换取 openid/unionid
      *
      * @param code 微信授权码
-     * @return openid，如果失败返回null
+     * @return 微信身份，失败返回 null
      */
-    private String getOpenidFromWechat(String code) {
+    private WechatIdentity getIdentityFromWechat(String code) {
         String url = String.format(
             "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code",
             miniAppAppid,
@@ -112,7 +114,10 @@ public class WechatAuthService {
                 return null;
             }
 
-            return jsonNode.has("openid") ? jsonNode.get("openid").asText() : null;
+            String openid = jsonNode.has("openid") ? jsonNode.get("openid").asText() : null;
+            // unionid 仅在绑定微信开放平台后返回，可能不存在
+            String unionid = jsonNode.has("unionid") ? jsonNode.get("unionid").asText() : null;
+            return new WechatIdentity(openid, unionid);
 
         } catch (Exception e) {
             log.error("调用微信API失败", e);
@@ -121,34 +126,18 @@ public class WechatAuthService {
     }
 
     /**
-     * 根据openid查找用户，如果不存在则创建新用户
-     *
-     * @param openid 微信openid
-     * @return 用户实体
+     * 构建登录态（状态检查 + JWT 生成）
      */
-    private UserEntity findOrCreateWechatUser(String openid) {
-        // 1. 尝试查找已存在的用户
-        Optional<UserEntity> existingUser = userRepository.findByWechatOpenid(openid);
-        if (existingUser.isPresent()) {
-            return existingUser.get();
+    private LoginResponse buildLoginResponse(UserEntity user) {
+        UserStatus status = user.getStatus();
+        if (status != null && status != UserStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.USER_DISABLED, "用户账号状态异常，请联系管理员");
         }
-
-        // 2. 创建新用户
-        log.info("创建新的微信用户: openid={}", openid);
-
-        // 生成唯一的用户名（使用UUID避免冲突）
-        String username = "wechat_" + UUID.randomUUID().toString().substring(0, 8);
-
-        UserEntity newUser = UserEntity.builder()
-            .username(username)
-            // 本路径不落库 email（保持 null），无用户邮箱输入；后续用户经 bindEmail 绑定（入口已做小写规范化），故无需规范化
-            .wechatOpenid(openid)
-            .nickname("微信用户")
-            .status(UserStatus.ACTIVE)
-            .role(UserRole.USER)
-            .points(0)
-            .build();
-
-        return userRepository.save(newUser);
+        return new LoginResponse(
+                jwtTokenProvider.generateToken(user.getId(), user.getUsername(), user.getRole().name()),
+                user.getId(),
+                user.getUsername(),
+                user.getRole().name()
+        );
     }
 }

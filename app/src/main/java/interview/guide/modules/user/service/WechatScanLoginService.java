@@ -7,7 +7,10 @@ import interview.guide.modules.user.dto.LoginResponse;
 import interview.guide.modules.user.model.UserEntity;
 import interview.guide.modules.user.model.UserRole;
 import interview.guide.modules.user.model.UserStatus;
+import interview.guide.modules.user.model.UserWechatBinding;
+import interview.guide.modules.user.model.WechatChannel;
 import interview.guide.modules.user.repository.UserRepository;
+import interview.guide.modules.user.repository.UserWechatBindingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +31,7 @@ import java.util.UUID;
 public class WechatScanLoginService {
 
     private final UserRepository userRepository;
+    private final UserWechatBindingRepository wechatBindingRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -120,18 +124,23 @@ public class WechatScanLoginService {
 
     /**
      * 根据openid查找用户，如果不存在则创建新用户
+     * <p>
+     * 注意：扫码登录保持"未绑定自动建号"的原有行为（本次改造仅将存储从 users.wechat_openid 列
+     * 迁移到独立绑定表 channel=WEB_SCAN），后续如需统一为账号关联模式再另行改造
      *
-     * @param openid 微信openid（网页应用）
+     * @param openid 微信openid（网页应用，与小程序 openid 不同）
      * @return 用户实体
      */
     private UserEntity findOrCreateWechatUser(String openid) {
-        // 1. 尝试查找已存在的用户
-        Optional<UserEntity> existingUser = userRepository.findByWechatOpenid(openid);
-        if (existingUser.isPresent()) {
-            return existingUser.get();
+        // 1. 按绑定表查找已存在的用户
+        Optional<UserWechatBinding> binding = wechatBindingRepository
+                .findByChannelAndOpenid(WechatChannel.WEB_SCAN, openid);
+        if (binding.isPresent()) {
+            return userRepository.findById(binding.get().getUserId())
+                    .orElseThrow(() -> new IllegalStateException("微信网页用户绑定数据异常，请重新登录"));
         }
 
-        // 2. 创建新用户
+        // 2. 创建新用户并写入绑定表
         log.info("创建新的微信网页用户: openid={}", openid);
 
         // 生成唯一的用户名（使用UUID避免冲突）
@@ -140,13 +149,19 @@ public class WechatScanLoginService {
         UserEntity newUser = UserEntity.builder()
             .username(username)
             // 本路径不落库 email（保持 null），无用户邮箱输入；后续用户经 bindEmail 绑定（入口已做小写规范化），故无需规范化
-            .wechatOpenid(openid)
             .nickname("微信用户")
             .status(UserStatus.ACTIVE)
             .role(UserRole.USER)
             .points(0)
             .build();
+        UserEntity saved = userRepository.save(newUser);
 
-        return userRepository.save(newUser);
+        wechatBindingRepository.save(UserWechatBinding.builder()
+                .userId(saved.getId())
+                .channel(WechatChannel.WEB_SCAN)
+                .openid(openid)
+                .build());
+
+        return saved;
     }
 }

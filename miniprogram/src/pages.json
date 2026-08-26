@@ -14,6 +14,12 @@
       }
     },
     {
+      "path": "pages/auth/bind-account",
+      "style": {
+        "navigationBarTitleText": "关联账号"
+      }
+    },
+    {
       "path": "pages/auth/forgot-password",
       "style": {
         "navigationBarTitleText": "找回密码",
