@@ -357,7 +357,7 @@ export default function QuestionImport() {
         <div className="fade-in">
           {/* 题库选择 */}
           {!bankIdNum && (
-            <div className="bg-white border border-zinc-200 rounded-lg mb-5">
+            <div className="bg-white border border-zinc-200 rounded-lg shadow-sm mb-5">
               <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
                 <h2 className="text-sm font-medium text-zinc-900">目标题库</h2>
                 <span className="font-mono text-xs text-zinc-400">必选</span>
@@ -401,7 +401,7 @@ export default function QuestionImport() {
 
           {/* Excel 文件选择 */}
           {mode === 'excel' && (
-            <div className="bg-white border border-zinc-200 rounded-lg">
+            <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
               <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
                 <h2 className="text-sm font-medium text-zinc-900">选择 Excel 文件</h2>
                 <button
@@ -467,7 +467,7 @@ export default function QuestionImport() {
 
           {/* Markdown 内容输入 */}
           {mode === 'markdown' && (
-            <div className="bg-white border border-zinc-200 rounded-lg">
+            <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
               <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
                 <h2 className="text-sm font-medium text-zinc-900">输入 Markdown 内容</h2>
                 <span className="font-mono text-xs text-zinc-400">MARKDOWN</span>
@@ -504,7 +504,7 @@ A: 我的优势是...
           {mode === 'manual' && (
             <div className="space-y-5 fade-in">
               {/* 题目表单 */}
-              <div className="bg-white border border-zinc-200 rounded-lg">
+              <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
                 <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
                   <h2 className="text-sm font-medium text-zinc-900">添加题目</h2>
                   <span className="font-mono text-xs text-zinc-400">逐题录入</span>
@@ -613,7 +613,7 @@ A: 我的优势是...
 
               {/* 已添加的题目列表 */}
               {manualQuestions.length > 0 && (
-                <div className="bg-white border border-zinc-200 rounded-lg">
+                <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
                   <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
                     <h2 className="text-sm font-medium text-zinc-900">已添加题目</h2>
                     <span className="font-mono text-xs text-zinc-400 tabular-nums">
@@ -711,7 +711,7 @@ A: 我的优势是...
 
       {/* 步骤：预览 */}
       {step === 'preview' && (
-        <div className="bg-white border border-zinc-200 rounded-lg fade-in">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm fade-in">
           <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
             <h2 className="text-sm font-medium text-zinc-900">预览确认</h2>
             <span className="font-mono text-xs text-zinc-400 tabular-nums">
@@ -758,7 +758,7 @@ A: 我的优势是...
 
       {/* 步骤：导入中 */}
       {step === 'importing' && (
-        <div className="bg-white border border-zinc-200 rounded-lg px-6 py-16 text-center fade-in">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm px-6 py-16 text-center fade-in">
           <Loader2 className="w-8 h-8 text-primary-600 mx-auto animate-spin" />
           <h3 className="mt-4 text-sm font-medium text-zinc-900">正在导入…</h3>
           <p className="mt-1 text-xs text-zinc-500">请稍候，完成后自动进入下一步</p>
@@ -767,7 +767,7 @@ A: 我的优势是...
 
       {/* 步骤：导入成功 */}
       {step === 'success' && (
-        <div className="bg-white border border-zinc-200 rounded-lg px-6 py-14 text-center fade-in">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm px-6 py-14 text-center fade-in">
           <div className="mx-auto w-11 h-11 rounded-md bg-emerald-50 border border-emerald-100 flex items-center justify-center">
             <CheckCircle className="w-5 h-5 text-emerald-600" strokeWidth={1.75} />
           </div>
@@ -804,7 +804,7 @@ A: 我的优势是...
 
       {/* 步骤：导入失败 */}
       {step === 'error' && (
-        <div className="bg-white border border-zinc-200 rounded-lg px-6 py-14 text-center fade-in">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm px-6 py-14 text-center fade-in">
           <div className="mx-auto w-11 h-11 rounded-md bg-red-50 border border-red-100 flex items-center justify-center">
             <AlertCircle className="w-5 h-5 text-red-600" strokeWidth={1.75} />
           </div>

@@ -266,7 +266,7 @@ export default function QuestionDetailPage() {
       {/* 主体：题目列表 + 题目详情 */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
         {/* 题目列表 */}
-        <div className="lg:col-span-3 bg-white border border-zinc-200 rounded-lg overflow-hidden">
+        <div className="lg:col-span-3 bg-white border border-zinc-200 rounded-lg shadow-sm overflow-hidden">
           <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
             <h2 className="text-sm font-medium text-zinc-900">题目列表</h2>
             <span className="font-mono text-xs text-zinc-400 tabular-nums">
@@ -383,7 +383,7 @@ export default function QuestionDetailPage() {
         </div>
 
         {/* 题目详情 */}
-        <div className="lg:col-span-2 bg-white border border-zinc-200 rounded-lg lg:sticky lg:top-0">
+        <div className="lg:col-span-2 bg-white border border-zinc-200 rounded-lg shadow-sm lg:sticky lg:top-0">
           <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
             <h2 className="text-sm font-medium text-zinc-900">题目详情</h2>
             {selectedQuestion && (

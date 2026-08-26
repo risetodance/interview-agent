@@ -283,7 +283,7 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
           {statCards.map((card) => (
-            <div key={card.label} className="bg-white border border-zinc-200 rounded-lg px-5 py-4">
+            <div key={card.label} className="bg-white border border-zinc-200 rounded-lg shadow-sm px-5 py-4">
               <p className="text-xs text-zinc-500">{card.label}</p>
               <p className="mt-1.5 font-mono text-2xl font-semibold text-primary-800 tabular-nums">
                 {card.value}
@@ -294,7 +294,7 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
       )}
 
       {/* 搜索和筛选栏 */}
-      <div className="bg-white border border-zinc-200 rounded-lg p-4 mb-5">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm p-4 mb-5">
         <div className="flex flex-wrap items-center gap-3">
           {/* 搜索框 */}
           <form onSubmit={handleSearch} className="flex-1 min-w-[200px]">
@@ -351,7 +351,7 @@ export default function KnowledgeBaseManagePage({ onUpload, onChat }: KnowledgeB
       </div>
 
       {/* 知识库列表 */}
-      <div className="bg-white border border-zinc-200 rounded-lg overflow-x-auto">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm overflow-x-auto">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-5 h-5 text-primary-600 animate-spin" />

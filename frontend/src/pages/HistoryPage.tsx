@@ -104,7 +104,7 @@ export default function HistoryList({ onSelectResume }: HistoryListProps) {
 
       {/* 空状态 */}
       {!loading && filteredResumes.length === 0 && (
-        <div className="bg-white border border-zinc-200 rounded-lg">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
           <p className="px-5 py-12 text-xs text-zinc-400 text-center">
             {searchTerm ? '没有匹配的简历，换个关键词试试' : '暂无简历记录，上传第一份简历开始 AI 分析'}
           </p>
@@ -113,7 +113,7 @@ export default function HistoryList({ onSelectResume }: HistoryListProps) {
 
       {/* 表格 */}
       {!loading && filteredResumes.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-zinc-100">

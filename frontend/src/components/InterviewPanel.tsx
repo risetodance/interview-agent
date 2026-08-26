@@ -73,7 +73,7 @@ export default function InterviewPanel({
 
   if (interviews.length === 0) {
     return (
-      <div className="bg-white border border-zinc-200 rounded-lg py-16 flex flex-col items-center justify-center fade-in">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm py-16 flex flex-col items-center justify-center fade-in">
         <p className="text-sm text-zinc-500">暂无面试记录</p>
         <p className="mt-1 mb-5 text-xs text-zinc-400">开始模拟面试，获取专业评估</p>
         <button
@@ -90,7 +90,7 @@ export default function InterviewPanel({
     <div className="space-y-5">
       {/* 面试表现趋势图 */}
       {chartData.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-lg fade-in">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm fade-in">
           <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
             <h3 className="text-sm font-medium text-zinc-900">面试表现趋势</h3>
             <span className="font-mono text-xs text-zinc-400">共 {chartData.length} 场</span>
@@ -140,7 +140,7 @@ export default function InterviewPanel({
       )}
 
       {/* 历史面试场次 */}
-      <div className="bg-white border border-zinc-200 rounded-lg">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
         <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
           <h3 className="text-sm font-medium text-zinc-900">历史面试</h3>
           <span className="font-mono text-xs text-zinc-400">{interviews.length} 场</span>

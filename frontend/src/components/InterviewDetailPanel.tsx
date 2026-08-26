@@ -91,7 +91,7 @@ export default function InterviewDetailPanel({ interview }: InterviewDetailPanel
 // 能力画像雷达图组件
 function AbilityProfileSection({ radarData }: { radarData: any[] }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg">
+    <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
       <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
         <h4 className="text-sm font-medium text-zinc-900">能力画像</h4>
         <span className="font-mono text-xs text-zinc-400">{radarData.length} 个维度</span>
@@ -145,7 +145,7 @@ function ScoreCard({
   strokeDashoffset: number;
 }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg">
+    <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
       <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
         <h4 className="text-sm font-medium text-zinc-900">面试评估</h4>
         <span className="font-mono text-xs text-zinc-400">满分 100</span>
@@ -193,7 +193,7 @@ function ScoreCard({
 // 优势部分组件
 function StrengthsSection({ strengths }: { strengths: string[] }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg">
+    <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
       <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
         <h4 className="text-sm font-medium text-zinc-900">表现优势</h4>
         <span className="font-mono text-xs text-zinc-400">{strengths.length} 项</span>
@@ -213,7 +213,7 @@ function StrengthsSection({ strengths }: { strengths: string[] }) {
 // 改进建议部分组件
 function ImprovementsSection({ improvements }: { improvements: string[] }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg">
+    <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
       <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
         <h4 className="text-sm font-medium text-zinc-900">改进建议</h4>
         <span className="font-mono text-xs text-zinc-400">{improvements.length} 项</span>
@@ -272,7 +272,7 @@ function QuestionCard({
   onToggle: () => void;
 }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+    <div className="bg-white border border-zinc-200 rounded-lg shadow-sm overflow-hidden">
       {/* 问题头部 */}
       <div
         className="px-5 py-3.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-zinc-50 transition-colors"

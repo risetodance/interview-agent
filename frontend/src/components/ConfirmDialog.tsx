@@ -42,7 +42,7 @@ export default function ConfirmDialog({
 
       {/* 对话框 */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white border border-zinc-200 rounded-lg max-w-md w-full p-5 fade-in">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm max-w-md w-full p-5 fade-in">
           {/* 标题 */}
           <h3 className="text-sm font-medium text-zinc-900 mb-3">
             {title}

@@ -480,7 +480,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
         {/* 左侧：对话历史 */}
         {leftPanelOpen && (
           <div className="shrink-0 w-64 flex flex-col fade-in">
-            <div className="flex-1 min-h-0 bg-white border border-zinc-200 rounded-lg flex flex-col">
+            <div className="flex-1 min-h-0 bg-white border border-zinc-200 rounded-lg shadow-sm flex flex-col">
               <div className="flex items-center justify-between h-[46px] px-4 border-b border-zinc-100 shrink-0">
                 <h2 className="text-sm font-medium text-zinc-900">对话历史</h2>
                 <div className="flex items-center gap-0.5">
@@ -517,7 +517,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
                         onClick={() => handleLoadSession(session.id)}
                         className={`p-2.5 rounded-md cursor-pointer transition-colors group ${
                           currentSessionId === session.id
-                            ? 'bg-primary-50 border border-primary-200'
+                            ? 'bg-primary-50 border border-primary-400'
                             : 'border border-transparent hover:bg-zinc-50'
                         }`}
                       >
@@ -588,7 +588,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
         {!leftPanelOpen && (
           <button
             onClick={() => setLeftPanelOpen(true)}
-            className="shrink-0 w-10 bg-white border border-zinc-200 rounded-lg flex items-center justify-center hover:bg-zinc-50 transition-colors"
+            className="shrink-0 w-10 bg-white border border-zinc-200 rounded-lg shadow-sm flex items-center justify-center hover:bg-zinc-50 transition-colors"
             title="展开对话历史"
           >
             <ChevronRight className="w-4 h-4 text-zinc-400" />
@@ -597,7 +597,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
 
         {/* 中间：聊天区域 */}
         <div className="flex-1 min-w-0 flex flex-col">
-          <div className="bg-white border border-zinc-200 rounded-lg flex flex-col flex-1 min-h-0">
+          <div className="bg-white border border-zinc-200 rounded-lg shadow-sm flex flex-col flex-1 min-h-0">
             {selectedKbIds.size > 0 ? (
               <>
                 {/* 会话信息 */}
@@ -847,7 +847,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
         {/* 右侧：知识库选择 */}
         {rightPanelOpen && (
           <div className="shrink-0 w-[280px] flex flex-col fade-in">
-            <div className="flex-1 min-h-0 bg-white border border-zinc-200 rounded-lg flex flex-col">
+            <div className="flex-1 min-h-0 bg-white border border-zinc-200 rounded-lg shadow-sm flex flex-col">
               <div className="flex items-center justify-between h-[46px] px-4 border-b border-zinc-100 shrink-0">
                 <h2 className="text-sm font-medium text-zinc-900">选择知识库</h2>
                 <button
@@ -937,7 +937,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
                                 onClick={() => handleToggleKb(kb.id)}
                                 className={`p-2 rounded-md cursor-pointer transition-colors ${
                                   selectedKbIds.has(kb.id)
-                                    ? 'bg-primary-50 border border-primary-200'
+                                    ? 'bg-primary-50 border border-primary-400'
                                     : 'border border-transparent hover:bg-zinc-50'
                                 }`}
                               >
@@ -971,7 +971,7 @@ export default function KnowledgeBaseQueryPage({ onBack, onUpload }: KnowledgeBa
         {!rightPanelOpen && (
           <button
             onClick={() => setRightPanelOpen(true)}
-            className="shrink-0 w-10 bg-white border border-zinc-200 rounded-lg flex items-center justify-center hover:bg-zinc-50 transition-colors"
+            className="shrink-0 w-10 bg-white border border-zinc-200 rounded-lg shadow-sm flex items-center justify-center hover:bg-zinc-50 transition-colors"
             title="展开知识库面板"
           >
             <ChevronLeft className="w-4 h-4 text-zinc-400" />

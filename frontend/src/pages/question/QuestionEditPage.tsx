@@ -104,7 +104,7 @@ export default function QuestionEditPage() {
       </div>
 
       {/* 题目表单 */}
-      <div className="mt-6 bg-white border border-zinc-200 rounded-lg">
+      <div className="mt-6 bg-white border border-zinc-200 rounded-lg shadow-sm">
         <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
           <h2 className="text-sm font-medium text-zinc-900">题目信息</h2>
           <span className="font-mono text-xs text-zinc-400 tabular-nums">ID {questionId}</span>

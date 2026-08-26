@@ -102,9 +102,7 @@ export default function BankListPage({
   // 题库卡片组件
   const BankCard = ({ bank }: { bank: QuestionBankDTO }) => (
     <div
-      className={`bg-white border border-zinc-200 rounded-lg p-5 transition-colors ${
-        selectable ? 'cursor-pointer hover:border-primary-400' : 'hover:border-zinc-300'
-      }`}
+      className={`bg-white border border-zinc-200 rounded-lg shadow-sm p-5 transition-all duration-150 hover:border-primary-400 hover:shadow-md hover:-translate-y-0.5`}
       onClick={() => handleSelectBank(bank)}
     >
       <div className="flex items-start justify-between gap-3">
@@ -216,7 +214,7 @@ export default function BankListPage({
 
       {/* 题库列表 */}
       {filteredBanks.length === 0 ? (
-        <div className="bg-white border border-zinc-200 rounded-lg">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
           <p className="px-5 py-10 text-xs text-zinc-400 text-center">
             暂无题库，{' '}
             <button

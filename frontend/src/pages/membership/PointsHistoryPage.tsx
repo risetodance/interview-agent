@@ -255,7 +255,7 @@ export default function PointsHistoryPage() {
       </div>
 
       {/* 积分记录列表 */}
-      <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-5 h-5 text-zinc-400 animate-spin" />

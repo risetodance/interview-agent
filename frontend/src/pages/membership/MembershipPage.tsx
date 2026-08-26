@@ -178,7 +178,7 @@ export default function MembershipPage() {
         </div>
 
         {/* 积分卡片 */}
-        <div className="bg-white border border-zinc-200 rounded-lg p-5 flex flex-col justify-between gap-4">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm p-5 flex flex-col justify-between gap-4">
           <div>
             <p className="text-xs text-zinc-500">当前积分</p>
             <p className="mt-1.5 font-mono text-2xl font-semibold text-primary-800 tabular-nums">
@@ -205,7 +205,7 @@ export default function MembershipPage() {
       </div>
 
       {/* 额度使用情况 */}
-      <div className="bg-white border border-zinc-200 rounded-lg mb-5">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm mb-5">
         <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
           <h2 className="text-sm font-medium text-zinc-900">额度使用</h2>
           <span className="font-mono text-xs text-zinc-400">
@@ -221,7 +221,7 @@ export default function MembershipPage() {
 
       {/* 会员特权说明 - 仅免费用户显示 */}
       {isFree && (
-        <div className="bg-white border border-zinc-200 rounded-lg">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
           <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
             <h2 className="text-sm font-medium text-zinc-900">VIP 会员特权</h2>
           </div>

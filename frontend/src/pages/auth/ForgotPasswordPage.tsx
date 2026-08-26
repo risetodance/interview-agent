@@ -6,6 +6,7 @@ import { authApi } from '../../api/auth';
 import { useCodeCountdown } from '../../hooks/useCodeCountdown';
 import { isValidEmail } from '../../utils/validate';
 import BrandMark from '../../components/BrandMark';
+import AuthAside from '../../components/auth/AuthAside';
 
 /**
  * 忘记密码页：邮箱 + 验证码 + 新密码
@@ -90,55 +91,16 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen flex bg-white">
       {/* 左侧叙事面板（大屏显示） */}
-      <aside className="hidden lg:flex w-[420px] xl:w-[480px] shrink-0 flex-col justify-between bg-primary-950 bg-grid p-12 relative">
-        {/* 品牌区 */}
-        <div className="flex items-center gap-3">
-          <BrandMark className="w-7 h-7" />
-          <div>
-            <span className="block text-sm font-semibold text-white tracking-tight">智能面试助手</span>
-            <span className="block text-xs text-white/50">AI Assistant</span>
-          </div>
-        </div>
-
-        {/* 主文案与安全说明 */}
-        <div>
-          <p className="font-mono text-xs tracking-[0.2em] text-primary-300/70 uppercase mb-5">
-            Account Recovery
-          </p>
-          <h2 className="text-3xl xl:text-4xl font-semibold text-white leading-snug tracking-tight">
-            验证邮箱，
-            <br />
-            安全重置密码
-          </h2>
-
-          <div className="mt-12 divide-y divide-white/10 border-t border-white/10">
-            <div className="py-4 flex items-start gap-4">
-              <span className="font-mono text-xs text-primary-300/70 pt-1">01</span>
-              <div>
-                <p className="text-sm font-medium text-white">邮箱验证</p>
-                <p className="text-sm text-white/50 mt-0.5">使用注册邮箱接收一次性验证码</p>
-              </div>
-            </div>
-            <div className="py-4 flex items-start gap-4">
-              <span className="font-mono text-xs text-primary-300/70 pt-1">02</span>
-              <div>
-                <p className="text-sm font-medium text-white">重置密码</p>
-                <p className="text-sm text-white/50 mt-0.5">新密码设置后立即生效</p>
-              </div>
-            </div>
-            <div className="py-4 flex items-start gap-4">
-              <span className="font-mono text-xs text-primary-300/70 pt-1">03</span>
-              <div>
-                <p className="text-sm font-medium text-white">重新登录</p>
-                <p className="text-sm text-white/50 mt-0.5">使用新密码登录，继续面试训练</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 底部信息 */}
-        <p className="font-mono text-xs text-white/35">AI Assistant · Account Recovery</p>
-      </aside>
+      <AuthAside
+        tagline="Account Recovery"
+        title={<>验证邮箱，<br />安全重置密码</>}
+        steps={[
+          { title: '邮箱验证', desc: '使用注册邮箱接收一次性验证码' },
+          { title: '重置密码', desc: '新密码设置后立即生效' },
+          { title: '重新登录', desc: '使用新密码登录，继续面试训练' },
+        ]}
+        footerLabel="AI Assistant · Account Recovery"
+      />
 
       {/* 右侧表单区 */}
       <div className="flex-1 flex flex-col">

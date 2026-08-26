@@ -287,7 +287,7 @@ export default function ProfilePage() {
       </div>
 
       {/* 账号信息卡片 */}
-      <div className="bg-white border border-zinc-200 rounded-lg p-5 mb-5">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm p-5 mb-5">
         <div className="flex items-center gap-5">
           {/* 头像：有头像展示图片，否则首字母圆 */}
           {user.avatar ? (
@@ -335,7 +335,7 @@ export default function ProfilePage() {
       {/* 两个卡片：个人资料和修改密码 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* 个人资料卡片 */}
-        <div className="bg-white border border-zinc-200 rounded-lg flex flex-col">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm flex flex-col">
           <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
             <h2 className="text-sm font-medium text-zinc-900">编辑资料</h2>
           </div>
@@ -387,7 +387,7 @@ export default function ProfilePage() {
         </div>
 
         {/* 修改密码卡片 */}
-        <div className="bg-white border border-zinc-200 rounded-lg flex flex-col">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm flex flex-col">
           <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
             <h2 className="text-sm font-medium text-zinc-900">修改密码</h2>
           </div>
@@ -543,7 +543,7 @@ export default function ProfilePage() {
       </div>
 
       {/* 绑定/换绑邮箱卡片 */}
-      <div className="bg-white border border-zinc-200 rounded-lg mt-5">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm mt-5">
         <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
           <h2 className="text-sm font-medium text-zinc-900">绑定邮箱</h2>
           <span className="font-mono text-xs text-zinc-400 truncate">当前：{user.email || '未绑定'}</span>
@@ -625,7 +625,7 @@ export default function ProfilePage() {
         <>
           <div className="fixed inset-0 bg-zinc-950/40 z-50 fade-in" onClick={() => setShowLogoutConfirm(false)} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white border border-zinc-200 rounded-lg max-w-sm w-full p-5 fade-in">
+            <div className="bg-white border border-zinc-200 rounded-lg shadow-sm max-w-sm w-full p-5 fade-in">
               <h3 className="text-sm font-medium text-zinc-900 mb-3">确认退出</h3>
               <p className="text-sm text-zinc-500 mb-6">确定要退出当前账号吗？</p>
               <div className="flex gap-3 justify-end">

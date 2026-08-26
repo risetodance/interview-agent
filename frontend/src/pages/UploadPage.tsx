@@ -185,7 +185,7 @@ export default function UploadPage({ onUploadComplete }: UploadPageProps) {
           <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">工作台</h1>
           <p className="mt-1 text-sm text-zinc-500">上传简历，开始一场模拟面试</p>
         </div>
-        <span className="font-mono text-xs text-zinc-400">
+        <span className="font-mono text-xs text-zinc-500">
           {dateStr} · {weekday}
         </span>
       </div>
@@ -193,13 +193,13 @@ export default function UploadPage({ onUploadComplete }: UploadPageProps) {
       {/* 统计概览 */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {statCards.map((card) => (
-          <div key={card.label} className="bg-white border border-zinc-200 rounded-lg px-5 py-4">
+          <div key={card.label} className="bg-white border border-zinc-200 rounded-lg shadow-sm px-5 py-4">
             <p className="text-xs text-zinc-500">{card.label}</p>
             <p className="mt-1.5 flex items-baseline gap-1">
               <span className="font-mono text-2xl font-semibold text-primary-800 tabular-nums">
                 {card.value}
               </span>
-              <span className="text-xs text-zinc-400">{card.unit}</span>
+              <span className="text-xs text-zinc-500">{card.unit}</span>
             </p>
           </div>
         ))}
@@ -208,10 +208,10 @@ export default function UploadPage({ onUploadComplete }: UploadPageProps) {
       {/* 主体：上传 + 最近简历（行高锁定为容器高度，条数不影响卡片高度，避免测量反馈循环） */}
       <div className="flex-1 min-h-0 grid grid-rows-[minmax(0,1fr)] lg:grid-cols-3 gap-5">
         {/* 上传区 */}
-        <div className="lg:col-span-2 bg-white border border-zinc-200 rounded-lg flex flex-col">
+        <div className="lg:col-span-2 bg-white border border-zinc-200 rounded-lg shadow-sm flex flex-col">
           <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
             <h2 className="text-sm font-medium text-zinc-900">导入简历</h2>
-            <span className="font-mono text-xs text-zinc-400">PDF / DOCX / TXT · ≤ 10MB</span>
+            <span className="font-mono text-xs text-zinc-500">PDF / DOCX / TXT · ≤ 10MB</span>
           </div>
 
           <div className="flex-1 min-h-0 flex flex-col p-5">
@@ -244,7 +244,7 @@ export default function UploadPage({ onUploadComplete }: UploadPageProps) {
                   <span className="flex-1 min-w-0 truncate font-mono text-sm text-zinc-800">
                     {selectedFile.name}
                   </span>
-                  <span className="font-mono text-xs text-zinc-400 shrink-0">
+                  <span className="font-mono text-xs text-zinc-500 shrink-0">
                     {formatFileSize(selectedFile.size)}
                   </span>
                   <button
@@ -308,11 +308,11 @@ export default function UploadPage({ onUploadComplete }: UploadPageProps) {
         </div>
 
         {/* 最近简历（窄屏隐藏，宽屏条目数随断点递增：2 → lg:3 → xl:5） */}
-        <div className="hidden lg:flex bg-white border border-zinc-200 rounded-lg flex-col">
+        <div className="hidden lg:flex bg-white border border-zinc-200 rounded-lg shadow-sm flex-col">
           <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
             <h2 className="text-sm font-medium text-zinc-900">最近简历</h2>
             {shownResumes.length > 0 && (
-              <span className="font-mono text-xs text-zinc-400">最近 {shownResumes.length} 条</span>
+              <span className="font-mono text-xs text-zinc-500">最近 {shownResumes.length} 条</span>
             )}
           </div>
 
@@ -331,7 +331,7 @@ export default function UploadPage({ onUploadComplete }: UploadPageProps) {
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-zinc-800 truncate">{resume.filename}</p>
-                      <p className="font-mono text-xs text-zinc-400 mt-0.5">
+                      <p className="font-mono text-xs text-zinc-500 mt-0.5">
                         {formatDate(resume.uploadedAt, { month: '2-digit', day: '2-digit' })}
                       </p>
                     </div>

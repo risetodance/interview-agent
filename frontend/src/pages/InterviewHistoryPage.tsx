@@ -41,7 +41,7 @@ function StatCard({
   unit?: string;
 }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg px-5 py-4">
+    <div className="bg-white border border-zinc-200 rounded-lg shadow-sm px-5 py-4">
       <p className="text-xs text-zinc-500">{label}</p>
       <p className="mt-1.5 flex items-baseline gap-1">
         <span className="font-mono text-2xl font-semibold text-primary-800 tabular-nums">{value}</span>
@@ -318,7 +318,7 @@ export default function InterviewHistoryPage({ onBack: _onBack, onViewInterview 
 
       {/* 空状态 */}
       {!loading && filteredInterviews.length === 0 && (
-        <div className="bg-white border border-zinc-200 rounded-lg">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
           <p className="px-5 py-8 text-xs text-zinc-400 text-center">
             暂无面试记录，开始一次模拟面试后记录将显示在这里
           </p>
@@ -327,7 +327,7 @@ export default function InterviewHistoryPage({ onBack: _onBack, onViewInterview 
 
       {/* 表格 */}
       {!loading && filteredInterviews.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-zinc-50 border-b border-zinc-100">

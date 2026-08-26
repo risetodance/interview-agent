@@ -52,7 +52,7 @@ export default function InterviewConfigPanel({
   const [weightError, setWeightError] = useState<string | null>(null);
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-white border border-zinc-200 rounded-lg fade-in">
+    <div className="flex-1 min-h-0 flex flex-col bg-white border border-zinc-200 rounded-lg shadow-sm fade-in">
       {/* 卡头 */}
       <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
         <h2 className="text-sm font-medium text-zinc-900">面试配置</h2>

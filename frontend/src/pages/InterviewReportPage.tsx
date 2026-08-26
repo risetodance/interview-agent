@@ -207,7 +207,7 @@ export default function InterviewReportPage({ sessionId, onBack }: InterviewRepo
           {comprehensiveReport ? (
             <ComprehensiveReport report={comprehensiveReport} />
           ) : (
-            <div className="bg-white border border-zinc-200 rounded-lg px-5 py-12 text-center">
+            <div className="bg-white border border-zinc-200 rounded-lg shadow-sm px-5 py-12 text-center">
               <Loader2 className="w-6 h-6 text-zinc-400 animate-spin mx-auto mb-3" />
               <p className="text-sm text-zinc-500">正在生成综合报告…</p>
             </div>
@@ -218,7 +218,7 @@ export default function InterviewReportPage({ sessionId, onBack }: InterviewRepo
           {activePerspectiveDetail ? (
             <PerspectiveReport detail={activePerspectiveDetail} />
           ) : (
-            <div className="bg-white border border-zinc-200 rounded-lg px-5 py-12 text-center">
+            <div className="bg-white border border-zinc-200 rounded-lg shadow-sm px-5 py-12 text-center">
               <Loader2 className="w-6 h-6 text-zinc-400 animate-spin mx-auto mb-3" />
               <p className="text-sm text-zinc-500">加载中…</p>
             </div>
@@ -232,7 +232,7 @@ export default function InterviewReportPage({ sessionId, onBack }: InterviewRepo
 // 统计卡片（数字卡范式：mono 数字 + 单位小字）
 function StatCard({ label, value, unit }: { label: string; value: string | number; unit?: string }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg px-5 py-4">
+    <div className="bg-white border border-zinc-200 rounded-lg shadow-sm px-5 py-4">
       <p className="text-xs text-zinc-500">{label}</p>
       <p className="mt-1.5 flex items-baseline gap-1">
         <span className="font-mono text-2xl font-semibold text-primary-800 tabular-nums">{value}</span>
@@ -267,7 +267,7 @@ function ComprehensiveReport({ report }: { report: ComprehensiveReportDTO }) {
       </div>
 
       {/* 各视角得分 */}
-      <div className="bg-white border border-zinc-200 rounded-lg">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
         <CardHeader title="各视角得分" meta={`${report.perspectives.length} 个视角`} />
         <div className="p-5 space-y-4">
           {report.perspectives.map((p) => (
@@ -294,7 +294,7 @@ function ComprehensiveReport({ report }: { report: ComprehensiveReportDTO }) {
 
       {/* 综合评价 */}
       {(report.evaluation || report.developmentSuggestions) && (
-        <div className="bg-white border border-zinc-200 rounded-lg">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
           <CardHeader title="综合评价" />
           <div className="p-5 space-y-5">
             {report.evaluation && (
@@ -321,7 +321,7 @@ function ComprehensiveReport({ report }: { report: ComprehensiveReportDTO }) {
       {(report.strengths.length > 0 || report.improvements.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {report.strengths.length > 0 && (
-            <div className="bg-white border border-zinc-200 rounded-lg">
+            <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
               <CardHeader title="综合优势" meta={`${report.strengths.length} 条`} />
               <ul className="p-5 space-y-2">
                 {report.strengths.map((s, i) => (
@@ -334,7 +334,7 @@ function ComprehensiveReport({ report }: { report: ComprehensiveReportDTO }) {
             </div>
           )}
           {report.improvements.length > 0 && (
-            <div className="bg-white border border-zinc-200 rounded-lg">
+            <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
               <CardHeader title="改进建议" meta={`${report.improvements.length} 条`} />
               <ul className="p-5 space-y-2">
                 {report.improvements.map((s, i) => (
@@ -365,7 +365,7 @@ function PerspectiveReport({ detail }: { detail: PerspectiveDetailDTO }) {
   return (
     <div className="space-y-5">
       {/* 视角信息 + 得分 */}
-      <div className="bg-white border border-zinc-200 rounded-lg px-5 py-4 flex items-center justify-between gap-4">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm px-5 py-4 flex items-center justify-between gap-4">
         <div className="min-w-0">
           <p className="font-mono text-xs text-zinc-400">视角</p>
           <h2 className="text-base font-medium text-zinc-900 mt-0.5 truncate">{detail.roleName}</h2>
@@ -380,7 +380,7 @@ function PerspectiveReport({ detail }: { detail: PerspectiveDetailDTO }) {
 
       {/* 评价内容 */}
       {detail.feedback && (
-        <div className="bg-white border border-zinc-200 rounded-lg">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
           <CardHeader title="评价" />
           <div className="p-5">
             <p className="text-sm text-zinc-700 leading-relaxed whitespace-pre-wrap">
@@ -394,7 +394,7 @@ function PerspectiveReport({ detail }: { detail: PerspectiveDetailDTO }) {
       {(detail.strengths.length > 0 || detail.improvements.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {detail.strengths.length > 0 && (
-            <div className="bg-white border border-zinc-200 rounded-lg">
+            <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
               <CardHeader title="优势" meta={`${detail.strengths.length} 条`} />
               <ul className="p-5 space-y-2">
                 {detail.strengths.map((s, i) => (
@@ -407,7 +407,7 @@ function PerspectiveReport({ detail }: { detail: PerspectiveDetailDTO }) {
             </div>
           )}
           {detail.improvements.length > 0 && (
-            <div className="bg-white border border-zinc-200 rounded-lg">
+            <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
               <CardHeader title="改进建议" meta={`${detail.improvements.length} 条`} />
               <ul className="p-5 space-y-2">
                 {detail.improvements.map((s, i) => (
@@ -424,7 +424,7 @@ function PerspectiveReport({ detail }: { detail: PerspectiveDetailDTO }) {
 
       {/* 问题详情列表 */}
       {detail.questionScores.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-lg">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
           <CardHeader title="问题详情" meta={`${detail.questionScores.length} 题`} />
           <div className="p-5 space-y-4">
             {detail.questionScores.map((q) => (

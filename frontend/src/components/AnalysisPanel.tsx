@@ -115,7 +115,7 @@ export default function AnalysisPanel({
   if (isProcessing) {
     const isExplicitProcessing = analyzeStatus === 'PROCESSING';
     return (
-      <div className="bg-white border border-zinc-200 rounded-lg px-5 py-16 text-center fade-in">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm px-5 py-16 text-center fade-in">
         {isExplicitProcessing ? (
           <Loader2 className="w-8 h-8 text-primary-600 animate-spin mx-auto mb-4" />
         ) : (
@@ -139,7 +139,7 @@ export default function AnalysisPanel({
   // 2. 有分析结果但结果无效
   if (analyzeStatus === 'FAILED' || !isAnalysisValid) {
     return (
-      <div className="bg-white border border-zinc-200 rounded-lg px-5 py-16 text-center fade-in">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm px-5 py-16 text-center fade-in">
         <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
         <h3 className="text-sm font-medium text-zinc-900">分析失败</h3>
         <p className="mt-1.5 text-sm text-zinc-500 mb-4">AI 服务暂时不可用，请稍后重试</p>
@@ -173,7 +173,7 @@ export default function AnalysisPanel({
       {/* 核心评价和雷达图 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* 核心评价 */}
-        <div className="bg-white border border-zinc-200 rounded-lg flex flex-col">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm flex flex-col">
           <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
             <h3 className="text-sm font-medium text-zinc-900">核心评价</h3>
             <button
@@ -229,7 +229,7 @@ export default function AnalysisPanel({
         </div>
 
         {/* 多维度评分雷达图 */}
-        <div className="bg-white border border-zinc-200 rounded-lg flex flex-col">
+        <div className="bg-white border border-zinc-200 rounded-lg shadow-sm flex flex-col">
           <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
             <h3 className="text-sm font-medium text-zinc-900">多维度评分</h3>
             <span className="font-mono text-xs text-zinc-400">5 维度 · 满分 100</span>
@@ -277,7 +277,7 @@ export default function AnalysisPanel({
       </div>
 
       {/* 改进建议 - 按优先级分类 */}
-      <div className="bg-white border border-zinc-200 rounded-lg">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm">
         <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100">
           <h3 className="text-sm font-medium text-zinc-900">改进建议</h3>
           <span className="font-mono text-xs text-zinc-400 tabular-nums">

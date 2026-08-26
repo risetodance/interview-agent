@@ -201,7 +201,7 @@ export default function NotificationListPage() {
       )}
 
       {/* 筛选器 */}
-      <div className="bg-white border border-zinc-200 rounded-lg px-5 py-4 mb-4">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm px-5 py-4 mb-4">
         <div className="flex gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-zinc-600">类型</span>
@@ -234,7 +234,7 @@ export default function NotificationListPage() {
       </div>
 
       {/* 通知列表 */}
-      <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-5 h-5 text-zinc-400 animate-spin" />

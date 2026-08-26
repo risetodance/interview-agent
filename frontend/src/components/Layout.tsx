@@ -57,7 +57,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-primary-50/60">
+    <div className="h-screen flex flex-col bg-zinc-100/70">
       {/* 顶栏 */}
       <header className="z-40 bg-white border-b border-zinc-200 shrink-0">
         <div className="mx-auto max-w-7xl h-14 px-4 sm:px-6 flex items-center gap-4 sm:gap-6">

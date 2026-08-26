@@ -7,6 +7,7 @@ import { authApi } from '../../api/auth';
 import { useCodeCountdown } from '../../hooks/useCodeCountdown';
 import { isValidEmail } from '../../utils/validate';
 import BrandMark from '../../components/BrandMark';
+import AuthAside from '../../components/auth/AuthAside';
 
 type LoginMode = 'account' | 'email';
 
@@ -189,56 +190,16 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex bg-white">
-      {/* 左侧叙事面板（大屏显示） */}
-      <aside className="hidden lg:flex w-[420px] xl:w-[480px] shrink-0 flex-col justify-between bg-primary-950 bg-grid p-12 relative">
-        {/* 品牌区 */}
-        <div className="flex items-center gap-3">
-          <BrandMark className="w-7 h-7" />
-          <div>
-            <span className="block text-sm font-semibold text-white tracking-tight">智能面试助手</span>
-            <span className="block text-xs text-white/50">AI Assistant</span>
-          </div>
-        </div>
-
-        {/* 主文案与特性 */}
-        <div>
-          <p className="font-mono text-xs tracking-[0.2em] text-primary-300/70 uppercase mb-5">
-            AI Interview Workspace
-          </p>
-          <h2 className="text-3xl xl:text-4xl font-semibold text-white leading-snug tracking-tight">
-            和 AI 面试官，
-            <br />
-            练一场真面试
-          </h2>
-
-          <div className="mt-12 divide-y divide-white/10 border-t border-white/10">
-            <div className="py-4 flex items-start gap-4">
-              <span className="font-mono text-xs text-primary-300/70 pt-1">01</span>
-              <div>
-                <p className="text-sm font-medium text-white">简历解析</p>
-                <p className="text-sm text-white/50 mt-0.5">上传即得结构化的简历分析</p>
-              </div>
-            </div>
-            <div className="py-4 flex items-start gap-4">
-              <span className="font-mono text-xs text-primary-300/70 pt-1">02</span>
-              <div>
-                <p className="text-sm font-medium text-white">多视角模拟面试</p>
-                <p className="text-sm text-white/50 mt-0.5">多位 AI 面试官轮番提问</p>
-              </div>
-            </div>
-            <div className="py-4 flex items-start gap-4">
-              <span className="font-mono text-xs text-primary-300/70 pt-1">03</span>
-              <div>
-                <p className="text-sm font-medium text-white">面试报告</p>
-                <p className="text-sm text-white/50 mt-0.5">多维度评分与改进建议</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 底部信息 */}
-        <p className="font-mono text-xs text-white/35">AI Assistant · Interview Workspace</p>
-      </aside>
+      {/* 左侧叙事面板（大屏显示，含光标聚光灯） */}
+      <AuthAside
+        tagline="AI Interview Workspace"
+        title={<>和 AI 面试官，<br />练一场真面试</>}
+        steps={[
+          { title: '简历解析', desc: '上传即得结构化的简历分析' },
+          { title: '多视角模拟面试', desc: '多位 AI 面试官轮番提问' },
+          { title: '面试报告', desc: '多维度评分与改进建议' },
+        ]}
+      />
 
       {/* 右侧表单区 */}
       <div className="flex-1 flex flex-col">
