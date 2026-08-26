@@ -20,6 +20,12 @@
       }
     },
     {
+      "path": "pages/auth/agreement",
+      "style": {
+        "navigationBarTitleText": "协议与隐私"
+      }
+    },
+    {
       "path": "pages/auth/forgot-password",
       "style": {
         "navigationBarTitleText": "找回密码",

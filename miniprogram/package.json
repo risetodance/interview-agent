@@ -4,6 +4,7 @@
   "description": "uni-app miniprogram with Vue 3 + TypeScript",
   "main": "index.js",
   "scripts": {
+    "postinstall": "cp -n src/config/agreement-content.example.ts src/config/agreement-content.ts || true",
     "dev:mp-weixin": "uni -p mp-weixin",
     "build:mp-weixin": "uni build -p mp-weixin",
     "dev:h5": "uni",

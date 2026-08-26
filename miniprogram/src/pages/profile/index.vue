@@ -78,40 +78,8 @@ const handleLogout = () => {
   })
 }
 
-// 选择并上传头像
-const chooseAvatar = async () => {
-  if (isLoading.value) return
-
-  try {
-    const res = await uni.chooseImage({
-      count: 1,
-      sizeType: ['compressed'],
-      sourceType: ['album', 'camera']
-    })
-
-    if (res.tempFilePaths && res.tempFilePaths.length > 0) {
-      isLoading.value = true
-
-      // TODO: 调用上传头像接口
-      // const { uploadAvatar } = await import('../api/user')
-      // const result = await uploadAvatar(res.tempFilePaths[0])
-
-      uni.showToast({
-        title: '头像上传成功',
-        icon: 'success'
-      })
-    }
-  } catch (error: any) {
-    if (error.errMsg && !error.errMsg.includes('cancel')) {
-      uni.showToast({
-        title: error.message || '上传失败',
-        icon: 'none'
-      })
-    }
-  } finally {
-    isLoading.value = false
-  }
-}
+// 头像上传功能尚未上线（后端 /api/users/avatar 接口未实现），
+// 上线后恢复：头像区域绑回点击 → uni.chooseImage → uploadAvatar → 刷新 userInfo
 
 // 菜单项配置（移除会员中心）
 const menuItems = computed(() => [
@@ -177,8 +145,8 @@ const handleMenuClick = (item: any) => {
 
       <!-- 用户信息 -->
       <view class="user-info">
-        <!-- 头像区域 -->
-        <view class="avatar-wrapper" @click="chooseAvatar">
+        <!-- 头像区域（上传功能尚未上线：暂不可点击，避免假成功提示） -->
+        <view class="avatar-wrapper">
           <image
             v-if="userInfo?.avatar"
             class="avatar"
@@ -187,9 +155,6 @@ const handleMenuClick = (item: any) => {
           />
           <view v-else class="avatar avatar-placeholder">
             <text class="avatar-placeholder-text">{{ displayName.charAt(0) }}</text>
-          </view>
-          <view class="avatar-edit-icon">
-            <text class="icon">编辑</text>
           </view>
         </view>
 

@@ -195,6 +195,11 @@ const switchToAccountLogin = () => {
 const goToForgotPassword = () => {
   uni.navigateTo({ url: '/pages/auth/forgot-password' })
 }
+
+// 查看协议文档（.stop 防止冒泡触发外层勾选框切换）
+const goToAgreement = (type: 'terms' | 'privacy') => {
+  uni.navigateTo({ url: `/pages/auth/agreement?type=${type}` })
+}
 </script>
 
 <template>
@@ -321,9 +326,9 @@ const goToForgotPassword = () => {
       </view>
       <text class="agreement-text">
         我已阅读并同意
-        <text class="link">《用户协议》</text>
+        <text class="link" @click.stop="goToAgreement('terms')">《用户协议》</text>
         和
-        <text class="link">《隐私政策》</text>
+        <text class="link" @click.stop="goToAgreement('privacy')">《隐私政策》</text>
       </text>
     </view>
 
