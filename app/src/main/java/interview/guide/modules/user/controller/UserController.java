@@ -1,6 +1,9 @@
 package interview.guide.modules.user.controller;
 
 import interview.guide.common.annotation.CurrentUser;
+import interview.guide.common.annotation.RateLimit;
+import interview.guide.common.annotation.RateLimit.Dimension;
+import interview.guide.common.annotation.RateLimit.TimeUnit;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.common.result.Result;
@@ -75,6 +78,8 @@ public class UserController {
      * POST /api/auth/login
      */
     @PostMapping("/api/auth/login")
+    @RateLimit(dimensions = {Dimension.IP},
+            count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         log.info("收到用户登录请求: username={}", request.username());
         LoginResponse response = loginService.login(request);

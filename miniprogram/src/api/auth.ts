@@ -1,13 +1,8 @@
 import { post } from '../utils/request'
 
-// 微信登录参数
+// 微信登录参数（仅 code：账号关联模式下昵称头像沿用 Web 账户已有资料，微信侧不再采集）
 export interface WechatLoginParams {
   code: string
-  encryptedData?: string
-  iv?: string
-  nickName?: string
-  avatarUrl?: string
-  gender?: number
 }
 
 // 登录响应（对齐后端 LoginResponse 真实字段：仅 token/userId/username/role，
@@ -32,12 +27,38 @@ export interface LoginParams {
 }
 
 /**
+ * 微信登录响应（账号关联模式）
+ * needsBind=true：该微信未绑定任何账号，login 为 null，凭 ticket 进关联页
+ * （openid 暂存后端 Redis，不下发前端；票据 5 分钟一次性）
+ */
+export interface WechatLoginResult {
+  needsBind: boolean
+  ticket: string | null
+  login: LoginResult | null
+}
+
+/**
  * 微信小程序一键登录
- * 使用 uni.login 获取 code，再通过 uni.getUserProfile 获取用户信息
- * H5模式下使用mock的code调用后端
+ * 已绑定 → login 返回登录态；未绑定 → needsBind=true + ticket，走关联流程
  */
 export const wechatLogin = (data: WechatLoginParams) => {
-  return post<LoginResult>('/api/auth/wechat/login', data)
+  return post<WechatLoginResult>('/api/auth/wechat/login', data)
+}
+
+/**
+ * 微信绑定-账号/邮箱+密码（关联通道一）
+ * POST /api/auth/wechat/bind/password
+ */
+export const wechatBindByPassword = (data: { ticket: string; account: string; password: string }) => {
+  return post<LoginResult>('/api/auth/wechat/bind/password', data)
+}
+
+/**
+ * 微信绑定-邮箱+验证码（关联通道二，复用 LOGIN 场景验证码）
+ * POST /api/auth/wechat/bind/email-code
+ */
+export const wechatBindByEmailCode = (data: { ticket: string; email: string; code: string }) => {
+  return post<LoginResult>('/api/auth/wechat/bind/email-code', data)
 }
 
 /**

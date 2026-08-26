@@ -1,80 +1,8 @@
 import { get, post, put, uploadFile } from '../utils/request'
-import { isH5 } from '../utils/env'
 
-// 登录请求参数
-export interface LoginParams {
-  username: string
-  password: string
-}
-
-// 微信登录参数
-export interface WechatLoginParams {
-  code: string
-  encryptedData?: string
-  iv?: string
-}
-
-// 登录响应
-export interface LoginResult {
-  token: string
-  refreshToken?: string
-  expiresIn?: number
-}
-
-/**
- * 账号密码登录
- */
-export const login = (data: LoginParams) => {
-  return post<LoginResult>('/api/auth/login', data)
-}
-
-/**
- * 微信登录
- * H5模式下mock，因为无法调用微信API
- */
-export const wechatLogin = (data: WechatLoginParams) => {
-  // N6+B3：本地 isH5 声明恒为 false（!uni.getSystemInfoSync 永远取反到 false），
-  // 改用 utils/env.ts 统一导出的 isH5（基于 window 判定）
-  if (isH5) {
-    return Promise.resolve({
-      token: 'mock_wechat_token_' + Date.now(),
-      refreshToken: 'mock_refresh_token_' + Date.now(),
-      expiresIn: 7200,
-      userId: 1
-    })
-  }
-  return post<LoginResult>('/api/auth/wechat/login', data)
-}
-
-/**
- * 微信小程序登录
- * H5模式下mock
- */
-export const miniprogramLogin = (data: WechatLoginParams) => {
-  if (isH5) {
-    return Promise.resolve({
-      token: 'mock_wechat_token_' + Date.now(),
-      refreshToken: 'mock_refresh_token_' + Date.now(),
-      expiresIn: 7200,
-      userId: 1
-    })
-  }
-  return post<LoginResult>('/api/auth/wechat/login', data)
-}
-
-/**
- * 刷新 Token
- */
-export const refreshToken = (refreshToken: string) => {
-  return post<LoginResult>('/api/auth/refresh', { refreshToken })
-}
-
-/**
- * 登出
- */
-export const logout = () => {
-  return post('/api/auth/logout')
-}
+// 说明：登录/微信登录/刷新 token/登出等认证接口统一收敛在 api/auth.ts，
+// 本文件仅保留用户资料、安全设置相关接口（原重复的 login/wechatLogin/
+// miniprogramLogin/refreshToken/logout 已删除，调用方已迁移）
 
 /**
  * 获取用户信息
