@@ -78,7 +78,7 @@ build_frontend() {
     log_info "前端构建完成"
 }
 
-# 构建小程序
+# 构建小程序（微信 mp-weixin 生产包）
 build_miniprogram() {
     log_info "构建小程序..."
 
@@ -87,11 +87,12 @@ build_miniprogram() {
     # 安装依赖
     pnpm install
 
-    # 微信小程序构建
-    pnpm dev:mp-weixin
+    # 生产构建：与前端一致注入 API 地址（src/utils/env.ts 读取 VITE_API_BASE_URL
+    # 后去 /api 尾再拼各模块自带 /api 前缀，故带不带 /api 尾均可）
+    VITE_API_BASE_URL="$API_BASE_URL" pnpm build:mp-weixin
 
-    # 打包
-    tar -czvf ../deploy/miniprogram.tar.gz -C dist .
+    # 打包生产产物（仅 dist/build/mp-weixin；dist/dev 是开发 watch 产物不打包）
+    tar -czvf ../deploy/miniprogram.tar.gz -C dist/build/mp-weixin .
 
     cd ..
 
@@ -194,9 +195,9 @@ deploy_frontend() {
     log_info "前端部署完成"
 }
 
-# 部署小程序
+# 部署小程序（产物上传服务器留档，便于随时取包回溯历史版本）
 deploy_miniprogram() {
-    log_info "部署小程序..."
+    log_info "部署小程序产物到服务器留档..."
 
     # 删除旧的小程序静态资源
     ssh "$SERVER_USER@$SERVER_HOST" "rm -rf $MINIPROGRAM_DIST_DIR/*"
@@ -207,7 +208,35 @@ deploy_miniprogram() {
     # 解压
     ssh "$SERVER_USER@$SERVER_HOST" "cd $MINIPROGRAM_DIST_DIR && tar -xzvf miniprogram.tar.gz && rm miniprogram.tar.gz"
 
-    log_info "小程序部署完成"
+    log_info "小程序产物留档完成"
+}
+
+# 上传小程序到微信平台（可选：.env 配置 WECHAT_MINIAPP_PRIVATE_KEY 时启用 miniprogram-ci）
+# 私钥下载：微信公众平台 - 开发管理 - 开发设置 - 小程序代码上传
+# 注意：微信后台需关闭"IP 白名单"或将本机 IP 加白，否则上传会被拒
+upload_miniprogram() {
+    if [ -z "$WECHAT_MINIAPP_PRIVATE_KEY" ] || [ ! -f "$WECHAT_MINIAPP_PRIVATE_KEY" ]; then
+        log_warn "未配置 WECHAT_MINIAPP_PRIVATE_KEY，跳过小程序 CI 上传"
+        log_warn "手动发布：用微信开发者工具打开 miniprogram/dist/build/mp-weixin 上传"
+        return 0
+    fi
+
+    log_info "通过 miniprogram-ci 上传小程序到微信平台..."
+
+    # 版本号：日期 + git 短提交号，便于在微信后台版本列表区分
+    local version="$(date +%Y.%m.%d-%H%M)-$(git rev-parse --short HEAD)"
+
+    # 上传失败不中断部署主流程（常见失败：IP 不在白名单/版本号冲突），仅告警
+    if (cd miniprogram && pnpm dlx miniprogram-ci upload \
+        --pp ./dist/build/mp-weixin \
+        --pkp "$WECHAT_MINIAPP_PRIVATE_KEY" \
+        --appid "$WECHAT_MINIAPP_APPID" \
+        --uv "$version" \
+        --desc "deploy.sh auto upload"); then
+        log_info "小程序已上传微信平台，版本: $version"
+    else
+        log_error "小程序 CI 上传失败（不阻塞后续部署），请检查私钥/IP 白名单后重试或改用开发者工具手动上传"
+    fi
 }
 
 # 部署后端（使用 docker compose）
@@ -274,6 +303,8 @@ show_summary() {
     echo "后端API: $API_BASE_URL"
     echo "后端日志: $BACKEND_LOG_DIR"
     echo "后端部署目录: $BACKEND_DEPLOY_DIR"
+    echo "小程序产物(本地): miniprogram/dist/build/mp-weixin"
+    echo "小程序产物(服务器留档): $MINIPROGRAM_DIST_DIR"
     echo ""
     echo "查看后端日志:"
     echo "  ssh $SERVER_USER@$SERVER_HOST"
@@ -291,11 +322,12 @@ main() {
     check_prerequisites
     create_remote_dirs
     build_frontend
-#    build_miniprogram
+    build_miniprogram
     build_backend_jar
     package_backend_deploy
     deploy_frontend
-#    deploy_miniprogram
+    deploy_miniprogram
+    upload_miniprogram
     deploy_backend
     cleanup
     show_summary
