@@ -149,21 +149,39 @@ export const updateKnowledgebaseCategory = (id: number, category: string | null)
 
 /**
  * 上传文档到知识库
+ * filename 为原始文件名：小程序 uni.uploadFile 无法指定 multipart 文件名（发的是临时文件名），
+ * 由 formData 显式传给后端展示/存档；H5 可省略（multipart 自带）
  */
 export const uploadToKnowledgebase = (
   filePath: string,
   name: string,
-  category?: string
+  category?: string,
+  filename?: string
 ) => {
   return uploadFile<{ knowledgeBase: Knowledgebase; storage: { fileKey: string; fileUrl: string }; duplicate: boolean }>(filePath, {
     url: '/api/knowledgebase/upload',
     name: 'file',
     formData: {
       name,
-      category: category || ''
+      category: category || '',
+      ...(filename ? { filename } : {})
     },
     showLoading: true
   })
+}
+
+/**
+ * RAG 问答（同步版，非流式）
+ * POST /api/rag-chat/sessions/{sessionId}/messages
+ * 小程序端 enableChunked 的 SSE 兼容性差（面试模块已改轮询同因），
+ * 一次性返回完整回答；LLM 生成耗时较长，超时放宽到 3 分钟
+ */
+export const ragChatMessage = (sessionId: number, question: string) => {
+  return post<{ messageId: number; content: string }>(
+    `/api/rag-chat/sessions/${sessionId}/messages`,
+    { question },
+    { timeout: 180000 }
+  )
 }
 
 /**

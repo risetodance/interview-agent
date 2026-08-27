@@ -41,15 +41,17 @@ public class ResumeUploadService {
     /**
      * 上传并分析简历（异步）
      *
-     * @param file   简历文件
-     * @param userId 用户ID
+     * @param file     简历文件
+     * @param userId   用户ID
+     * @param filename 前端显式传入的原始文件名（小程序 uni.uploadFile 发的是临时文件名，可空）
      * @return 上传结果（分析将异步进行）
      */
-    public Map<String, Object> uploadAndAnalyze(org.springframework.web.multipart.MultipartFile file, Long userId) {
+    public Map<String, Object> uploadAndAnalyze(org.springframework.web.multipart.MultipartFile file,
+                                                Long userId, String filename) {
         // 1. 验证文件
         fileValidationService.validateFile(file, MAX_FILE_SIZE, "简历");
 
-        String fileName = file.getOriginalFilename();
+        String fileName = resolveOriginalFilename(filename, file);
         log.info("收到简历上传请求: {}, 大小: {} bytes", fileName, file.getSize());
 
         // 2. 验证文件类型
@@ -74,7 +76,7 @@ public class ResumeUploadService {
         log.info("简历已存储到RustFS: {}", fileKey);
 
         // 6. 保存简历到数据库（状态为 PENDING）
-        ResumeEntity savedResume = persistenceService.saveResume(file, resumeText, fileKey, fileUrl, userId);
+        ResumeEntity savedResume = persistenceService.saveResume(file, fileName, resumeText, fileKey, fileUrl, userId);
 
         // 7. 发送分析任务到 Redis Stream（异步处理）
         analyzeStreamProducer.sendAnalyzeTask(savedResume.getId(), resumeText);
@@ -95,6 +97,18 @@ public class ResumeUploadService {
             ),
             "duplicate", false
         );
+    }
+
+    /**
+     * 解析原始文件名：优先前端显式传入（小程序 uni.uploadFile 无法指定 multipart 文件名，
+     * 发出的是临时文件名如 tmp_xxx），其次 multipart 自带（Web 端），最后兜底 "未命名文件"
+     */
+    private String resolveOriginalFilename(String filename, org.springframework.web.multipart.MultipartFile file) {
+        if (filename != null && !filename.trim().isEmpty()) {
+            return filename.trim();
+        }
+        String original = file.getOriginalFilename();
+        return (original != null && !original.isBlank()) ? original : "未命名文件";
     }
 
     /**
@@ -186,14 +200,16 @@ public class ResumeUploadService {
      * @param resumeId 简历ID
      * @param file     新简历文件
      * @param userId   用户ID（用于权限校验）
+     * @param filename 前端显式传入的原始文件名（小程序端临时文件名问题，可空）
      * @return 更新后的简历信息
      */
     @Transactional
-    public Map<String, Object> reupload(Long resumeId, org.springframework.web.multipart.MultipartFile file, Long userId) {
+    public Map<String, Object> reupload(Long resumeId, org.springframework.web.multipart.MultipartFile file,
+                                        Long userId, String filename) {
         // 1. 验证文件
         fileValidationService.validateFile(file, MAX_FILE_SIZE, "简历");
 
-        String fileName = file.getOriginalFilename();
+        String fileName = resolveOriginalFilename(filename, file);
         log.info("收到简历重新上传请求: {}, 大小: {} bytes, resumeId={}", fileName, file.getSize(), resumeId);
 
         // 2. 验证文件类型

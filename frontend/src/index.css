@@ -148,3 +148,50 @@ svg *:focus-visible {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* 登录页叙事面板：透明光波纹（波浪线平移 + 波形 SMIL 形变 + 光斑漂移呼吸） */
+@keyframes wave-drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.wave-drift-a {
+  animation: wave-drift 22s linear infinite;
+}
+
+.wave-drift-b {
+  animation: wave-drift 34s linear infinite reverse;
+}
+
+.wave-drift-c {
+  animation: wave-drift 14s linear infinite;
+}
+
+/* 光斑：缓慢漂移 + 明暗呼吸 */
+@keyframes wave-glow-a {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.7; }
+  50% { transform: translate(70px, -18px) scale(1.3); opacity: 1; }
+}
+
+@keyframes wave-glow-b {
+  0%, 100% { transform: translate(0, 0) scale(1.1); opacity: 0.55; }
+  50% { transform: translate(-90px, -12px) scale(0.85); opacity: 0.95; }
+}
+
+.wave-glow-a {
+  animation: wave-glow-a 11s ease-in-out infinite;
+}
+
+.wave-glow-b {
+  animation: wave-glow-b 17s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wave-drift-a,
+  .wave-drift-b,
+  .wave-drift-c,
+  .wave-glow-a,
+  .wave-glow-b {
+    animation: none;
+  }
+}

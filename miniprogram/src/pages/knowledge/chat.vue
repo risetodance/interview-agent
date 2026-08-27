@@ -4,6 +4,7 @@ import Icon from '../../components/common/Icon.vue'
 import { renderMarkdown } from '../../utils/marked'
 import {
   connectRagChatStream,
+  ragChatMessage,
   getRagSessions,
   getRagMessages,
   createRagSession,
@@ -12,13 +13,23 @@ import {
   toggleRagSessionPin,
   type ChatMessage
 } from '../../api/knowledgebase'
+import { isH5 } from '../../utils/env'
 import { BRAND } from '@/styles/colors'
 
 // 路由参数
 const knowledgebaseIds = ref<number[]>([])
 const knowledgebaseNames = ref<string[]>([])
 
-const primaryKnowledgeBaseName = computed(() => knowledgebaseNames.value[0] || '知识库问答')
+// 顶栏标题：优先显示当前会话标题（切会话跟着变），无会话/未加载时回退知识库名
+const primaryKnowledgeBaseName = computed(() => {
+  if (currentSessionId.value) {
+    const current = sessions.value.find(s => s.id === currentSessionId.value)
+    if (current?.title) {
+      return current.title
+    }
+  }
+  return knowledgebaseNames.value[0] || '知识库问答'
+})
 const selectedKbCount = computed(() => knowledgebaseIds.value.length)
 const knowledgeBasesDescription = computed(() => {
   if (knowledgebaseNames.value.length === 0) return '未选择知识库'
@@ -30,6 +41,16 @@ const knowledgeBasesDescription = computed(() => {
 const messages = ref<ChatMessage[]>([])
 const inputText = ref('')
 const isLoading = ref(false)
+
+// 状态栏高度（custom 导航页避让刘海；CSS env(safe-area-inset-top) 部分真机返回 0 不可靠，
+// 写法同 index.vue 先例，JS 动态取值）
+const statusBarHeight = ref(0)
+try {
+  const sysInfo = (uni.getWindowInfo ? uni.getWindowInfo() : uni.getSystemInfoSync()) as any
+  statusBarHeight.value = sysInfo.statusBarHeight || 0
+} catch (e) {
+  statusBarHeight.value = 0
+}
 
 // ===== 智能滚动 =====
 // 核心思路：流式输出时只有"用户在底部"才自动滚到底；用户主动上滑后不强制拉回，改显示跳转按钮
@@ -124,13 +145,17 @@ const parseThinkBlocks = (content: string): { main: string; thinks: ThinkBlock[]
   return { main: mainContent.trim(), thinks, streamingThink: streamingThink ? streamingThink.trim() : null }
 }
 
-const toggleThink = (msgIndex: number, thinkIndex: number) => {
-  const key = `${msgIndex}-${thinkIndex}`
-  expandedThinks.value = { ...expandedThinks.value, [key]: !expandedThinks.value[key] }
+const toggleThink = (msgKey: string | number, thinkIndex: number, isLastMessage: boolean) => {
+  const key = `${msgKey}-${thinkIndex}`
+  // 基于当前实际展示态取反：最后一条消息的 think 默认展开但存储里无记录，
+  // 若直接取反存储值（undefined→true）视觉无变化，会出现"第一次点两下才有反应"
+  const currentExpanded = isThinkExpanded(msgKey, thinkIndex, isLastMessage)
+  expandedThinks.value = { ...expandedThinks.value, [key]: !currentExpanded }
 }
 
-const isThinkExpanded = (msgIndex: number, thinkIndex: number, isLastMessage: boolean): boolean => {
-  const key = `${msgIndex}-${thinkIndex}`
+const isThinkExpanded = (msgKey: string | number, thinkIndex: number, isLastMessage: boolean): boolean => {
+  // key 用消息 id 而非数组下标：消息追加/切换会话后下标漂移会导致折叠状态串到别的消息
+  const key = `${msgKey}-${thinkIndex}`
   if (key in expandedThinks.value) return expandedThinks.value[key]
   return isLastMessage
 }
@@ -240,6 +265,32 @@ const sendToAI = async (question: string) => {
   const aiIndex = messages.value.length - 1
   let fullContent = ''
 
+  // 小程序端：enableChunked 的 SSE 兼容性差（面试模块已因此改轮询），
+  // 走同步接口一次性返回完整回答（超时 3 分钟，期间 loading 转圈）
+  if (!isH5) {
+    try {
+      const resp = await ragChatMessage(currentSessionId.value!, question)
+      fullContent = resp.content || ''
+      messages.value[aiIndex] = {
+        id: aiMsgId,
+        type: 'answer',
+        content: fullContent || '抱歉，未收到有效回复。',
+        timestamp: new Date().toISOString()
+      }
+    } catch (error: any) {
+      messages.value[aiIndex] = {
+        id: aiMsgId,
+        type: 'answer',
+        content: `抱歉，发生了错误：${error.message || '请求失败'}`,
+        timestamp: new Date().toISOString()
+      }
+    } finally {
+      isLoading.value = false
+      scrollToBottom()
+    }
+    return
+  }
+
   const cleanup = connectRagChatStream(
     currentSessionId.value!,
     question,
@@ -311,6 +362,10 @@ const handleNewSession = () => {
 }
 
 const handleSelectSession = async (session: { id: number }) => {
+  // 该条目正处于重命名编辑态时，点击行不切换会话（交给 input 的 blur/confirm 保存）
+  if (editingSessionId.value === session.id) {
+    return
+  }
   currentSessionId.value = session.id
   showSessionList.value = false
   try {
@@ -393,16 +448,16 @@ onUnmounted(() => {
 
 <template>
   <view class="chat-container">
-    <!-- 品牌蓝顶栏 -->
-    <view class="chat-header">
-      <view class="hd-btn" @click="goBack">
+    <!-- 品牌蓝顶栏（动态 padding-top 避让刘海；整栏可点开历史会话，两按钮 stop 冒泡） -->
+    <view class="chat-header" :style="{ paddingTop: statusBarHeight + 12 + 'px' }" @click="showSessionList = true">
+      <view class="hd-btn" @click.stop="goBack">
         <Icon name="arrow-left" :size="20" color="#fff" />
       </view>
-      <view class="hd-center" @click="showSessionList = true">
+      <view class="hd-center">
         <text class="hd-title">{{ primaryKnowledgeBaseName }}</text>
         <text class="hd-sub">{{ selectedKbCount > 1 ? selectedKbCount + ' 个知识库' : '点击查看会话历史' }}</text>
       </view>
-      <view class="hd-btn" @click="handleNewSession">
+      <view class="hd-btn" @click.stop="handleNewSession">
         <Icon name="plus" :size="22" color="#fff" />
       </view>
     </view>
@@ -431,14 +486,14 @@ onUnmounted(() => {
             <!-- 思考过程 -->
             <template v-if="getThinkBlocks(msg.content).thinks.length > 0 || getThinkBlocks(msg.content).streamingThink">
               <view v-for="(think, i) in getThinkBlocks(msg.content).thinks" :key="i" class="think-block">
-                <view class="think-header" @click="toggleThink(index, i)">
+                <view class="think-header" @click="toggleThink(msg.id, i, index === messages.length - 1)">
                   <view class="think-label">
                     <Icon name="brain" :size="12" :color="BRAND.PRIMARY" />
                     <text>AI 思考过程</text>
                   </view>
-                  <Icon :name="isThinkExpanded(index, i, index === messages.length - 1) ? 'chevron-up' : 'chevron-down'" :size="12" color="#94a3b8" />
+                  <Icon :name="isThinkExpanded(msg.id, i, index === messages.length - 1) ? 'chevron-up' : 'chevron-down'" :size="12" color="#94a3b8" />
                 </view>
-                <view v-if="isThinkExpanded(index, i, index === messages.length - 1)" class="think-body">
+                <view v-if="isThinkExpanded(msg.id, i, index === messages.length - 1)" class="think-body">
                   <rich-text :nodes="parseContent(think.content)" />
                 </view>
               </view>
@@ -508,7 +563,7 @@ onUnmounted(() => {
     <!-- 会话历史侧边栏 -->
     <view v-if="showSessionList" class="session-mask" @click="showSessionList = false">
       <view class="session-panel" @click.stop>
-        <view class="session-header">
+        <view class="session-header" :style="{ paddingTop: statusBarHeight + 14 + 'px' }">
           <text class="session-title">对话历史</text>
           <view class="session-actions">
             <view class="sa-btn" @click="handleNewSession"><Icon name="plus" :size="18" :color="BRAND.PRIMARY" /></view>
@@ -521,8 +576,8 @@ onUnmounted(() => {
             <view class="se-icon"><Icon name="message" :size="40" color="#cbd5e1" /></view>
             <text class="se-text">暂无对话历史</text>
           </view>
-          <view v-for="session in sessions" :key="session.id" class="session-item" :class="{ active: currentSessionId === session.id }">
-            <view class="session-main" @click="handleSelectSession(session)">
+          <view v-for="session in sessions" :key="session.id" class="session-item" :class="{ active: currentSessionId === session.id }" @click="handleSelectSession(session)">
+            <view class="session-main">
               <view v-if="session.isPinned" class="session-pin"><Icon name="pin" :size="12" :color="BRAND.PRIMARY" /></view>
               <template v-if="editingSessionId === session.id">
                 <input v-model="editingSessionTitle" class="session-edit" @click.stop @confirm="handleSaveSessionTitle" @blur="handleSaveSessionTitle" />
@@ -554,7 +609,8 @@ onUnmounted(() => {
   flex-shrink: 0;
   display: flex; align-items: center; gap: 12rpx;
   background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
-  padding: calc(env(safe-area-inset-top, 0px) + 24rpx) 24rpx 24rpx;
+  /* 顶部 padding 由模板动态注入（statusBarHeight+12px），此为兜底值 */
+  padding: 24rpx 24rpx;
 }
 .hd-btn {
   width: 64rpx; height: 64rpx; border-radius: 50%;
@@ -665,7 +721,7 @@ onUnmounted(() => {
 // ===== 会话侧栏 =====
 .session-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; }
 .session-panel { position: absolute; left: 0; top: 0; bottom: 0; width: 600rpx; background: #fff; display: flex; flex-direction: column; }
-.session-header { display: flex; align-items: center; justify-content: space-between; padding: calc(env(safe-area-inset-top, 0px) + 28rpx) 28rpx 24rpx; border-bottom: 1rpx solid #f1f5f9; }
+.session-header { display: flex; align-items: center; justify-content: space-between; padding: 28rpx 28rpx 24rpx; border-bottom: 1rpx solid #f1f5f9; }
 .session-title { font-size: 32rpx; font-weight: 700; color: $text-primary; }
 .session-actions { display: flex; gap: 12rpx; }
 .sa-btn { width: 56rpx; height: 56rpx; border-radius: 50%; background: $bg; display: flex; align-items: center; justify-content: center; &:active { background: #e2e8f0; } }

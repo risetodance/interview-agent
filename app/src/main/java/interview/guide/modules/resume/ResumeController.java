@@ -45,8 +45,11 @@ public class ResumeController {
     @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL, RateLimit.Dimension.IP}, count = 5)
     public Result<Map<String, Object>> uploadAndAnalyze(
             @RequestParam("file") MultipartFile file,
+            // 小程序端 uni.uploadFile 无法指定 multipart 文件名（发的是临时文件名），
+            // 原始文件名由前端经 formData 显式传入；Web 端 multipart 自带可省略
+            @RequestParam(value = "filename", required = false) String filename,
             @CurrentUser Long userId) {
-        Map<String, Object> result = uploadService.uploadAndAnalyze(file, userId);
+        Map<String, Object> result = uploadService.uploadAndAnalyze(file, userId, filename);
         boolean isDuplicate = (Boolean) result.get("duplicate");
         if (isDuplicate) {
             return Result.success("检测到相同简历，已返回历史分析结果", result);
@@ -152,8 +155,9 @@ public class ResumeController {
     public Result<Map<String, Object>> reupload(
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "filename", required = false) String filename,
             @CurrentUser Long userId) {
-        Map<String, Object> result = uploadService.reupload(id, file, userId);
+        Map<String, Object> result = uploadService.reupload(id, file, userId, filename);
         return Result.success(result);
     }
     

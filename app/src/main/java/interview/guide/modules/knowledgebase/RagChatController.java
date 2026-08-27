@@ -1,9 +1,12 @@
 package interview.guide.modules.knowledgebase;
 
 import interview.guide.common.annotation.CurrentUser;
+import interview.guide.common.exception.BusinessException;
+import interview.guide.common.exception.ErrorCode;
 import interview.guide.common.result.Result;
 import interview.guide.modules.knowledgebase.model.RagChatDTO.*;
 import interview.guide.modules.knowledgebase.service.RagChatSessionService;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * RAG 聊天控制器
@@ -113,7 +117,12 @@ public class RagChatController {
     public Flux<ServerSentEvent<String>> sendMessageStream(
             @CurrentUser Long userId,
             @PathVariable Long sessionId,
-            @Valid @RequestBody SendMessageRequest request) {
+            @Valid @RequestBody SendMessageRequest request,
+            HttpServletResponse response) {
+
+        // 禁用 nginx 对本响应的缓冲（proxy_buffering），SSE 事件须即时透传，
+        // 否则会被反向代理攒住导致客户端长时间收不到分块（H5 流式关键）
+        response.setHeader("X-Accel-Buffering", "no");
 
         log.info("收到 RAG 聊天流式请求: sessionId={}, question={}, 线程: {} (虚拟线程: {}, userId={})",
                 sessionId, request.question(), Thread.currentThread(), Thread.currentThread().isVirtual(), userId);
@@ -143,5 +152,45 @@ public class RagChatController {
                     sessionService.completeStreamMessage(messageId, content);
                     log.error("RAG 聊天流式错误: sessionId={}", sessionId, e);
                 });
+    }
+
+    /**
+     * 发送消息（同步版，非流式）
+     * 一次性返回完整回答。小程序端 enableChunked 的 SSE 兼容性差
+     * （面试模块已因此改轮询），为知识库问答提供不依赖分块传输的通道
+     */
+    @PostMapping("/api/rag-chat/sessions/{sessionId}/messages")
+    public Result<Map<String, Object>> sendMessage(
+            @CurrentUser Long userId,
+            @PathVariable Long sessionId,
+            @Valid @RequestBody SendMessageRequest request) {
+
+        log.info("收到 RAG 聊天同步请求: sessionId={}, userId={}", sessionId, userId);
+
+        // 1. 准备消息（保存用户消息，创建 AI 消息占位）
+        Long messageId = sessionService.prepareStreamMessage(sessionId, request.question(), userId);
+
+        // 2. 阻塞聚合流式结果（复用同一生成逻辑；MVC 虚拟线程环境下可安全阻塞）
+        StringBuilder fullContent = new StringBuilder();
+        try {
+            sessionService.getStreamAnswer(sessionId, request.question())
+                    .doOnNext(fullContent::append)
+                    .blockLast();
+            sessionService.completeStreamMessage(messageId, fullContent.toString());
+            log.info("RAG 聊天同步完成: sessionId={}, messageId={}", sessionId, messageId);
+        } catch (Exception e) {
+            // 错误时保存已生成的部分内容，与流式版行为一致
+            String content = !fullContent.isEmpty()
+                    ? fullContent.toString()
+                    : "【错误】回答生成失败：" + e.getMessage();
+            sessionService.completeStreamMessage(messageId, content);
+            log.error("RAG 聊天同步请求错误: sessionId={}", sessionId, e);
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "回答生成失败，请重试");
+        }
+
+        return Result.success(Map.of(
+                "messageId", messageId,
+                "content", fullContent.toString()
+        ));
     }
 }

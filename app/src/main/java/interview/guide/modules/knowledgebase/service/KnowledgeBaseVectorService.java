@@ -2,6 +2,7 @@ package interview.guide.modules.knowledgebase.service;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import interview.guide.modules.knowledgebase.model.ParentDocumentEntity;
+import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import interview.guide.modules.knowledgebase.repository.ParentDocumentRepository;
 import interview.guide.modules.knowledgebase.repository.VectorRepository;
 import interview.guide.modules.knowledgebase.util.KnowledgeBaseSearchUtils;
@@ -35,6 +36,7 @@ public class KnowledgeBaseVectorService {
     private final JdbcTemplate jdbcTemplate;
     private final SemanticChunkingService semanticChunkingService;
     private final ParentDocumentRepository parentDocumentRepository;
+    private final KnowledgeBaseRepository knowledgeBaseRepository;
     private final KnowledgeBaseSearchUtils.Bm25DocumentRowMapper rowMapper;
     private final KnowledgeBaseVectorService self;
 
@@ -44,12 +46,14 @@ public class KnowledgeBaseVectorService {
             JdbcTemplate jdbcTemplate,
             SemanticChunkingService semanticChunkingService,
             ParentDocumentRepository parentDocumentRepository,
+            KnowledgeBaseRepository knowledgeBaseRepository,
             @Lazy KnowledgeBaseVectorService self) {
         this.vectorStore = vectorStore;
         this.vectorRepository = vectorRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.semanticChunkingService = semanticChunkingService;
         this.parentDocumentRepository = parentDocumentRepository;
+        this.knowledgeBaseRepository = knowledgeBaseRepository;
         this.rowMapper = new KnowledgeBaseSearchUtils.Bm25DocumentRowMapper(
                 JsonMapper.builder().addModules(JacksonUtils.instantiateAvailableModules()).build());
         this.self = self;
@@ -115,6 +119,17 @@ public class KnowledgeBaseVectorService {
 
             log.info("知识库向量化完成(Parent-Child): kbId={}, parents={}, children={}, batches={}",
                     knowledgeBaseId, parents.size(), totalChildren, batchCount);
+
+            // 回写分块数（Parent 文档数），供列表展示；失败不影响向量化结果
+            try {
+                knowledgeBaseRepository.findById(knowledgeBaseId).ifPresent(kb -> {
+                    kb.setChunkCount(parents.size());
+                    knowledgeBaseRepository.save(kb);
+                });
+            } catch (Exception countEx) {
+                log.warn("回写知识库分块数失败（不影响向量化结果）: kbId={}, error={}",
+                        knowledgeBaseId, countEx.getMessage());
+            }
 
         } catch (Exception e) {
             log.error("向量化知识库失败: kbId={}, error={}", knowledgeBaseId, e.getMessage(), e);

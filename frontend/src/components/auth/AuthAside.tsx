@@ -113,6 +113,52 @@ export default function AuthAside({
         }}
       />
 
+      {/* 底部光波纹（透明水光：发光波浪线形变起伏 + 渐隐填充 + 漂移光斑） */}
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-[220px] overflow-hidden">
+        {/* 光斑（光阴）：缓慢漂移 + 呼吸 */}
+        <div
+          className="wave-glow-a absolute left-[12%] bottom-[-30px] w-80 h-40"
+          style={{ background: 'radial-gradient(ellipse at center, rgba(196,233,240,0.10), transparent 70%)' }}
+        />
+        <div
+          className="wave-glow-b absolute left-[55%] bottom-[-50px] w-96 h-48"
+          style={{ background: 'radial-gradient(ellipse at center, rgba(138,199,214,0.08), transparent 70%)' }}
+        />
+
+        {/* 波浪线一（主）：渐隐描边 + 波形形变，随外层缓慢平移 */}
+        <div className="wave-drift-a absolute bottom-0 left-0 w-[200%] h-full">
+          <svg className="w-full h-full" viewBox="0 0 2880 220" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="wave-fill-a" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#56a8bf" stopOpacity="0.08" />
+                <stop offset="1" stopColor="#56a8bf" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path fill="url(#wave-fill-a)" stroke="rgba(196,233,240,0.32)" strokeWidth="1.5"
+              d="M0,110 C240,70 480,70 720,110 C960,150 1200,150 1440,110 C1680,70 1920,70 2160,110 C2400,150 2640,150 2880,110 L2880,220 L0,220 Z"
+            />
+          </svg>
+        </div>
+
+        {/* 波浪线二（副）：反向平移、更淡 */}
+        <div className="wave-drift-b absolute bottom-0 left-0 w-[200%] h-full">
+          <svg className="w-full h-full" viewBox="0 0 2880 220" preserveAspectRatio="none" aria-hidden="true">
+            <path fill="none" stroke="rgba(138,199,214,0.16)" strokeWidth="1"
+              d="M0,140 C240,115 480,115 720,140 C960,165 1200,165 1440,140 C1680,115 1920,115 2160,140 C2400,165 2640,165 2880,140"
+            />
+          </svg>
+        </div>
+
+        {/* 波浪线三：小振幅、快、最亮 */}
+        <div className="wave-drift-c absolute bottom-0 left-0 w-[200%] h-full">
+          <svg className="w-full h-full" viewBox="0 0 2880 220" preserveAspectRatio="none" aria-hidden="true">
+            <path fill="none" stroke="rgba(224,244,248,0.26)" strokeWidth="1.5"
+              d="M0,160 C240,142 480,142 720,160 C960,178 1200,178 1440,160 C1680,142 1920,142 2160,160 C2400,178 2640,178 2880,160"
+            />
+          </svg>
+        </div>
+      </div>
+
       {/* 暗态基础层（正常文档流） */}
       <div className="relative flex flex-col justify-between h-full">{renderBody(false)}</div>
 

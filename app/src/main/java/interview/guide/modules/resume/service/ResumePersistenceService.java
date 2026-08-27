@@ -65,16 +65,18 @@ public class ResumePersistenceService {
     
     /**
      * 保存新简历
+     *
+     * @param originalFilename 原始文件名（小程序端由前端显式传入，multipart 自带的是临时文件名）
      */
     @Transactional(rollbackFor = Exception.class)
-    public ResumeEntity saveResume(MultipartFile file, String resumeText,
+    public ResumeEntity saveResume(MultipartFile file, String originalFilename, String resumeText,
                                    String storageKey, String storageUrl, Long userId) {
         try {
             String fileHash = fileHashService.calculateHash(file);
 
             ResumeEntity resume = new ResumeEntity();
             resume.setFileHash(fileHash);
-            resume.setOriginalFilename(file.getOriginalFilename());
+            resume.setOriginalFilename(originalFilename);
             resume.setFileSize(file.getSize());
             resume.setContentType(file.getContentType());
             resume.setStorageKey(storageKey);

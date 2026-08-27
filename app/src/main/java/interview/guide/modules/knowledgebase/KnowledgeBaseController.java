@@ -163,8 +163,10 @@ public class KnowledgeBaseController {
             @CurrentUser Long userId,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "name", required = false) String name,
-            @RequestParam(value = "category", required = false) String category) {
-        return Result.success(uploadService.uploadKnowledgeBase(file, name, category, userId));
+            @RequestParam(value = "category", required = false) String category,
+            // 小程序端 uni.uploadFile 发的 multipart 文件名是临时文件名，原始文件名由前端显式传入
+            @RequestParam(value = "filename", required = false) String filename) {
+        return Result.success(uploadService.uploadKnowledgeBase(file, name, category, userId, filename));
     }
 
     /**

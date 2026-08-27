@@ -307,7 +307,7 @@ const getStatusText = (perspective: PerspectiveScoreDTO) => {
                   v-if="index === 0"
                   name="bar-chart"
                   :size="16"
-                  :color="currentTabIndex === index ? '$primary' : '#94a3b8'"
+                  :color="currentTabIndex === index ? '#276f8d' : '#94a3b8'"
                 />
                 <Icon
                   v-else

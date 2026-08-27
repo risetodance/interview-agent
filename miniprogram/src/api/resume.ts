@@ -317,7 +317,8 @@ export const uploadResume = (filePath: string, name?: string) => {
   return uploadFile<UploadResumeResult>(filePath, {
     url: '/api/resumes/upload',
     name: 'file',
-    formData: name ? { name } : {},
+    // filename：原始文件名显式传后端（小程序 uni.uploadFile 的 multipart 文件名是临时文件名）
+    formData: name ? { name, filename: name } : {},
     showLoading: true
   })
 }

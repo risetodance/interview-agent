@@ -157,12 +157,17 @@ const goToChat = () => {
 }
 
 // 切换知识库选中状态
-const toggleKbSelection = (id: number) => {
+// 向量化未完成（分析中）的知识库不可选：此时检索不到内容，选了问答会拿不到有效结果
+const toggleKbSelection = (item: { id: number; vectorStatus?: string }) => {
+  if (item.vectorStatus !== 'COMPLETED' && !selectedKbIds.value.has(item.id)) {
+    uni.showToast({ title: '该知识库还在向量化中，完成后再选择', icon: 'none' })
+    return
+  }
   const newSet = new Set(selectedKbIds.value)
-  if (newSet.has(id)) {
-    newSet.delete(id)
+  if (newSet.has(item.id)) {
+    newSet.delete(item.id)
   } else {
-    newSet.add(id)
+    newSet.add(item.id)
   }
   selectedKbIds.value = newSet
 
@@ -174,16 +179,20 @@ const toggleKbSelection = (id: number) => {
   }
 }
 
-// 全选/取消全选
+// 全选/取消全选（全选仅纳入向量化已完成的知识库）
 const toggleSelectAll = () => {
   if (selectedKbIds.value.size === knowledgebaseList.value.length) {
     // 取消全选
     selectedKbIds.value = new Set()
     showSelectionBar.value = false
   } else {
-    // 全选
-    selectedKbIds.value = new Set(knowledgebaseList.value.map(item => item.id))
-    showSelectionBar.value = true
+    // 全选（仅可选中的）
+    selectedKbIds.value = new Set(
+      knowledgebaseList.value
+        .filter(item => item.vectorStatus === 'COMPLETED')
+        .map(item => item.id)
+    )
+    showSelectionBar.value = selectedKbIds.value.size > 0
   }
 }
 
@@ -219,14 +228,21 @@ const chooseFile = () => {
   // #endif
 
   // #ifndef H5
-  uni.chooseFile({
+  // uni.chooseFile 仅 H5/App 存在，微信小程序端是 undefined（调用必抛 TypeError，
+  // 症状为点击上传区域无响应）；小程序选文件必须用 chooseMessageFile（从聊天会话选取），
+  // 写法对齐 resume/upload.vue 的 MP 分支
+  uni.chooseMessageFile({
     count: 1,
-    type: 'all',
+    type: 'file',
+    extension: ['pdf', 'doc', 'docx', 'txt', 'md'],
     success: (res: any) => {
       if (res.tempFiles && res.tempFiles[0]) {
         selectedFilePath.value = res.tempFiles[0].path
         selectedFileName.value = res.tempFiles[0].name
       }
+    },
+    fail: () => {
+      uni.showToast({ title: '选择文件失败', icon: 'none' })
     }
   })
   // #endif
@@ -246,7 +262,7 @@ const confirmCreate = async () => {
 
   createLoading.value = true
   try {
-    await uploadToKnowledgebase(selectedFilePath.value, kbName.value, kbCategory.value)
+    await uploadToKnowledgebase(selectedFilePath.value, kbName.value, kbCategory.value, selectedFileName.value || undefined)
     uni.showToast({ title: '创建成功', icon: 'success' })
     showCreateModal.value = false
     resetForm()
@@ -463,8 +479,8 @@ onMounted(() => {
         v-for="item in knowledgebaseList"
         :key="item.id"
         class="kb-card"
-        :class="{ selected: selectedKbIds.has(item.id) }"
-        @click="toggleKbSelection(item.id)"
+        :class="{ selected: selectedKbIds.has(item.id), disabled: item.vectorStatus !== 'COMPLETED' }"
+        @click="toggleKbSelection(item)"
       >
         <!-- 顶部：图标 + 名称 + 状态 + 操作 -->
         <view class="card-top">
@@ -510,7 +526,7 @@ onMounted(() => {
             </template>
             <template v-else>
               <text class="cat-tag" :class="{ empty: !item.category }" @click.stop="startEditCategory(item)">
-                <Icon name="tag" :size="11" :color="item.category ? '$primary' : '#94a3b8'" />
+                <Icon name="tag" :size="11" :color="item.category ? '#276f8d' : '#94a3b8'" />
                 {{ item.category || '未分类' }}
               </text>
             </template>
@@ -536,8 +552,8 @@ onMounted(() => {
       </view>
     </scroll-view>
 
-    <!-- 悬浮创建按钮（FAB） -->
-    <view class="fab" @click="showCreateModal = true">
+    <!-- 悬浮创建按钮（FAB，多选时上移避开底部选择栏，防遮挡「开始问答」） -->
+    <view class="fab" :class="{ raised: showSelectionBar }" @click="showCreateModal = true">
       <Icon name="plus" :size="24" color="#fff" />
     </view>
 
@@ -785,6 +801,11 @@ onMounted(() => {
   border: 2rpx solid transparent;
   transition: border-color 0.15s;
 
+  // 向量化未完成：置灰不可选（点击仅提示）
+  &.disabled {
+    opacity: 0.55;
+  }
+
   &.selected {
     border-color: $primary;
     background: rgba($primary, 0.02);
@@ -964,6 +985,12 @@ onMounted(() => {
   justify-content: center;
   box-shadow: 0 8rpx 24rpx rgba($primary, 0.4);
   z-index: 100;
+  transition: bottom 0.2s;
+
+  // 多选选择栏出现时抬到其上方（选择栏含内边距与按钮约 130-150rpx 高）
+  &.raised {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 200rpx);
+  }
 
   &:active {
     transform: scale(0.95);

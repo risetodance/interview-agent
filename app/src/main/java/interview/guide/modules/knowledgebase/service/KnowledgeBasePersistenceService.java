@@ -53,16 +53,19 @@ public class KnowledgeBasePersistenceService {
 
     /**
      * 保存新知识库元数据到数据库
+     *
+     * @param originalFilename 原始文件名（小程序端由前端显式传入，multipart 自带的是临时文件名）
      */
     @Transactional(rollbackFor = Exception.class)
     public KnowledgeBaseEntity saveKnowledgeBase(MultipartFile file, String name, String category,
-                                                  String storageKey, String storageUrl, String fileHash, Long userId) {
+                                                  String storageKey, String storageUrl, String fileHash, Long userId,
+                                                  String originalFilename) {
         try {
             KnowledgeBaseEntity kb = new KnowledgeBaseEntity();
             kb.setFileHash(fileHash);
-            kb.setName(name != null && !name.trim().isEmpty() ? name : extractNameFromFilename(file.getOriginalFilename()));
+            kb.setName(name != null && !name.trim().isEmpty() ? name : extractNameFromFilename(originalFilename));
             kb.setCategory(category != null && !category.trim().isEmpty() ? category.trim() : null);
-            kb.setOriginalFilename(file.getOriginalFilename());
+            kb.setOriginalFilename(originalFilename);
             kb.setFileSize(file.getSize());
             kb.setContentType(file.getContentType());
             kb.setStorageKey(storageKey);

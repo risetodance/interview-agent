@@ -142,7 +142,9 @@ const startInterview = () => {
           <text class="hero-sub">多视角面试官 · 自适应难度 · 实时评分</text>
           <view class="hero-cta">
             <text class="hero-cta-text">{{ isLoggedIn ? '立即开始' : '登录后开始' }}</text>
-            <Icon name="chevron-right" :size="16" color="$primary-dark" />
+            <!-- 此前误传 SCSS 变量名 "$primary-dark" 作为 color（Icon 组件不参与 SCSS 编译，
+                 拿到的是非法颜色字符串导致图标不显示），改为实际色值（variables.scss $primary-dark） -->
+            <Icon name="chevron-right" :size="16" color="#235b74" />
           </view>
         </view>
       </view>

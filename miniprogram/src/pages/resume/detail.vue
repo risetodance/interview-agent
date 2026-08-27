@@ -160,7 +160,8 @@ const drawRadarChart = () => {
     return
   }
 
-  // 使用原生 HTML5 Canvas API
+  // #ifdef H5
+  // 使用原生 HTML5 Canvas API（document 仅 H5 存在，小程序调用会 ReferenceError 导致雷达图静默不渲染）
   let canvas = document.querySelector('#resumeRadarCanvas canvas') as HTMLCanvasElement
   if (!canvas) {
     canvas = document.getElementById('resumeRadarCanvas') as HTMLCanvasElement
@@ -175,6 +176,32 @@ const drawRadarChart = () => {
   }
 
   drawResumeRadarChart(ctx, data)
+  // #endif
+
+  // #ifndef H5
+  // 微信小程序：Canvas 2D 接口，经 SelectorQuery 取节点（canvas 需声明 type="2d"）
+  // @dcloudio/types 对 SelectorQuery.exec 的回调签名定义与实际不符，as any 绕过
+  // （同 api/knowledgebase.ts 的 (requestTask as any).onChunkReceived 处理方式）
+  ;(uni as any).createSelectorQuery()
+    .select('#resumeRadarCanvas')
+    .fields({ node: true, size: true })
+    .exec((res: any) => {
+      const canvasNode = (res?.[0] as any)?.node
+      if (!canvasNode) {
+        return
+      }
+      // 物理像素缩放，避免高分屏模糊
+      const dpr = uni.getSystemInfoSync().pixelRatio || 2
+      canvasNode.width = 320 * dpr
+      canvasNode.height = 280 * dpr
+      const ctx = canvasNode.getContext('2d')
+      if (!ctx) {
+        return
+      }
+      ctx.scale(dpr, dpr)
+      drawResumeRadarChart(ctx, data)
+    })
+  // #endif
 }
 
 function drawResumeRadarChart(ctx: any, data: any[]) {
@@ -349,16 +376,14 @@ const pollAnalysisStatus = async () => {
           title: parseStatus === 'COMPLETED' ? '分析完成' : '分析失败',
           icon: parseStatus === 'COMPLETED' ? 'success' : 'none'
         })
+        // 轮询拿到 analysis 后雷达区的 v-if 才渲染 canvas，等 DOM 更新完再绘制，
+        // 否则跳转进来时（初次加载无 analysis）雷达图永远没人画
+        await nextTick()
+        setTimeout(() => drawRadarChart(), 100)
         return
       }
 
-      // 分析中，显示进度
-      if (attempt % 3 === 0) { // 每6秒显示一次
-        uni.showToast({
-          title: '分析中...',
-          icon: 'none'
-        })
-      }
+      // 分析中：已有「AI 正在分析中」遮罩层持续展示状态，不再周期性弹 toast（避免重复打扰）
     } catch (error) {
     }
   }
@@ -637,6 +662,7 @@ const formatAnalysisItem = (item: any): string => {
             <canvas
               id="resumeRadarCanvas"
               canvas-id="resumeRadarChart"
+              type="2d"
               class="radar-canvas"
               style="width: 320px; height: 280px;"
             ></canvas>

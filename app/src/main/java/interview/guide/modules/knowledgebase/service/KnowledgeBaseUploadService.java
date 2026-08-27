@@ -40,17 +40,19 @@ public class KnowledgeBaseUploadService {
     /**
      * 上传知识库文件
      *
-     * @param file 知识库文件
-     * @param name 知识库名称（可选，如果为空则从文件名提取）
+     * @param file     知识库文件
+     * @param name     知识库名称（可选，如果为空则从文件名提取）
      * @param category 分类（可选）
-     * @param userId 用户ID（用于数据隔离）
+     * @param userId   用户ID（用于数据隔离）
+     * @param filename 前端显式传入的原始文件名（小程序 uni.uploadFile 发的是临时文件名，可空）
      * @return 上传结果和存储信息（包含duplicate字段，表示是否为重复上传）
      */
-    public Map<String, Object> uploadKnowledgeBase(MultipartFile file, String name, String category, Long userId) {
+    public Map<String, Object> uploadKnowledgeBase(MultipartFile file, String name, String category,
+                                                   Long userId, String filename) {
         // 1. 验证文件
         fileValidationService.validateFile(file, MAX_FILE_SIZE, "知识库");
 
-        String fileName = file.getOriginalFilename();
+        String fileName = resolveOriginalFilename(filename, file);
         log.info("收到知识库上传请求: {}, 大小: {} bytes, category: {}", fileName, file.getSize(), category);
 
         // 2. 验证文件类型
@@ -77,7 +79,7 @@ public class KnowledgeBaseUploadService {
         log.info("知识库已存储到RustFS: {}", fileKey);
 
         // 6. 保存知识库元数据到数据库（状态为 PENDING）
-        KnowledgeBaseEntity savedKb = persistenceService.saveKnowledgeBase(file, name, category, fileKey, fileUrl, fileHash, userId);
+        KnowledgeBaseEntity savedKb = persistenceService.saveKnowledgeBase(file, name, category, fileKey, fileUrl, fileHash, userId, fileName);
 
         // 7. 发送向量化任务到 Redis Stream（异步处理）
         vectorizeStreamProducer.sendVectorizeTask(savedKb.getId(), content);
@@ -100,6 +102,18 @@ public class KnowledgeBaseUploadService {
             ),
             "duplicate", false
         );
+    }
+
+    /**
+     * 解析原始文件名：优先前端显式传入（小程序 multipart 自带的是临时文件名），
+     * 其次 multipart 自带（Web 端），最后兜底 "未命名文件"
+     */
+    private String resolveOriginalFilename(String filename, MultipartFile file) {
+        if (filename != null && !filename.trim().isEmpty()) {
+            return filename.trim();
+        }
+        String original = file.getOriginalFilename();
+        return (original != null && !original.isBlank()) ? original : "未命名文件";
     }
 
     /**
