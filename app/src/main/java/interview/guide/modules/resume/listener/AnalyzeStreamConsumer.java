@@ -2,22 +2,30 @@ package interview.guide.modules.resume.listener;
 
 import interview.guide.common.async.AbstractStreamConsumer;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
+import interview.guide.common.exception.BusinessException;
+import interview.guide.common.exception.ErrorCode;
 import interview.guide.common.model.AsyncTaskStatus;
 import interview.guide.infrastructure.redis.RedisService;
+import interview.guide.modules.aimodel.service.AiVisionCapabilityResolver;
+import interview.guide.modules.aimodel.service.AiVisionCapabilityResolver.VisionCandidate;
 import interview.guide.modules.interview.model.ResumeAnalysisResponse;
 import interview.guide.modules.resume.model.ResumeEntity;
 import interview.guide.modules.resume.repository.ResumeRepository;
 import interview.guide.modules.resume.service.ResumeGradingService;
 import interview.guide.modules.resume.service.ResumePersistenceService;
+import interview.guide.modules.resume.service.ResumeVisionParseService;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.stream.StreamMessageId;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
 
 /**
  * 简历分析 Stream 消费者
  * 负责从 Redis Stream 消费消息并执行 AI 分析
+ * <p>视觉识别接入：消息文本无效（扫描件提取为空/过少）或配置「视觉优先」且简历为 PDF 时，
+ * 从存储下载原文件走视觉模型识别（主模型失败退化小模型），识别文本回写 resumeText 缓存后进入分析。
  */
 @Slf4j
 @Component
@@ -26,17 +34,23 @@ public class AnalyzeStreamConsumer extends AbstractStreamConsumer<AnalyzeStreamC
     private final ResumeGradingService gradingService;
     private final ResumePersistenceService persistenceService;
     private final ResumeRepository resumeRepository;
+    private final ResumeVisionParseService visionParseService;
+    private final AiVisionCapabilityResolver visionResolver;
 
     public AnalyzeStreamConsumer(
         RedisService redisService,
         ResumeGradingService gradingService,
         ResumePersistenceService persistenceService,
-        ResumeRepository resumeRepository
+        ResumeRepository resumeRepository,
+        ResumeVisionParseService visionParseService,
+        AiVisionCapabilityResolver visionResolver
     ) {
         super(redisService);
         this.gradingService = gradingService;
         this.persistenceService = persistenceService;
         this.resumeRepository = resumeRepository;
+        this.visionParseService = visionParseService;
+        this.visionResolver = visionResolver;
     }
 
     record AnalyzePayload(Long resumeId, String content) {}
@@ -95,13 +109,71 @@ public class AnalyzeStreamConsumer extends AbstractStreamConsumer<AnalyzeStreamC
             return;
         }
 
-        ResumeAnalysisResponse analysis = gradingService.analyzeResume(payload.content());
+        AnalyzeInput input = resolveResumeText(payload);
+        ResumeAnalysisResponse analysis = gradingService.analyzeResume(input.resumeText(), input.layoutEvaluation());
         ResumeEntity resume = resumeRepository.findById(resumeId).orElse(null);
         if (resume == null) {
             log.warn("简历在分析期间被删除，跳过保存结果: resumeId={}", resumeId);
             return;
         }
         persistenceService.saveAnalysis(resume, analysis);
+    }
+
+    /** 分析输入：resumeText = 分析用简历文本；layoutEvaluation = 视觉排版评价（非视觉路径为空串） */
+    private record AnalyzeInput(String resumeText, String layoutEvaluation) {}
+
+    /**
+     * 解析本次分析用的简历文本与排版评价：
+     * <ul>
+     *   <li>消息文本有效且未配置视觉优先 → 直接用文本，无排版评价（多数简历走此路径）</li>
+     *   <li>文本无效（扫描件提取为空/过少）或配置「视觉优先」→ 且为 PDF → 视觉识别，
+     *       纯简历文本回写 resumeText 缓存（reanalyze 免重复识别），排版评价仅当次分析使用</li>
+     *   <li>视觉识别失败：文本仍有效则降级用文本继续；文本也无效则抛错走失败/重试</li>
+     *   <li>非 PDF（DOCX/TXT 等不走视觉）：文本有效继续用，无效抛错</li>
+     * </ul>
+     */
+    private AnalyzeInput resolveResumeText(AnalyzePayload payload) {
+        String content = payload.content();
+        boolean textInsufficient = ResumeVisionParseService.isTextInsufficient(content);
+        if (!textInsufficient) {
+            List<VisionCandidate> candidates = visionResolver.resolveVisionCandidates();
+            if (candidates.isEmpty() || !AiVisionCapabilityResolver.isVisionPriority(candidates)) {
+                return new AnalyzeInput(content, "");
+            }
+        }
+        ResumeEntity resume = resumeRepository.findById(payload.resumeId()).orElse(null);
+        if (resume == null || !isPdfResume(resume)) {
+            if (textInsufficient) {
+                throw new BusinessException(ErrorCode.RESUME_PARSE_FAILED,
+                        "无法从文件中提取文本内容，请确保文件不是扫描版PDF");
+            }
+            return new AnalyzeInput(content, "");
+        }
+        try {
+            ResumeVisionParseService.VisionParseResult vision = visionParseService.parseByVision(resume.getStorageKey());
+            resume.setResumeText(vision.resumeText());
+            resumeRepository.save(resume);
+            log.info("视觉识别文本已回写缓存: resumeId={}, 长度={}, 排版评价长度={}",
+                    resume.getId(), vision.resumeText().length(), vision.layoutEvaluation().length());
+            return new AnalyzeInput(vision.resumeText(), vision.layoutEvaluation());
+        } catch (Exception e) {
+            log.warn("视觉识别失败: resumeId={}, error={}", payload.resumeId(), e.getMessage());
+            if (textInsufficient) {
+                throw new BusinessException(ErrorCode.RESUME_PARSE_FAILED,
+                        "无法识别简历内容（视觉识别失败：" + e.getMessage() + "）");
+            }
+            return new AnalyzeInput(content, "");
+        }
+    }
+
+    /** 是否 PDF 简历：contentType 优先（探测结果），文件名后缀兜底 */
+    private boolean isPdfResume(ResumeEntity resume) {
+        String contentType = resume.getContentType();
+        if (contentType != null && contentType.toLowerCase().contains("pdf")) {
+            return true;
+        }
+        String filename = resume.getOriginalFilename();
+        return filename != null && filename.toLowerCase().endsWith(".pdf");
     }
 
     @Override

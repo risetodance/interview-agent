@@ -39,4 +39,10 @@ public class AiModelConfigRequest {
     /** baseUrl 输入模式：true=用户填完整 URL（原样入库）；false=域名根，后端补 /v1。默认 false。 */
     @Builder.Default
     private Boolean useFullUrl = false;
+
+    /** 是否支持视觉（图片输入），null 视为 false。勾选后简历 PDF 解析可调用该模型识图 */
+    private Boolean supportsVision;
+
+    /** 是否视觉优先（仅 supportsVision=true 时允许 true，service 层校验），null 视为 false */
+    private Boolean visionPriority;
 }

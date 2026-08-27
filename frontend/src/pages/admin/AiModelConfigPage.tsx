@@ -13,6 +13,7 @@ import {
   Zap,
   Check,
   ChevronDown,
+  Eye,
 } from 'lucide-react';
 import { aiModelApi } from '../../api/aiModel';
 import type {
@@ -50,6 +51,10 @@ interface FormData {
   apiKey: string;
   modelName: string;
   temperature: number;
+  /** 是否支持视觉（图片输入）：勾选后简历 PDF 解析可调用该模型识图 */
+  supportsVision: boolean;
+  /** 是否视觉优先（仅 supportsVision=true 时可选）：一律先视觉识别，失败回退文本 */
+  visionPriority: boolean;
 }
 
 const emptyForm: FormData = {
@@ -60,6 +65,8 @@ const emptyForm: FormData = {
   apiKey: '',
   modelName: '',
   temperature: 0.2,
+  supportsVision: false,
+  visionPriority: false,
 };
 
 /** 指派确认弹窗的目标（config + 角色） */
@@ -186,6 +193,8 @@ export default function AiModelConfigPage() {
       apiKey: '', // 编辑态不回填 key（后端不返回），留空=不修改
       modelName: config.modelName,
       temperature: config.temperature,
+      supportsVision: config.supportsVision ?? false,
+      visionPriority: config.visionPriority ?? false,
     });
     setFormError(null);
     setProbeModels([]);
@@ -331,6 +340,8 @@ export default function AiModelConfigPage() {
         apiKey: formData.apiKey, // 编辑态空字符串 → 后端不修改
         modelName: formData.modelName.trim(),
         temperature: formData.temperature,
+        supportsVision: formData.supportsVision,
+        visionPriority: formData.supportsVision && formData.visionPriority, // 不支持视觉时强制 false
       };
       if (editing) {
         await aiModelApi.update(editing.id, payload);
@@ -597,9 +608,28 @@ export default function AiModelConfigPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <code className="text-sm bg-slate-100 px-2 py-1 rounded text-slate-600">
-                          {config.modelName}
-                        </code>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <code className="text-sm bg-slate-100 px-2 py-1 rounded text-slate-600">
+                            {config.modelName}
+                          </code>
+                          {config.supportsVision && (
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                config.visionPriority
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-emerald-100 text-emerald-700'
+                              }`}
+                              title={
+                                config.visionPriority
+                                  ? '支持视觉识别，且已设为视觉优先（简历 PDF 一律先识图）'
+                                  : '支持视觉识别（简历文本解析失败/过少时兜底识图）'
+                              }
+                            >
+                              <Eye className="w-3 h-3" />
+                              {config.visionPriority ? '视觉·优先' : '视觉'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1 flex-wrap">
@@ -940,6 +970,76 @@ export default function AiModelConfigPage() {
                     <span>1.0</span>
                   </div>
                 </div>
+
+                {/* 能力配置：支持视觉 + 视觉优先 */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold text-slate-700">支持视觉</label>
+                    <label className="flex items-center gap-2 text-xs text-slate-500 select-none">
+                      <span>图片输入</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={formData.supportsVision}
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            supportsVision: !prev.supportsVision,
+                            visionPriority: false, // 关闭能力时联动重置视觉优先
+                          }))
+                        }
+                        title="勾选后简历 PDF 解析可调用该模型识图（扫描件/复杂排版兜底）；请确保模型真实支持图片输入"
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          formData.supportsVision ? 'bg-primary-500' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                            formData.supportsVision ? 'translate-x-4' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </button>
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    勾选后简历 PDF 解析可调用该模型识图（解决扫描件、复杂排版）；请确保模型真实支持图片输入（如
+                    MiniMax-M3 / GLM-VL 系列，MiniMax-M2.x 不支持）
+                  </p>
+                </div>
+
+                {/* 视觉优先：仅支持视觉时显示 */}
+                {formData.supportsVision && (
+                  <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-semibold text-slate-700">视觉优先</label>
+                      <label className="flex items-center gap-2 text-xs text-slate-500 select-none">
+                        <span>简历解析策略</span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={formData.visionPriority}
+                          onClick={() =>
+                            setFormData({ ...formData, visionPriority: !formData.visionPriority })
+                          }
+                          title="开=简历 PDF 一律先视觉识别（失败回退文本）；关=文本解析失败/过少时才兜底视觉"
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                            formData.visionPriority ? 'bg-primary-500' : 'bg-slate-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                              formData.visionPriority ? 'translate-x-4' : 'translate-x-0.5'
+                            }`}
+                          />
+                        </button>
+                      </label>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      开：简历 PDF 一律先视觉识别，扫描件与乱序排版都治，但每份简历都消耗视觉
+                      token；关：仅文本解析失败/过少时才走视觉兜底
+                    </p>
+                  </div>
+                )}
 
                 {/* 测试连接结果 */}
                 {testMsg && (

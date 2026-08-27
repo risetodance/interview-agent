@@ -25,6 +25,8 @@ public class AiModelConfigDTO {
     private String baseUrl;
     private String modelName;
     private Double temperature;
+    private Boolean supportsVision;
+    private Boolean visionPriority;
     private LocalDateTime lastTestAt;
     private Boolean lastTestOk;
     private LocalDateTime createdAt;

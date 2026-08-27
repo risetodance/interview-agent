@@ -5,7 +5,6 @@ import {
   getResumeDetail,
   reanalyzeResume,
   downloadResume,
-  reuploadResume,
   type ResumeDetail,
   type ResumeSuggestion
 } from '../../api/resume'
@@ -453,89 +452,6 @@ const handleDownload = async () => {
   }
 }
 
-// 重新上传简历
-const handleReupload = () => {
-  if (!resumeDetail.value) return
-
-  // #ifdef MP-WEIXIN
-  uni.chooseMessageFile({
-    count: 1,
-    type: 'file',
-    extension: ['pdf', 'doc', 'docx'],
-    success: async (res) => {
-      const file = res.tempFiles[0]
-      uni.showLoading({
-        title: '上传中...',
-        mask: true
-      })
-      try {
-        await reuploadResume(resumeId.value, file.path)
-        uni.hideLoading()
-        uni.showToast({
-          title: '上传成功，正在解析',
-          icon: 'success',
-          duration: 1500
-        })
-        // 刷新详情
-        loadResumeDetail()
-        // 触发列表刷新
-        setTimeout(() => {
-          uni.$emit('resume-list-refresh')
-        }, 500)
-      } catch (error: any) {
-        uni.hideLoading()
-        uni.showToast({
-          title: error.message || '上传失败',
-          icon: 'none'
-        })
-      }
-    },
-    fail: (error) => {
-    }
-  })
-  // #endif
-
-  // #ifdef H5
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.pdf,.doc,.docx'
-  input.onchange = async (e: any) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    uni.showLoading({
-      title: '上传中...',
-      mask: true
-    })
-
-    try {
-      // H5 需要将文件转换为路径
-      const filePath = URL.createObjectURL(file)
-      await reuploadResume(resumeId.value, filePath)
-      uni.hideLoading()
-      uni.showToast({
-        title: '上传成功，正在解析',
-        icon: 'success',
-        duration: 1500
-      })
-      // 刷新详情
-      loadResumeDetail()
-      // 触发列表刷新
-      setTimeout(() => {
-        uni.$emit('resume-list-refresh')
-      }, 500)
-    } catch (error: any) {
-      uni.hideLoading()
-      uni.showToast({
-        title: error.message || '上传失败',
-        icon: 'none'
-      })
-    }
-  }
-  input.click()
-  // #endif
-}
-
 // 分享简历
 const handleShare = () => {
   if (!resumeDetail.value) return
@@ -830,10 +746,6 @@ const formatAnalysisItem = (item: any): string => {
 
     <!-- 底部操作栏 -->
     <view v-if="resumeDetail" class="action-bar">
-      <view class="action-item" @click="handleReupload">
-        <Icon name="upload" :size="20" :color="BRAND.PRIMARY" />
-        <text>重新上传</text>
-      </view>
       <view class="action-item" @click="handleReanalyze" :class="{ disabled: analyzing }">
         <view :class="{ spinning: analyzing }"><Icon name="refresh" :size="20" :color="BRAND.PRIMARY" /></view>
         <text>{{ analyzing ? '分析中' : '重分析' }}</text>

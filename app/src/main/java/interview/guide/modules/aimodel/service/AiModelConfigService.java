@@ -85,6 +85,7 @@ public class AiModelConfigService {
         if (!StringUtils.hasText(request.getApiKey())) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "新建配置必须填写 API Key");
         }
+        VisionFlags visionFlags = validatedVisionFlags(request);
         AiModelConfigEntity entity = aiModelConfigMapper.toEntity(request);
         // 保存前规范化 baseUrl 为完整 URL（含版本前缀），调用方据此只拼端点后缀
         entity.setBaseUrl(AiHttpClientFactory.normalizeForStorage(
@@ -92,6 +93,8 @@ public class AiModelConfigService {
         if (entity.getTemperature() == null) {
             entity.setTemperature(DEFAULT_TEMPERATURE);
         }
+        entity.setSupportsVision(visionFlags.supportsVision());
+        entity.setVisionPriority(visionFlags.visionPriority());
         AiModelConfigEntity saved = aiModelConfigRepository.save(entity);
         log.info("新建 AI 模型配置: id={}, model={}", saved.getId(), saved.getModelName());
         audit("AI_MODEL_CREATE", operatorId, operatorUsername, saved.getId(), "新建配置：" + saved.getDisplayName());
@@ -104,6 +107,7 @@ public class AiModelConfigService {
     @Transactional
     public AiModelConfigDTO update(Long id, AiModelConfigRequest request, Long operatorId, String operatorUsername) {
         AiModelConfigEntity entity = getOrThrow(id);
+        VisionFlags visionFlags = validatedVisionFlags(request);
         entity.setProvider(request.getProvider());
         entity.setDisplayName(request.getDisplayName());
         entity.setBaseUrl(AiHttpClientFactory.normalizeForStorage(
@@ -115,6 +119,8 @@ public class AiModelConfigService {
         if (hasRealApiKey(request.getApiKey())) {
             entity.setApiKey(request.getApiKey().trim());
         }
+        entity.setSupportsVision(visionFlags.supportsVision());
+        entity.setVisionPriority(visionFlags.visionPriority());
 
         AiModelConfigEntity saved = aiModelConfigRepository.save(entity);
         reloadIfReferenced(saved.getId());
@@ -176,6 +182,22 @@ public class AiModelConfigService {
     }
 
     // ========== 内部工具 ==========
+
+    /**
+     * 归一化并校验视觉能力两字段：null 视为 false；
+     * 「视觉优先」依赖「支持视觉」能力，不支持视觉时不允许开启视觉优先。
+     */
+    private VisionFlags validatedVisionFlags(AiModelConfigRequest request) {
+        boolean supportsVision = Boolean.TRUE.equals(request.getSupportsVision());
+        boolean visionPriority = Boolean.TRUE.equals(request.getVisionPriority());
+        if (visionPriority && !supportsVision) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "视觉优先依赖「支持视觉」能力，请先勾选支持视觉");
+        }
+        return new VisionFlags(supportsVision, visionPriority);
+    }
+
+    /** 视觉能力字段归一化结果（两列 NOT NULL，null 统一落 false） */
+    private record VisionFlags(boolean supportsVision, boolean visionPriority) {}
 
     /** 槽位 upsert：存在则更新 configId，不存在则新建（初始化数据保证两行存在，此处兜底） */
     private AiModelActiveRoleEntity upsertSlot(AiModelConfigType role, Long configId) {

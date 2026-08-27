@@ -34,8 +34,8 @@ public class ScoreTrendService {
      * 按日期聚合，返回每日平均分和面试次数
      */
     public ScoreTrendDTO getScoreTrend(Long userId) {
-        // 1. 获取用户的所有简历
-        List<ResumeEntity> resumes = resumeRepository.findByUserId(userId);
+        // 1. 获取用户的所有简历（上传时间倒序；后续按日期聚合，顺序不影响结果）
+        List<ResumeEntity> resumes = resumeRepository.findByUserIdOrderByUploadedAtDesc(userId);
 
         if (resumes.isEmpty()) {
             return new ScoreTrendDTO(

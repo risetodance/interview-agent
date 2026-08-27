@@ -83,11 +83,14 @@ public class ResumeGradingService {
     /**
      * 分析简历并返回评分和建议
      *
-     * @param resumeText 简历文本内容
+     * @param resumeText      简历文本内容
+     * @param layoutEvaluation 视觉排版评价（来自识图模型对 PDF 版式的观察，非视觉路径传空串；
+     *                         仅作为结构评分与优化建议的参考信息注入，不进入响应结构）
      * @return 分析结果
      */
-    public ResumeAnalysisResponse analyzeResume(String resumeText) {
-        log.info("开始分析简历，文本长度: {} 字符", resumeText.length());
+    public ResumeAnalysisResponse analyzeResume(String resumeText, String layoutEvaluation) {
+        log.info("开始分析简历，文本长度: {} 字符, 排版评价: {}", resumeText.length(),
+                layoutEvaluation == null || layoutEvaluation.isBlank() ? "无" : layoutEvaluation.length() + " 字符");
 
         try {
             // 加载系统提示词
@@ -96,6 +99,7 @@ public class ResumeGradingService {
             // 加载用户提示词并填充变量
             Map<String, Object> variables = new HashMap<>();
             variables.put("resumeText", resumeText);
+            variables.put("visionLayoutSection", buildVisionLayoutSection(layoutEvaluation));
             String userPrompt = userPromptTemplate.render(variables);
 
             // 添加格式指令到系统提示词
@@ -133,6 +137,18 @@ public class ResumeGradingService {
     }
 
 
+
+    /**
+     * 组装视觉排版观察段（注入用户 prompt 的简历内容之后）：
+     * 非视觉路径 / 评价为空时返回空串，模板零残留。
+     */
+    private String buildVisionLayoutSection(String layoutEvaluation) {
+        if (layoutEvaluation == null || layoutEvaluation.isBlank()) {
+            return "";
+        }
+        return "\n\n## 视觉排版观察（来自识图模型对简历版式的观察，供结构清晰度评分与优化建议参考，非简历内容）\n"
+                + layoutEvaluation.trim() + "\n";
+    }
 
     /**
      * 转换DTO为业务对象

@@ -29,7 +29,7 @@ public interface ResumeRepository extends JpaRepository<ResumeEntity, Long> {
     boolean existsByFileHash(String fileHash);
 
     /**
-     * 根据用户ID查找简历列表
+     * 根据用户ID查找简历列表（按上传时间倒序，最新在前）
      */
-    List<ResumeEntity> findByUserId(Long userId);
+    List<ResumeEntity> findByUserIdOrderByUploadedAtDesc(Long userId);
 }

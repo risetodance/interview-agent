@@ -4,10 +4,14 @@ import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import org.slf4j.Logger;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.content.Media;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.function.BiConsumer;
 
 /**
  * 统一封装结构化输出调用与重试策略。
@@ -95,6 +99,54 @@ public class StructuredOutputInvoker {
             OutputValidator<T> validator,
             ToolCallback... toolCallbacks
     ) {
+        return doInvoke(chatClient, systemPromptWithFormat, userPrompt,
+                ChatClient.ChatClientRequestSpec::user,
+                toolCallbacks, outputConverter, validator, errorCode, errorPrefix, logContext, log);
+    }
+
+    /**
+     * 多模态结构化输出调用：user prompt 文本（防注入边界包裹）与图片等 Media 一同发送。
+     * <p>与 {@link #invoke} 共用重试 / 校验 / 防注入策略，仅 user 消息构建方式不同
+     * （{@code .user(spec -> spec.text(...).media(...))}），用于视觉识图等场景。
+     *
+     * @param media 图片等媒体列表（与 userPrompt 同一条消息发送，可为 null / 空）
+     */
+    public <T> T invokeWithMedia(
+            ChatClient chatClient,
+            String systemPromptWithFormat,
+            String userPrompt,
+            List<Media> media,
+            BeanOutputConverter<T> outputConverter,
+            ErrorCode errorCode,
+            String errorPrefix,
+            String logContext,
+            Logger log
+    ) {
+        Media[] mediaArray = media == null ? new Media[0] : media.toArray(new Media[0]);
+        return doInvoke(chatClient, systemPromptWithFormat, userPrompt,
+                (spec, wrappedUserPrompt) -> spec.user(
+                        userSpec -> userSpec.text(wrappedUserPrompt).media(mediaArray)),
+                new ToolCallback[0], outputConverter, OutputValidator.noOp(),
+                errorCode, errorPrefix, logContext, log);
+    }
+
+    /**
+     * 重试策略核心循环：user 消息构建方式由 userApplier 决定（纯文本 / 文本+Media），
+     * 其余（attempt system prompt 重建、防注入边界、结构化解析、校验）两条入口完全一致。
+     */
+    private <T> T doInvoke(
+            ChatClient chatClient,
+            String systemPromptWithFormat,
+            String userPrompt,
+            BiConsumer<ChatClient.ChatClientRequestSpec, String> userApplier,
+            ToolCallback[] toolCallbacks,
+            BeanOutputConverter<T> outputConverter,
+            OutputValidator<T> validator,
+            ErrorCode errorCode,
+            String errorPrefix,
+            String logContext,
+            Logger log
+    ) {
         // 过滤掉 toolCallbacks 中的 null 元素：某些调用方（如 SingleAnswerEvaluationService）
         // 在 web_search 工具不可用（MCP 未启用 / provider 无此工具）时会传 null，
         // Spring AI 的 toolCallbacks() 会因 null 元素抛 IllegalArgumentException，这里统一兜底。
@@ -112,11 +164,12 @@ public class StructuredOutputInvoker {
             // 每次调用（含重试）生成不可预测的 boundaryId，攻击者无法提前构造闭合标签
             String boundaryId = PromptSecurityConstants.generateBoundaryId();
             try {
-                T result = chatClient.prompt()
-                        .system(attemptSystemPrompt + PromptSecurityConstants.buildAntiInjectionInstruction(boundaryId))
-                        .user(PromptSecurityConstants.wrap(
-                                PromptSecurityConstants.stripBoundaryTags(userPrompt), boundaryId))
-                        .toolCallbacks(effectiveToolCallbacks)
+                ChatClient.ChatClientRequestSpec spec = chatClient.prompt()
+                        .system(attemptSystemPrompt + PromptSecurityConstants.buildAntiInjectionInstruction(boundaryId));
+                String wrappedUserPrompt = PromptSecurityConstants.wrap(
+                        PromptSecurityConstants.stripBoundaryTags(userPrompt), boundaryId);
+                userApplier.accept(spec, wrappedUserPrompt);
+                T result = spec.toolCallbacks(effectiveToolCallbacks)
                         .call()
                         .entity(outputConverter);
 

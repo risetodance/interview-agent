@@ -1,5 +1,20 @@
-import { useCallback, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import BrandMark from '../BrandMark';
+
+// 全局光标位置记录（供组件重建后恢复聚光灯状态）
+declare global {
+  interface Window {
+    lastMouseX: number;
+    lastMouseY: number;
+  }
+}
+if (typeof window !== 'undefined' && !(window as any).__mouseTracked) {
+  (window as any).__mouseTracked = true;
+  window.addEventListener('mousemove', (e) => {
+    window.lastMouseX = e.clientX;
+    window.lastMouseY = e.clientY;
+  }, { passive: true });
+}
 
 interface AuthStep {
   title: string;
@@ -48,6 +63,40 @@ export default function AuthAside({
 
   const handleLeave = useCallback(() => {
     asideRef.current?.style.setProperty('--spot', '0');
+  }, []);
+
+  // 波纹相位绑定全局时钟：负延迟 = 绝对时间取模。
+  // 仅在挂载时计算一次（useMemo）：重渲染时若更新 animation-delay，动画相位会按
+  // "已播放时长 + 新延迟"重算而瞬移；组件重新挂载（页面切换）时才重新取当前时刻。
+  const WAVE_DURATIONS = { a: 22000, b: 34000, c: 14000, ga: 11000, gb: 17000 };
+  const waveDelays = useMemo(
+    () => ({
+      a: `-${Date.now() % WAVE_DURATIONS.a}ms`,
+      b: `-${Date.now() % WAVE_DURATIONS.b}ms`,
+      c: `-${Date.now() % WAVE_DURATIONS.c}ms`,
+      ga: `-${Date.now() % WAVE_DURATIONS.ga}ms`,
+      gb: `-${Date.now() % WAVE_DURATIONS.gb}ms`,
+    }),
+    [],
+  );
+
+  // 挂载后若光标仍悬停在面板上（页面切换重建组件的常见情形），恢复聚光灯亮态，避免闪灭
+  useEffect(() => {
+    const el = asideRef.current;
+    if (!el) return;
+    const syncSpot = () => {
+      const rect = el.getBoundingClientRect();
+      const x = window.lastMouseX;
+      const y = window.lastMouseY;
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        el.style.setProperty('--spot', '1');
+        el.style.setProperty('--mx', `${x - rect.left}px`);
+        el.style.setProperty('--my', `${y - rect.top}px`);
+        window.removeEventListener('mousemove', syncSpot);
+      }
+    };
+    window.addEventListener('mousemove', syncSpot, { once: false });
+    return () => window.removeEventListener('mousemove', syncSpot);
   }, []);
 
   // 内容渲染两遍：暗态基础层 + 亮色层（结构完全一致保证对齐）
@@ -118,15 +167,21 @@ export default function AuthAside({
         {/* 光斑（光阴）：缓慢漂移 + 呼吸 */}
         <div
           className="wave-glow-a absolute left-[12%] bottom-[-30px] w-80 h-40"
-          style={{ background: 'radial-gradient(ellipse at center, rgba(196,233,240,0.10), transparent 70%)' }}
+          style={{
+            background: 'radial-gradient(ellipse at center, rgba(196,233,240,0.10), transparent 70%)',
+            animationDelay: waveDelays.ga,
+          }}
         />
         <div
           className="wave-glow-b absolute left-[55%] bottom-[-50px] w-96 h-48"
-          style={{ background: 'radial-gradient(ellipse at center, rgba(138,199,214,0.08), transparent 70%)' }}
+          style={{
+            background: 'radial-gradient(ellipse at center, rgba(138,199,214,0.08), transparent 70%)',
+            animationDelay: waveDelays.gb,
+          }}
         />
 
         {/* 波浪线一（主）：渐隐描边 + 波形形变，随外层缓慢平移 */}
-        <div className="wave-drift-a absolute bottom-0 left-0 w-[200%] h-full">
+        <div className="wave-drift-a absolute bottom-0 left-0 w-[200%] h-full" style={{ animationDelay: waveDelays.a }}>
           <svg className="w-full h-full" viewBox="0 0 2880 220" preserveAspectRatio="none" aria-hidden="true">
             <defs>
               <linearGradient id="wave-fill-a" x1="0" y1="0" x2="0" y2="1">
@@ -141,7 +196,7 @@ export default function AuthAside({
         </div>
 
         {/* 波浪线二（副）：反向平移、更淡 */}
-        <div className="wave-drift-b absolute bottom-0 left-0 w-[200%] h-full">
+        <div className="wave-drift-b absolute bottom-0 left-0 w-[200%] h-full" style={{ animationDelay: waveDelays.b }}>
           <svg className="w-full h-full" viewBox="0 0 2880 220" preserveAspectRatio="none" aria-hidden="true">
             <path fill="none" stroke="rgba(138,199,214,0.16)" strokeWidth="1"
               d="M0,140 C240,115 480,115 720,140 C960,165 1200,165 1440,140 C1680,115 1920,115 2160,140 C2400,165 2640,165 2880,140"
@@ -150,7 +205,7 @@ export default function AuthAside({
         </div>
 
         {/* 波浪线三：小振幅、快、最亮 */}
-        <div className="wave-drift-c absolute bottom-0 left-0 w-[200%] h-full">
+        <div className="wave-drift-c absolute bottom-0 left-0 w-[200%] h-full" style={{ animationDelay: waveDelays.c }}>
           <svg className="w-full h-full" viewBox="0 0 2880 220" preserveAspectRatio="none" aria-hidden="true">
             <path fill="none" stroke="rgba(224,244,248,0.26)" strokeWidth="1.5"
               d="M0,160 C240,142 480,142 720,160 C960,178 1200,178 1440,160 C1680,142 1920,142 2160,160 C2400,178 2640,178 2880,160"
@@ -159,8 +214,8 @@ export default function AuthAside({
         </div>
       </div>
 
-      {/* 暗态基础层（正常文档流） */}
-      <div className="relative flex flex-col justify-between h-full">{renderBody(false)}</div>
+      {/* 暗态基础层（正常文档流）；key 绑定文案，页面切换时内容柔和淡入，波纹层不重挂 */}
+      <div key={`${tagline}`} className="relative flex flex-col justify-between h-full content-fade-in">{renderBody(false)}</div>
 
       {/* 亮色层：径向 mask 内的"点亮"内容（随光标移动） */}
       <div

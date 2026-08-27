@@ -4,6 +4,7 @@ import { Upload, FileText, X, AlertCircle, Loader2, ChevronRight } from 'lucide-
 import { resumeApi } from '../api/resume';
 import { historyApi, type AnalyzeStatus, type ResumeListItem } from '../api/history';
 import { getErrorMessage } from '../api/request';
+import { useToast } from '../components/Toast';
 import { formatDate } from '../utils/date';
 
 interface UploadPageProps {
@@ -40,6 +41,7 @@ function analyzeStatusCls(status?: AnalyzeStatus): string {
  */
 export default function UploadPage({ onUploadComplete }: UploadPageProps) {
   const navigate = useNavigate();
+  const toast = useToast();
 
   // 上传状态
   const [uploading, setUploading] = useState(false);
@@ -110,6 +112,11 @@ export default function UploadPage({ onUploadComplete }: UploadPageProps) {
       // 异步模式：只检查上传是否成功（storage 信息）
       if (!data.storage || !data.storage.resumeId) {
         throw new Error('上传失败，请重试');
+      }
+
+      // 重复简历：后端不重新分析，直接返回历史结果（data.analysis）
+      if (data.duplicate) {
+        toast.info('检测到相同简历，已为你展示历史分析结果');
       }
 
       // 先刷新工作台数据再跳转（简历库列表展示最新状态）

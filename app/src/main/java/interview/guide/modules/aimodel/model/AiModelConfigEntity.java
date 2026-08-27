@@ -66,6 +66,17 @@ public class AiModelConfigEntity {
     @Builder.Default
     private Double temperature = 0.2;
 
+    /** 是否支持视觉（图片输入）：勾选后简历 PDF 解析可调用该模型识图（扫描件/复杂排版兜底），默认不支持 */
+    @Column(name = "supports_vision", nullable = false)
+    @Builder.Default
+    private Boolean supportsVision = false;
+
+    /** 是否视觉优先：true=简历 PDF 一律先视觉识别（失败回退文本）；false=文本解析失败/过少才兜底视觉。
+     *  仅 supportsVision=true 时有意义（service 层校验依赖关系）。 */
+    @Column(name = "vision_priority", nullable = false)
+    @Builder.Default
+    private Boolean visionPriority = false;
+
     /** 最近一次测试连接时间 */
     @Column(name = "last_test_at")
     private LocalDateTime lastTestAt;

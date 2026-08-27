@@ -62,7 +62,7 @@ class ScoreTrendServiceTest {
         @Test
         @DisplayName("用户无简历时返回空数据")
         void testNoResumes() {
-            when(resumeRepository.findByUserId(anyLong())).thenReturn(Collections.emptyList());
+            when(resumeRepository.findByUserIdOrderByUploadedAtDesc(anyLong())).thenReturn(Collections.emptyList());
 
             ScoreTrendDTO result = scoreTrendService.getScoreTrend(1L);
 
@@ -80,7 +80,7 @@ class ScoreTrendServiceTest {
             resume.setId(1L);
             resume.setUserId(1L);
 
-            when(resumeRepository.findByUserId(1L)).thenReturn(List.of(resume));
+            when(resumeRepository.findByUserIdOrderByUploadedAtDesc(1L)).thenReturn(List.of(resume));
             when(persistenceService.findByResumeId(1L)).thenReturn(Collections.emptyList());
 
             ScoreTrendDTO result = scoreTrendService.getScoreTrend(1L);
@@ -106,7 +106,7 @@ class ScoreTrendServiceTest {
             session.setOverallScore(85);
             session.setCreatedAt(LocalDateTime.now());
 
-            when(resumeRepository.findByUserId(1L)).thenReturn(List.of(resume));
+            when(resumeRepository.findByUserIdOrderByUploadedAtDesc(1L)).thenReturn(List.of(resume));
             when(persistenceService.findByResumeId(1L)).thenReturn(List.of(session));
 
             ScoreTrendDTO result = scoreTrendService.getScoreTrend(1L);
@@ -130,7 +130,7 @@ class ScoreTrendServiceTest {
 
             InterviewSessionEntity session = createSession(resume, 85, LocalDateTime.of(2024, 1, 15, 10, 0));
 
-            when(resumeRepository.findByUserId(1L)).thenReturn(List.of(resume));
+            when(resumeRepository.findByUserIdOrderByUploadedAtDesc(1L)).thenReturn(List.of(resume));
             when(persistenceService.findByResumeId(1L)).thenReturn(List.of(session));
 
             ScoreTrendDTO result = scoreTrendService.getScoreTrend(1L);
@@ -161,7 +161,7 @@ class ScoreTrendServiceTest {
             InterviewSessionEntity session2 = createSession(resume, 90, LocalDateTime.of(2024, 1, 16, 14, 0));
             InterviewSessionEntity session3 = createSession(resume, 85, LocalDateTime.of(2024, 1, 17, 9, 0));
 
-            when(resumeRepository.findByUserId(1L)).thenReturn(List.of(resume));
+            when(resumeRepository.findByUserIdOrderByUploadedAtDesc(1L)).thenReturn(List.of(resume));
             when(persistenceService.findByResumeId(1L)).thenReturn(List.of(session1, session2, session3));
 
             ScoreTrendDTO result = scoreTrendService.getScoreTrend(1L);
@@ -193,7 +193,7 @@ class ScoreTrendServiceTest {
             InterviewSessionEntity session2 = createSession(resume, 90, LocalDateTime.of(2024, 1, 15, 14, 0));
             InterviewSessionEntity session3 = createSession(resume, 100, LocalDateTime.of(2024, 1, 15, 18, 0));
 
-            when(resumeRepository.findByUserId(1L)).thenReturn(List.of(resume));
+            when(resumeRepository.findByUserIdOrderByUploadedAtDesc(1L)).thenReturn(List.of(resume));
             when(persistenceService.findByResumeId(1L)).thenReturn(List.of(session1, session2, session3));
 
             ScoreTrendDTO result = scoreTrendService.getScoreTrend(1L);
@@ -226,7 +226,7 @@ class ScoreTrendServiceTest {
             InterviewSessionEntity session1 = createSession(resume1, 75, LocalDateTime.of(2024, 1, 15, 10, 0));
             InterviewSessionEntity session2 = createSession(resume2, 95, LocalDateTime.of(2024, 1, 16, 10, 0));
 
-            when(resumeRepository.findByUserId(1L)).thenReturn(List.of(resume1, resume2));
+            when(resumeRepository.findByUserIdOrderByUploadedAtDesc(1L)).thenReturn(List.of(resume1, resume2));
             when(persistenceService.findByResumeId(1L)).thenReturn(List.of(session1));
             when(persistenceService.findByResumeId(2L)).thenReturn(List.of(session2));
 
@@ -258,7 +258,7 @@ class ScoreTrendServiceTest {
             session.setStatus(InterviewSessionEntity.SessionStatus.EVALUATED);
             // 不设置 overallScore
 
-            when(resumeRepository.findByUserId(1L)).thenReturn(List.of(resume));
+            when(resumeRepository.findByUserIdOrderByUploadedAtDesc(1L)).thenReturn(List.of(resume));
             when(persistenceService.findByResumeId(1L)).thenReturn(List.of(session));
 
             ScoreTrendDTO result = scoreTrendService.getScoreTrend(1L);
@@ -283,7 +283,7 @@ class ScoreTrendServiceTest {
             session.setCreatedAt(LocalDateTime.of(2024, 1, 15, 10, 0));
             // completedAt 为 null
 
-            when(resumeRepository.findByUserId(1L)).thenReturn(List.of(resume));
+            when(resumeRepository.findByUserIdOrderByUploadedAtDesc(1L)).thenReturn(List.of(resume));
             when(persistenceService.findByResumeId(1L)).thenReturn(List.of(session));
 
             ScoreTrendDTO result = scoreTrendService.getScoreTrend(1L);

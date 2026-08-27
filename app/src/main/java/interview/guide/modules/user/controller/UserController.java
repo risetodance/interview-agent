@@ -87,6 +87,18 @@ public class UserController {
     }
 
     /**
+     * 退出登录
+     * POST /api/auth/logout
+     * JWT 为无状态签发，登出以客户端删除 token 为准；本端点为前端登出调用提供统一落点
+     * （此前该路径不存在，前端调用落进静态资源处理器报 NoResourceFoundException）。
+     * 幂等设计：未携带 token 调用也返回成功；预留后续 token 黑名单/登出审计扩展
+     */
+    @PostMapping("/api/auth/logout")
+    public Result<Void> logout() {
+        return Result.success("已退出登录", null);
+    }
+
+    /**
      * 获取当前用户信息
      * GET /api/users/me
      */

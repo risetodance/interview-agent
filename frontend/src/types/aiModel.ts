@@ -16,6 +16,10 @@ export interface AiModelConfig {
   baseUrl: string;
   modelName: string;
   temperature: number;
+  /** 是否支持视觉（图片输入）：勾选后简历 PDF 解析可调用该模型识图 */
+  supportsVision: boolean;
+  /** 是否视觉优先：true=简历 PDF 一律先视觉识别（失败回退文本）；仅 supportsVision=true 时有意义 */
+  visionPriority: boolean;
   lastTestAt?: string | null;
   lastTestOk?: boolean | null;
   createdAt: string;
@@ -45,6 +49,10 @@ export interface AiModelConfigRequest {
   apiKey: string;
   modelName: string;
   temperature: number;
+  /** 是否支持视觉（图片输入），默认 false；后端 null 归一化为 false */
+  supportsVision?: boolean;
+  /** 是否视觉优先（后端校验依赖 supportsVision=true），默认 false */
+  visionPriority?: boolean;
 }
 
 /** 拉取的单个模型信息 */

@@ -142,10 +142,10 @@ public class ResumePersistenceService {
     }
 
     /**
-     * 根据用户ID获取简历列表
+     * 根据用户ID获取简历列表（按上传时间倒序，最新在前）
      */
     public List<ResumeEntity> findByUserId(Long userId) {
-        return resumeRepository.findByUserId(userId);
+        return resumeRepository.findByUserIdOrderByUploadedAtDesc(userId);
     }
     
     /**

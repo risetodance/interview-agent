@@ -133,6 +133,15 @@ const handleUpload = async () => {
     return
   }
 
+  // 简历名必填（选文件时已自动带出，此处拦截用户主动清空的场景）
+  if (!resumeName.value.trim()) {
+    uni.showToast({
+      title: '请填写简历名称',
+      icon: 'none'
+    })
+    return
+  }
+
   uploadStatus.value = 'uploading'
   uploadProgress.value = 0
   errorMessage.value = ''
@@ -165,8 +174,9 @@ const handleUpload = async () => {
 
     const formData = new FormData()
     formData.append('file', file)
+    // filename：与微信端一致，显式传简历名（后端参数名是 filename；不传则落到 multipart 自带的临时文件名）
     if (resumeName.value) {
-      formData.append('name', resumeName.value)
+      formData.append('filename', resumeName.value)
     }
 
     const uploadResponse = await fetch(apiBaseUrl + '/api/resumes/upload', {
@@ -196,9 +206,11 @@ const handleUpload = async () => {
     uploadProgress.value = 100
     uploadStatus.value = 'success'
 
+    // 重复简历：后端不重新分析，直接返回历史结果
+    const isDuplicate = !!result?.duplicate
     uni.showToast({
-      title: '上传成功，正在解析',
-      icon: 'success',
+      title: isDuplicate ? '检测到相同简历，已展示历史分析结果' : '上传成功，正在解析',
+      icon: isDuplicate ? 'none' : 'success',
       duration: 1500
     })
 
@@ -275,9 +287,9 @@ const goBack = () => {
       </view>
     </view>
 
-    <!-- 简历名称输入 -->
+    <!-- 简历名称输入（必填：选文件时自动带出，可修改） -->
     <view class="form-section">
-      <text class="form-label">简历名称（可选）</text>
+      <text class="form-label">简历名称 <text class="required-mark">*</text></text>
       <input
         v-model="resumeName"
         class="form-input"
@@ -501,6 +513,11 @@ const goBack = () => {
   color: #333;
   margin-bottom: 16rpx;
   font-weight: 500;
+}
+
+/* 必填标记（简历名称） */
+.required-mark {
+  color: #e54d42;
 }
 
 .form-input {

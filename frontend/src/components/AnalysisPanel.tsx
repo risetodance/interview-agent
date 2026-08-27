@@ -176,14 +176,27 @@ export default function AnalysisPanel({
         <div className="bg-white border border-zinc-200 rounded-lg shadow-sm flex flex-col">
           <div className="flex items-center justify-between h-[46px] px-5 border-b border-zinc-100 shrink-0">
             <h3 className="text-sm font-medium text-zinc-900">核心评价</h3>
-            <button
-              onClick={onExport}
-              disabled={exporting}
-              className="h-9 px-3.5 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
-            >
-              <Download className="w-4 h-4" />
-              {exporting ? '导出中...' : '导出 PDF'}
-            </button>
+            <div className="flex items-center gap-2">
+              {onReanalyze && (
+                <button
+                  onClick={onReanalyze}
+                  disabled={reanalyzing}
+                  title="从原文件重新解析（含视觉识图）并重新分析"
+                  className="h-9 px-3.5 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`w-4 h-4 ${reanalyzing ? 'animate-spin' : ''}`} />
+                  {reanalyzing ? '重新分析中...' : '重新分析'}
+                </button>
+              )}
+              <button
+                onClick={onExport}
+                disabled={exporting}
+                className="h-9 px-3.5 rounded-md border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+              >
+                <Download className="w-4 h-4" />
+                {exporting ? '导出中...' : '导出 PDF'}
+              </button>
+            </div>
           </div>
 
           <div className="p-5">

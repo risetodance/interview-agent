@@ -140,6 +140,11 @@ svg *:focus-visible {
   animation: fade-in 0.18s ease-out both;
 }
 
+/* 左侧叙事面板内容切换淡入（页面切换时文案变化不硬闪） */
+.content-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
 /* 隐藏滚动条（顶栏导航小屏横滑用） */
 .scrollbar-none {
   scrollbar-width: none;
