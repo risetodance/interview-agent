@@ -338,6 +338,18 @@ export const reanalyzeResume = (id: number) => {
 }
 
 /**
+ * 重新上传简历（原记录替换，保留简历 ID 与关联面试记录）
+ */
+export const reuploadResume = (id: number, filePath: string, name?: string) => {
+  return uploadFile<any>(filePath, {
+    url: `/api/resumes/${id}/reupload`,
+    name: 'file',
+    formData: name ? { filename: name } : {},
+    showLoading: true
+  })
+}
+
+/**
  * 下载简历PDF
  * H5: 使用fetch下载并触发浏览器下载
  * 小程序: 使用uni.downloadFile

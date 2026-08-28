@@ -211,16 +211,12 @@ public class AnalyzeStreamConsumer extends AbstractStreamConsumer<AnalyzeStreamC
     }
 
     /**
-     * 更新分析状态
+     * 更新分析状态（定向 UPDATE，避免读-改-写旧快照覆盖并发更新）
      */
     private void updateAnalyzeStatus(Long resumeId, AsyncTaskStatus status, String error) {
         try {
-            resumeRepository.findById(resumeId).ifPresent(resume -> {
-                resume.setAnalyzeStatus(status);
-                resume.setAnalyzeError(error);
-                resumeRepository.save(resume);
-                log.debug("分析状态已更新: resumeId={}, status={}", resumeId, status);
-            });
+            resumeRepository.updateAnalyzeStatus(resumeId, status, error);
+            log.debug("分析状态已更新: resumeId={}, status={}", resumeId, status);
         } catch (Exception e) {
             log.error("更新分析状态失败: resumeId={}, status={}, error={}", resumeId, status, e.getMessage(), e);
         }

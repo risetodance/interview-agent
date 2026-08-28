@@ -67,15 +67,10 @@ public class AnalyzeStreamProducer extends AbstractStreamProducer<AnalyzeStreamP
     }
 
     /**
-     * 更新分析状态
+     * 更新分析状态（定向 UPDATE，避免读-改-写旧快照覆盖并发更新）
      */
     private void updateAnalyzeStatus(Long resumeId, AsyncTaskStatus status, String error) {
-        resumeRepository.findById(resumeId).ifPresent(resume -> {
-            resume.setAnalyzeStatus(status);
-            if (error != null) {
-                resume.setAnalyzeError(error.length() > 500 ? error.substring(0, 500) : error);
-            }
-            resumeRepository.save(resume);
-        });
+        String truncated = error == null ? null : (error.length() > 500 ? error.substring(0, 500) : error);
+        resumeRepository.updateAnalyzeStatus(resumeId, status, truncated);
     }
 }

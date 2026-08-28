@@ -27,6 +27,7 @@ public class FileStorageService {
 
     private final S3Client s3Client;
     private final StorageConfigProperties storageConfig;
+    private final ContentTypeDetectionService contentTypeDetectionService;
 
     /**
      * 上传简历文件
@@ -111,7 +112,10 @@ public class FileStorageService {
             PutObjectRequest putRequest = PutObjectRequest.builder()
                     .bucket(storageConfig.getBucket())
                     .key(fileKey)
-                    .contentType(file.getContentType())
+                    // 对象 Content-Type 元数据用 Tika 按内容魔数探测的真实类型：
+                    // multipart 头里的 Content-Type 不可靠（小程序 uni.uploadFile 常发 application/octet-stream），
+                    // 预签名 URL 直接在浏览器打开时依赖此元数据决定预览/下载行为
+                    .contentType(resolveContentType(file))
                     .contentLength(file.getSize())
                     .build();
 
@@ -223,6 +227,23 @@ public class FileStorageService {
     /**
      * 生成文件键
      */
+    /**
+     * 解析对象 Content-Type：Tika 按内容魔数探测（如 PDF 的 %PDF- 头），
+     * 探测异常回退 multipart 头，仍取不到时兜底 octet-stream。
+     */
+    private String resolveContentType(MultipartFile file) {
+        try {
+            String detected = contentTypeDetectionService.detectContentType(file);
+            if (detected != null && !detected.isBlank()) {
+                return detected;
+            }
+        } catch (Exception e) {
+            log.warn("探测文件 Content-Type 失败，回退 multipart 头: {}", e.getMessage());
+        }
+        String header = file.getContentType();
+        return (header != null && !header.isBlank()) ? header : "application/octet-stream";
+    }
+
     private String generateFileKey(String originalFilename, String prefix) {
         LocalDateTime now = LocalDateTime.now();
         String datePath = now.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
