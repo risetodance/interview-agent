@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -59,6 +60,12 @@ public class HybridSearchService {
 
     @Value("${app.mcp.websearch.tool-name:web_search}")
     private String webSearchToolName;
+
+    /**
+     * Web 搜索超时（毫秒），超时后该路降级为空结果，不阻塞另外两路本地检索
+     */
+    @Value("${app.mcp.websearch.timeout:10000}")
+    private long webSearchTimeoutMs;
 
     @Value("classpath:prompts/reranker-scoring-system.st")
     private Resource rerankerSystemPromptResource;
@@ -170,8 +177,16 @@ public class HybridSearchService {
         CompletableFuture<List<Document>> knowledgeBaseFuture =
                 self.knowledgeBaseVectorSearchAsync(userId, keywords, effectiveTopK);
 
+        // Web 搜索路单独限时（app.mcp.websearch.timeout），超时/异常降级为空结果，
+        // 避免下游 join() 无限等待挂起整条出题工作流
         CompletableFuture<List<WebSearchResult>> webSearchFuture =
-                enableWebSearch ? self.webSearchAsync(keywords, effectiveTopK)
+                enableWebSearch
+                        ? self.webSearchAsync(keywords, effectiveTopK)
+                                .orTimeout(webSearchTimeoutMs, TimeUnit.MILLISECONDS)
+                                .exceptionally(ex -> {
+                                    log.warn("Web 搜索超时或失败（{}ms），降级为空结果: {}", webSearchTimeoutMs, ex.getMessage());
+                                    return List.of();
+                                })
                         : CompletableFuture.completedFuture(List.of());
 
         // 等待所有搜索完成
@@ -244,6 +259,11 @@ public class HybridSearchService {
         }
         try {
             List<Long> kbIds = knowledgeBaseRepository.findIdsByUserId(userId);
+            // 用户没有任何知识库时必须短路返回：kbIds 为空会导致底层检索不设置
+            // kb_id 过滤条件，进而扫描到其他用户的向量数据（数据越权）
+            if (kbIds == null || kbIds.isEmpty()) {
+                return CompletableFuture.completedFuture(List.of());
+            }
             List<Document> results = knowledgeBaseVectorService.similaritySearch(keywords, kbIds, topK, 0.5);
             return CompletableFuture.completedFuture(results);
         } catch (Exception e) {
@@ -351,35 +371,39 @@ public class HybridSearchService {
             pendingItems.add(new RerankedItem("webSearch", w, 0, 0.0));
         }
 
+        // 先为所有候选设置默认 RRF 分数，保证任何情况下候选不丢失
+        applyDefaultRrfScores(pendingItems, allItems);
+
         // 候选数 ≤ 5 时跳过 reranker，直接用默认 RRF 分数（省一次 LLM 调用）
         if (smallModelChatClient != null && pendingItems.size() > 5) {
             try {
                 List<RerankerScoreResult> scores = scoreWithSmallModel(candidatesBuilder.toString());
-                // 应用分数到对应项
+                // 小模型分数仅覆盖对应候选；index 去重防重复、漏打分的候选保留 RRF 基准分
+                Set<Integer> scoredIndexes = new HashSet<>();
+                int applied = 0;
                 for (RerankerScoreResult scoreResult : scores) {
-                    if (scoreResult.index() >= 0 && scoreResult.index() < pendingItems.size()) {
-                        RerankedItem item = pendingItems.get(scoreResult.index());
-                        item.setScore(scoreResult.score());
-                        item.setRank(scoreResult.index() + 1);
-                        allItems.add(item);
+                    if (scoreResult.index() >= 0 && scoreResult.index() < pendingItems.size()
+                            && scoredIndexes.add(scoreResult.index())
+                            && scoreResult.score() >= 0) {
+                        pendingItems.get(scoreResult.index()).setScore(scoreResult.score());
+                        applied++;
                     }
                 }
-                log.info("小模型打分完成: 共 {} 条结果", scores.size());
+                log.info("小模型打分完成: 返回 {} 条，有效应用 {} 条（其余候选保留 RRF 基准分）", scores.size(), applied);
             } catch (Exception e) {
                 log.error("小模型打分失败，使用默认 RRF 分数: {}", e.getMessage(), e);
-                // 打分失败时使用默认 RRF 分数
-                applyDefaultRrfScores(pendingItems, allItems);
             }
-        } else {
-            // 未启用小模型时使用默认 RRF 分数
-            applyDefaultRrfScores(pendingItems, allItems);
         }
 
-        // 按分数降序排序，取 topK
-        return allItems.stream()
+        // 按分数降序排序，取 topK；排序后重写 rank 为最终名次
+        List<RerankedItem> topItems = allItems.stream()
                 .sorted(Comparator.comparingDouble(RerankedItem::getScore).reversed())
                 .limit(topK)
                 .collect(Collectors.toList());
+        for (int i = 0; i < topItems.size(); i++) {
+            topItems.get(i).setRank(i + 1);
+        }
+        return topItems;
     }
 
     /**
