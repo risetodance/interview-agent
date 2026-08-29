@@ -36,6 +36,7 @@ public class SingleAnswerEvaluationService {
     private final PromptTemplate userPromptTemplate;
     private final BeanOutputConverter<SingleEvaluationDTO> outputConverter;
     private final ToolCallbackProvider toolCallbackProvider;
+    private final String webSearchToolName;
 
 
     private record SingleEvaluationDTO(
@@ -53,24 +54,26 @@ public class SingleAnswerEvaluationService {
             ChatClient.Builder chatClientBuilder,
             StructuredOutputInvoker structuredOutputInvoker,
             @Value("classpath:prompts/interview-evaluation-single-system.st") Resource systemPromptResource,
-            @Value("classpath:prompts/interview-evaluation-single-user.st") Resource userPromptResource) throws IOException {
+            @Value("classpath:prompts/interview-evaluation-single-user.st") Resource userPromptResource,
+            @Value("${app.mcp.websearch.tool-name:web_search}") String webSearchToolName) throws IOException {
         this.toolCallbackProvider = toolCallbackProvider;
         this.chatClient = chatClientBuilder.build();
         this.structuredOutputInvoker = structuredOutputInvoker;
         this.systemPromptTemplate = new PromptTemplate(systemPromptResource.getContentAsString(StandardCharsets.UTF_8));
         this.userPromptTemplate = new PromptTemplate(userPromptResource.getContentAsString(StandardCharsets.UTF_8));
         this.outputConverter = new BeanOutputConverter<>(SingleEvaluationDTO.class);
+        this.webSearchToolName = webSearchToolName;
     }
 
     /**
-     * 获取web_search工具
+     * 获取搜索工具（名称由 app.mcp.websearch.tool-name 配置，默认 web_search）
      */
     private ToolCallback getWebSearchCallback() {
         if (toolCallbackProvider == null) {
             return null;
         }
         for (ToolCallback callback : toolCallbackProvider.getToolCallbacks()) {
-            if ("web_search".equals(callback.getToolDefinition().name())) {
+            if (webSearchToolName.equals(callback.getToolDefinition().name())) {
                 return callback;
             }
         }

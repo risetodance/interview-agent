@@ -224,6 +224,8 @@ app:
     websearch:
       enabled: ${APP_MCP_WEBSEARCH_ENABLED:true}
       timeout: ${APP_MCP_WEBSEARCH_TIMEOUT:10000}
+      # 搜索工具名称（MCP server 提供的 tool name）
+      tool-name: ${APP_MCP_WEBSEARCH_TOOL_NAME:web_search}
 
   # 题目导入配置
   question:

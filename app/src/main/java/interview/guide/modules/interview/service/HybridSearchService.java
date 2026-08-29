@@ -57,6 +57,9 @@ public class HybridSearchService {
     @Value("${app.interview.hybrid-search.topk:3}")
     private int hybridSearchTopK;
 
+    @Value("${app.mcp.websearch.tool-name:web_search}")
+    private String webSearchToolName;
+
     @Value("classpath:prompts/reranker-scoring-system.st")
     private Resource rerankerSystemPromptResource;
 
@@ -258,11 +261,11 @@ public class HybridSearchService {
             return CompletableFuture.completedFuture(List.of());
         }
         try {
-            // 1. 从 ToolCallbackProvider 获取 web_search 工具
+            // 1. 从 ToolCallbackProvider 获取搜索工具（名称由 app.mcp.websearch.tool-name 配置）
             ToolCallback webSearchCallback = null;
             if (toolCallbackProvider != null) {
                 for (ToolCallback callback : toolCallbackProvider.getToolCallbacks()) {
-                    if ("web_search".equals(callback.getToolDefinition().name())) {
+                    if (webSearchToolName.equals(callback.getToolDefinition().name())) {
                         webSearchCallback = callback;
                         break;
                     }
@@ -270,7 +273,7 @@ public class HybridSearchService {
             }
 
             if (webSearchCallback == null) {
-                log.warn("web_search tool not found in ToolCallbackProvider");
+                log.warn("web search tool [{}] not found in ToolCallbackProvider", webSearchToolName);
                 return CompletableFuture.completedFuture(List.of());
             }
 
