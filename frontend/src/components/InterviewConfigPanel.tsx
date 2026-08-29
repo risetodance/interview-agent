@@ -59,7 +59,7 @@ export default function InterviewConfigPanel({
         <span className="font-mono text-xs text-zinc-400">视角 · 权重 · 题量</span>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-6">
         {/* 未完成面试检查中 */}
         {checkingUnfinished && (
           <div className="flex items-center justify-center gap-2 border border-zinc-200 bg-zinc-50 rounded-md px-3 py-2.5 text-sm text-zinc-500 fade-in">
@@ -147,19 +147,19 @@ export default function InterviewConfigPanel({
           </div>
         </div>
 
-        {/* 简历预览 */}
-        <div>
+        {/* 简历预览（弹性撑开：下方有空间时自动填满，小屏时保底高度） */}
+        <div className="flex-1 flex flex-col min-h-[8rem]">
           <label className="block text-xs font-medium text-zinc-600 mb-1.5">简历预览（前500字）</label>
           <textarea
             value={resumeText.substring(0, 500) + (resumeText.length > 500 ? '...' : '')}
             readOnly
-            className="w-full h-32 p-3 bg-zinc-50 border border-zinc-200 rounded-md text-zinc-600 text-sm resize-none focus:outline-none"
+            className="w-full flex-1 min-h-32 p-3 bg-zinc-50 border border-zinc-200 rounded-md text-zinc-600 text-sm resize-none focus:outline-none"
           />
         </div>
 
         {/* 错误提示 */}
         {error && (
-          <div className="flex items-start gap-2 border border-red-200 bg-red-50 rounded-md px-3 py-2.5 text-sm text-red-700 fade-in">
+          <div className="shrink-0 flex items-start gap-2 border border-red-200 bg-red-50 rounded-md px-3 py-2.5 text-sm text-red-700 fade-in">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span className="break-all">{error}</span>
           </div>
@@ -167,7 +167,7 @@ export default function InterviewConfigPanel({
 
         {/* 权重校验提示 */}
         {weightError && (
-          <div className="flex items-start gap-2 border border-amber-200 bg-amber-50 rounded-md px-3 py-2.5 text-sm text-amber-700 fade-in">
+          <div className="shrink-0 flex items-start gap-2 border border-amber-200 bg-amber-50 rounded-md px-3 py-2.5 text-sm text-amber-700 fade-in">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{weightError}</span>
           </div>
