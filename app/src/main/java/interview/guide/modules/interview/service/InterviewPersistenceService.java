@@ -10,6 +10,7 @@ import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.interview.model.InterviewSessionEntity.WorkflowStatus;
 import interview.guide.modules.interview.repository.InterviewAnswerRepository;
 import interview.guide.modules.interview.repository.InterviewSessionRepository;
+import interview.guide.modules.interview.workflow.WorkflowLeaseService;
 import interview.guide.modules.resume.model.ResumeEntity;
 import interview.guide.modules.resume.repository.ResumeRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class InterviewPersistenceService {
     private final InterviewSessionRepository sessionRepository;
     private final InterviewAnswerRepository answerRepository;
     private final ResumeRepository resumeRepository;
+    private final interview.guide.modules.interview.workflow.WorkflowLeaseService workflowLeaseService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -510,7 +512,9 @@ public class InterviewPersistenceService {
     }
 
     /**
-     * 更新工作流状态（用于断点重跑）
+     * 更新工作流状态（用于断点重跑）。
+     * <p>同时流转执行权租约：进入 PROCESSING 持有（本实例），回到 AWAITING_ANSWER / DONE 释放——
+     * 多实例下恢复器据此跳过其他存活实例正在处理的会话。
      */
     @Transactional(rollbackFor = Exception.class)
     public void updateWorkflowStatus(String sessionId, WorkflowStatus status) {
@@ -519,15 +523,16 @@ public class InterviewPersistenceService {
             InterviewSessionEntity session = sessionOpt.get();
             session.setWorkflowStatus(status);
             sessionRepository.save(session);
+            workflowLeaseService.onStatusChange(sessionId, status);
             log.debug("工作流状态已更新: sessionId={}, status={}", sessionId, status);
         }
     }
 
     /**
-     * 根据 workflow_status 查找需要恢复的会话
+     * 根据 workflow_status 查找需要恢复的会话（仅无主或租约过期的 PROCESSING，多实例安全）
      */
-    public List<String> findSessionIdsByWorkflowStatus(WorkflowStatus status) {
-        return sessionRepository.findSessionIdsByWorkflowStatus(status);
+    public List<String> findRecoverableSessionIds(WorkflowStatus status) {
+        return sessionRepository.findRecoverableSessionIds(status);
     }
 
     /**
@@ -554,6 +559,19 @@ public class InterviewPersistenceService {
             return false;
         }
         session.setWorkflowStatus(target);
+        // 行锁内同步流转执行权租约：进入 PROCESSING 持有（本实例）；
+        // 离开 PROCESSING 时仅清理「自己持有的」租约——他人实例持有的租约不动，
+        // 避免本实例的状态写回剥夺别人的执行权（否则对方流程仍在跑、租约却已丢失，
+        // 下一个恢复器可合法抢占造成双跑）
+        if (target == WorkflowStatus.PROCESSING) {
+            session.setWorkflowOwner(WorkflowLeaseService.INSTANCE_ID);
+            session.setWorkflowLeaseUntil(LocalDateTime.now().plus(WorkflowLeaseService.LEASE_DURATION));
+            // 行锁内直接持租不走 acquire()，需补注册心跳（看门狗续租范围）
+            workflowLeaseService.register(sessionId);
+        } else if (WorkflowLeaseService.INSTANCE_ID.equals(session.getWorkflowOwner())) {
+            session.setWorkflowOwner(null);
+            session.setWorkflowLeaseUntil(null);
+        }
         sessionRepository.save(session);
         return true;
     }

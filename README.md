@@ -25,7 +25,20 @@ AI 面试指南是一个面向求职准备场景的智能面试平台，围绕�
 
 平台的核心差异化能力是**多 Agent 协同的面试官工作流**：部门经理 / 技术面试官 / HR 面试官三类视角均为独立配置的 Agent——各自持有出题与评分 Prompt、考察职责和权重，且支持在管理后台页面化创建与调整；Spring AI Alibaba Graph 状态机作为编排器，按权重调度各 Agent 轮番出题、基于回答质量实时追问、逐题独立评分，最终由汇总节点将多视角结果汇聚为一份带加权总分、能力画像与改进建议的综合评估报告。全过程通过 SSE 实时推送，Web 端与小程序端共享同一套后端与工作流。
 
-在工程层面，平台完成了多项面向生产环境的设计：AI 模型凭证与角色槽位解耦、运行时热切换无需重启；向量与全文混合检索保障 RAG 召回质量；Graph 工作流基于 Redis CheckPoint 支持中断恢复；全链路接入 Prometheus 指标监控。
+在工程层面，平台完成了多项面向生产环境的设计：AI 模型凭证与角色槽位解耦、运行时热切换无需重启；向量与全文混合检索保障 RAG 召回质量；Graph 工作流基于 PostgreSQL CheckPoint 支持中断恢复；全链路接入 Prometheus 指标监控。
+
+## 工程设计亮点
+
+- **模型热切换注册中心**：`AiModelRegistry` 以 `DelegatingChatModel`（volatile 委托单例）承载主 / 小双模型槽位，后台指派在事务提交后（`afterCommit`）重建 ChatModel 并热替换引用——全局 10+ ChatClient 注入点零改动、瞬间生效，飞行中的请求用旧实例跑完；`alignPromptOptions` 修正了 Spring AI 调用链 Prompt options 缓存导致的「URL 切了但模型名没切」问题。小模型槽位为空时自动退化指向主模型。
+- **人机协同的工作流中断模型**：Graph 编译期 `interruptAfter(question_generator)` 让状态机在出题后挂起等待人类作答，答案经 `updateState(答案, nextNode)` 从断点续跑而非重头执行；`WorkflowRecoveryRunner` 启动时扫描 PROCESSING 会话逐个恢复（含「checkpoint 缺少 CURRENT_ANSWER」的 gap 一致性防御——崩溃发生在答案写入前则降级为待作答），服务任意时刻重启面试不丢进度。多实例部署下以**执行权租约 + 看门狗心跳**（`workflow_owner` + `workflow_lease_until`，进入 PROCESSING 持有、回到等待/结束释放）保障恢复安全：后台看门狗线程每 30s 为本实例全部活跃会话续租（租期仅 90s、容忍 3 个心跳周期）——存活实例的长流程（慢 LLM / 重试叠加）永不被误判死亡，实例真崩溃后 90s 内即可被安全接管；恢复器只扫描无主或租约过期的会话，恢复前再原子抢占一次，租约所有权只能被持有者或到期后的抢占者改变。
+- **多视角 Agent 全量配置化与降本评估**：面试官角色（出题 Prompt / 评分 Prompt / 权重）全部为数据库行，运营后台页面化调整、支持会话级权重覆盖；权重同时驱动 LLM 出题调度与最终加权评分。终评采用**每视角单次批量评估**（复用逐题已产出的得分与反馈），LLM 调用次数从题数降为视角数，并配 AI 失败 → 逐题均分 → 纯 DB 三级降级链保证报告必达。
+- **双链路简历解析（多模态）**：Tika 文本解析 + 视觉大模型识图按「文本有效性（< 100 字符判定扫描件）+ 后台可配视觉优先策略」动态路由；视觉候选沿 CHAT → SMALL_CHAT 槽位按序退化，全部失败回退文本。PDF 逐页 150 DPI 单请求识别（15 页上限控制成本），识图同请求产出简历文本 + 排版评价双字段 JSON——文本回写缓存避免重复识图，排版评价仅注入当次评分参考。
+- **三路混合检索 + 两级排序**：pgvector（HNSW）向量 + ParadeDB pg_search（BM25）+ MCP Web 搜索三路并行（Web 路 10s 超时降级为空不阻塞），RRF(k=60) 粗排 + 小模型 LLM 精排（候选 ≤ 5 短路跳过精排省一次调用，漏打分候选回退 RRF 基准分）；启动期自动 `CREATE EXTENSION pg_search` 并建 BM25 索引，扩展缺失时检索优雅降级纯向量。
+- **自研中英混合语义分块**：Parent-Child 双粒度（1200 / 300 token），相邻父块双向 150 token overlap 防语义断裂；中文 2 字符 / 非中文 4 字符的轻量 token 估算不依赖 tokenizer 库；仅子块向量化、命中后回链父段落完整上下文。
+- **异步任务可靠性**：Redis Stream 消费者组模板（阻塞读、批拉、MAXLEN 裁剪、失败重投 3 次）；`CAS 状态抢占`（AWAITING→PROCESSING 悲观行锁）+ 出题 / 评分 / 入队三处节点级幂等守卫，杜绝双击与重启重放导致的重复执行；曾定位并修复两类真实并发缺陷——事务内发消息导致消费者脏读（改 afterCommit 投递）、findById+save 旧快照回写覆盖并发更新（改定向 `UPDATE` 语句）。
+- **LLM 调用统一防线**：`StructuredOutputInvoker` 收敛结构化输出（可配重试、失败原因回注、函数式校验器、多模态 Media 重载）；`PromptSecurityConstants` 每次调用生成不可预测 UUID 边界标签包裹用户输入并剥离伪造闭合，一处接入覆盖全部 LLM 调用的提示注入防御。
+- **分布式限流与出网安全**：`@RateLimit` 注解（GLOBAL / IP / USER 维度组合）+ Redis Lua 两阶段令牌桶（先全维度预检查再统一扣减，保证多维原子性），Hash Tag 适配 Redis Cluster，17 个接口接入、支持降级方法回退；LLM 出网请求经 SSRF 防护拦截器（解析目标全部 IP，拦截 RFC1918 私网 / 云元数据 169.254.169.254 / IPv6 ULA，回环放行兼容本地模型）。
+- **多端与账号安全**：一套 SSE 协议三端适配（Web EventSource / 小程序 enableChunked 含跨 chunk UTF-8 半包处理 / SSE 不可用时 checkpoint 驱动的轮询降级），RAG 问答另备同步通道兼容小程序流式缺陷；微信登录绑定采用独立绑定表 + 双通道凭证（防账号枚举统一报错、openid 全程不出后端的 5 分钟一次性票据、错 5 次作废防爆破、双向冲突检查不静默迁移）。
 
 ## 系统架构
 
@@ -50,8 +63,8 @@ flowchart LR
     end
 
     subgraph infra["中间件与外部服务"]
-        PG[("PostgreSQL<br/>pgvector + pg_search")]
-        REDIS[("Redis<br/>缓存/限流/CheckPoint")]
+        PG[("PostgreSQL<br/>pgvector + pg_search + 工作流 CheckPoint")]
+        REDIS[("Redis<br/>缓存/限流/Stream 异步任务")]
         S3[("RustFS<br/>S3 兼容存储")]
         LLM["LLM API<br/>MiniMax / GLM 等<br/>OpenAI 兼容"]
         EMB["DashScope<br/>Embedding"]
@@ -87,7 +100,7 @@ flowchart LR
 | Spring AI | 2.0.0-M1 | AI 集成，OpenAI 兼容协议接入任意厂商 |
 | Spring AI Alibaba Graph | 2.0.0-M1.1 | 多视角面试官工作流编排（状态机 + CheckPoint） |
 | PostgreSQL + ParadeDB | - | 主库 + pgvector 向量检索 + pg_search 全文检索 |
-| Redis + Redisson | 7 / 4.7.0 | 缓存、限流、工作流断点恢复 |
+| Redis + Redisson | 7 / 4.7.0 | 缓存、限流、Stream 异步任务 |
 | Spring Security + JJWT | - / 0.12.6 | 认证授权（JWT） |
 | Apache Tika + POI | 2.9.2 / 5.2.5 | 简历与文档解析 |
 | iText 8 | 8.0.5 | 面试/分析报告 PDF 导出 |
@@ -131,7 +144,7 @@ flowchart LR
 ### 多 Agent 协同模拟面试（核心能力）
 
 - **多 Agent 协同面试官**：部门经理 / 技术面试官 / HR 面试官为三个独立配置的 Agent（各自持有出题与评分 Prompt、考察职责与权重），由 Graph 状态机统一编排调度，按权重轮番提问，还原真实面试的多方考察结构。
-- **Graph 工作流编排**：入场 → 决策（提问 / 切换视角 / 结束）→ 角色切换 → 检索准备 → 出题 → 评分 → 综合报告，全流程由 Spring AI Alibaba Graph 状态机驱动，Redis CheckPoint 支持中断恢复。
+- **Graph 工作流编排**：入场 → 决策（提问 / 切换视角 / 结束）→ 角色切换 → 检索准备 → 出题 → 评分 → 综合报告，全流程由 Spring AI Alibaba Graph 状态机驱动，PostgreSQL CheckPoint 支持中断恢复。
 - **面试官 Agent 页面化配置**：视角不写死在代码里——管理后台提供面试官角色管理页，支持创建 / 编辑面试官 Agent 的出题 Prompt、评分 Prompt、默认权重与启用状态，配置即时应用于后续面试。
 - **智能追问与难度递进**：基于回答质量实时追问，配合题目难度标签，由浅入深还原真实面试节奏。
 - **SSE 实时对话**：面试过程流式推送，打字机式对话体验。

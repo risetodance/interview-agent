@@ -114,10 +114,38 @@ public interface InterviewSessionRepository extends JpaRepository<InterviewSessi
    );
 
     /**
-     * 根据 workflow_status 查找需要恢复的会话
-    */
-    @Query("SELECT s.sessionId FROM InterviewSessionEntity s WHERE s.workflowStatus = :status")
-    List<String> findSessionIdsByWorkflowStatus(@Param("status") WorkflowStatus status);
+     * 查找可恢复的会话：PROCESSING 且（无主 或 租约已过期）——多实例下存活实例持有的会话不会被他人恢复。
+     */
+    @Query("SELECT s.sessionId FROM InterviewSessionEntity s " +
+            "WHERE s.workflowStatus = :status " +
+            "AND (s.workflowOwner IS NULL OR s.workflowLeaseUntil < CURRENT_TIMESTAMP)")
+    List<String> findRecoverableSessionIds(@Param("status") WorkflowStatus status);
+
+    /**
+     * 原子抢占/续租工作流执行权：仅对仍处指定状态（调用方传 PROCESSING）的会话生效，
+     * 且要求 owner 为空、是自己、或租约已过期。
+     * <p>状态条件堵住 release 与心跳的竞态窗口：流程已回到 AWAITING_ANSWER / DONE（租约已释放）后，
+     * 看门狗本轮循环不会再把 owner 写回，避免等待答题的会话残留租约脏数据。
+     * 所有调用场景（提交答案 CAS 后 / 恢复前抢占 / 心跳续租）时状态均为 PROCESSING，语义无损。
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("UPDATE InterviewSessionEntity s SET s.workflowOwner = :owner, s.workflowLeaseUntil = :until " +
+            "WHERE s.sessionId = :sessionId AND s.workflowStatus = :status " +
+            "AND (s.workflowOwner IS NULL OR s.workflowOwner = :owner OR s.workflowLeaseUntil < CURRENT_TIMESTAMP)")
+    int acquireWorkflowLease(@Param("sessionId") String sessionId,
+                             @Param("owner") String owner,
+                             @Param("until") LocalDateTime until,
+                             @Param("status") InterviewSessionEntity.WorkflowStatus status);
+
+    /**
+     * 释放工作流执行权（仅清理自己持有的租约）。
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("UPDATE InterviewSessionEntity s SET s.workflowOwner = NULL, s.workflowLeaseUntil = NULL " +
+            "WHERE s.sessionId = :sessionId AND s.workflowOwner = :owner")
+    int releaseWorkflowLease(@Param("sessionId") String sessionId, @Param("owner") String owner);
 
     /**
      * 悲观行锁查询（用于 CAS 并发控制）

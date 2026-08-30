@@ -50,6 +50,7 @@ public class WorkflowExecutor {
     private final SearchPreparatorNode searchPreparatorNode;
     private final InterviewStreamService interviewStreamService;
     private final InterviewPersistenceService persistenceService;
+    private final WorkflowLeaseService workflowLeaseService;
     private final DataSource dataSource;
 
     // PostgresSaver 连接参数（从 application.yml 注入）
@@ -84,6 +85,7 @@ public class WorkflowExecutor {
                           SearchPreparatorNode searchPreparatorNode,
                           InterviewStreamService interviewStreamService,
                           InterviewPersistenceService persistenceService,
+                          WorkflowLeaseService workflowLeaseService,
                           DataSource dataSource) {
         this.entryNode = entryNode;
         this.questionGeneratorNode = questionGeneratorNode;
@@ -92,6 +94,7 @@ public class WorkflowExecutor {
         this.roleSwitcherNode = roleSwitcherNode;
         this.finalReporterNode = finalReporterNode;
         this.searchPreparatorNode = searchPreparatorNode;
+        this.workflowLeaseService = workflowLeaseService;
         this.interviewStreamService = interviewStreamService;
         this.persistenceService = persistenceService;
         this.dataSource = dataSource;
@@ -351,6 +354,13 @@ public class WorkflowExecutor {
     @Async
     public void recoverWorkflow(String sessionId) {
         log.info("Recovering interrupted workflow: sessionId={}", sessionId);
+
+        // 恢复前原子抢占执行权租约：其他存活实例正在处理的会话（租约未过期）直接跳过，
+        // 双保险——即使查询与恢复之间租约状态发生变化也不会重复执行
+        if (!workflowLeaseService.acquire(sessionId)) {
+            log.info("Recovery skipped, lease held by a live instance: sessionId={}", sessionId);
+            return;
+        }
 
         try {
             RunnableConfig threadConfig = RunnableConfig.builder()

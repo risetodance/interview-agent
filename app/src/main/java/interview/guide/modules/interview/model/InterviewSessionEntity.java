@@ -144,6 +144,14 @@ public class InterviewSessionEntity {
     @Column(name = "workflow_status", length = 30)
     private WorkflowStatus workflowStatus;
 
+    // 工作流执行权租约：当前持有执行权的实例标识（多实例下防止恢复器抢占存活实例正在执行的会话）
+    @Column(name = "workflow_owner", length = 64)
+    private String workflowOwner;
+
+    // 工作流执行权租约到期时间；过期视为持有者已死亡，可被其他实例原子抢占
+    @Column(name = "workflow_lease_until")
+    private java.time.LocalDateTime workflowLeaseUntil;
+
    // 用户ID（用于数据隔离）
     @Column(name = "user_id")
     private Long userId;
@@ -429,6 +437,22 @@ public class InterviewSessionEntity {
 
     public void setWorkflowStatus(WorkflowStatus workflowStatus) {
         this.workflowStatus = workflowStatus;
+    }
+
+    public String getWorkflowOwner() {
+        return workflowOwner;
+    }
+
+    public void setWorkflowOwner(String workflowOwner) {
+        this.workflowOwner = workflowOwner;
+    }
+
+    public java.time.LocalDateTime getWorkflowLeaseUntil() {
+        return workflowLeaseUntil;
+    }
+
+    public void setWorkflowLeaseUntil(java.time.LocalDateTime workflowLeaseUntil) {
+        this.workflowLeaseUntil = workflowLeaseUntil;
     }
 
    public Long getUserId() {
