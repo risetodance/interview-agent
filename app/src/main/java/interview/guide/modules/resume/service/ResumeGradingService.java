@@ -68,16 +68,40 @@ public class ResumeGradingService {
     ) {}
 
     public ResumeGradingService(
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
+            org.springframework.ai.tool.ToolCallbackProvider toolCallbackProvider,
             ChatClient.Builder chatClientBuilder,
             StructuredOutputInvoker structuredOutputInvoker,
             @Value("classpath:prompts/resume-analysis-system.st") Resource systemPromptResource,
-            @Value("classpath:prompts/resume-analysis-user.st") Resource userPromptResource) throws IOException {
+            @Value("classpath:prompts/resume-analysis-user.st") Resource userPromptResource,
+            @Value("${app.mcp.websearch.tool-name:web_search}") String webSearchToolName) throws IOException {
         this.chatClient = chatClientBuilder.build();
         this.structuredOutputInvoker = structuredOutputInvoker;
         this.systemPromptTemplate = new PromptTemplate(systemPromptResource.getContentAsString(StandardCharsets.UTF_8));
         this.userPromptTemplate = new PromptTemplate(userPromptResource.getContentAsString(StandardCharsets.UTF_8));
         this.outputConverter = new BeanOutputConverter<>(ResumeAnalysisResponseDTO.class);
         this.objectMapper = new ObjectMapper();
+        this.toolCallbackProvider = toolCallbackProvider;
+        this.webSearchToolName = webSearchToolName;
+    }
+
+    private final org.springframework.ai.tool.ToolCallbackProvider toolCallbackProvider;
+    private final String webSearchToolName;
+
+    /**
+     * 获取 Web 搜索工具（名称由 app.mcp.websearch.tool-name 配置，默认 web_search）；
+     * MCP 未启用时返回 null，StructuredOutputInvoker 会过滤 null 工具回调，调用照常进行。
+     */
+    private org.springframework.ai.tool.ToolCallback getWebSearchCallback() {
+        if (toolCallbackProvider == null) {
+            return null;
+        }
+        for (org.springframework.ai.tool.ToolCallback callback : toolCallbackProvider.getToolCallbacks()) {
+            if (webSearchToolName.equals(callback.getToolDefinition().name())) {
+                return callback;
+            }
+        }
+        return null;
     }
 
     /**
@@ -97,9 +121,13 @@ public class ResumeGradingService {
             String systemPrompt = systemPromptTemplate.render();
 
             // 加载用户提示词并填充变量
+            org.springframework.ai.tool.ToolCallback webSearchCallback = getWebSearchCallback();
             Map<String, Object> variables = new HashMap<>();
             variables.put("resumeText", resumeText);
             variables.put("visionLayoutSection", buildVisionLayoutSection(layoutEvaluation));
+            variables.put("currentDate", java.time.LocalDate.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy年MM月dd日")));
+            variables.put("webSearchHint", buildWebSearchHint(webSearchCallback));
             String userPrompt = userPromptTemplate.render(variables);
 
             // 添加格式指令到系统提示词
@@ -116,7 +144,8 @@ public class ResumeGradingService {
                     ErrorCode.RESUME_ANALYSIS_FAILED,
                     "简历分析失败：",
                     "简历分析",
-                    log
+                    log,
+                    webSearchCallback
                 );
                 log.debug("AI响应解析成功: overallScore={}", dto.overallScore());
             } catch (Exception e) {
@@ -137,6 +166,17 @@ public class ResumeGradingService {
     }
 
 
+
+    /**
+     * 组装 web 搜索引导段：仅在实际挂载了 web_search 工具时注入使用引导，
+     * 工具不可用时返回空串（模板零残留，避免对不存在的工具做空头承诺）。
+     */
+    private String buildWebSearchHint(org.springframework.ai.tool.ToolCallback webSearchCallback) {
+        if (webSearchCallback == null) {
+            return "";
+        }
+        return "\n如需查证某项技术的当前状态或主流实践，可调用 web_search 工具搜索后再下结论。";
+    }
 
     /**
      * 组装视觉排版观察段（注入用户 prompt 的简历内容之后）：

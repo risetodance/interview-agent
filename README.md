@@ -25,7 +25,7 @@ AI 面试指南是一个面向求职准备场景的智能面试平台，围绕�
 
 平台的核心差异化能力是**多 Agent 协同的面试官工作流**：部门经理 / 技术面试官 / HR 面试官三类视角均为独立配置的 Agent——各自持有出题与评分 Prompt、考察职责和权重，且支持在管理后台页面化创建与调整；Spring AI Alibaba Graph 状态机作为编排器，按权重调度各 Agent 轮番出题、基于回答质量实时追问、逐题独立评分，最终由汇总节点将多视角结果汇聚为一份带加权总分、能力画像与改进建议的综合评估报告。全过程通过 SSE 实时推送，Web 端与小程序端共享同一套后端与工作流。
 
-在工程层面，平台完成了多项面向生产环境的设计：AI 模型凭证与角色槽位解耦、运行时热切换无需重启；向量与全文混合检索保障 RAG 召回质量；Graph 工作流基于 PostgreSQL CheckPoint 支持中断恢复；全链路接入 Prometheus 指标监控。
+在工程层面，平台完成了多项面向生产环境的设计：AI 模型凭证与角色槽位解耦、运行时热切换无需重启；向量与全文混合检索保障 RAG 召回质量；Graph 工作流基于 PostgreSQL CheckPoint 支持中断恢复；全链路接入 Prometheus + Grafana 指标监控与可视化。
 
 ## 工程设计亮点
 
@@ -66,6 +66,7 @@ flowchart LR
         PG[("PostgreSQL<br/>pgvector + pg_search + 工作流 CheckPoint")]
         REDIS[("Redis<br/>缓存/限流/Stream 异步任务")]
         S3[("RustFS<br/>S3 兼容存储")]
+        PROM[("Prometheus + Grafana<br/>指标采集与可视化")]
         LLM["LLM API<br/>MiniMax / GLM 等<br/>OpenAI 兼容"]
         EMB["DashScope<br/>Embedding"]
         SES["腾讯云 SES"]
@@ -87,6 +88,7 @@ flowchart LR
     backend --> PG
     backend --> REDIS
     backend --> S3
+    PROM -->|"15s 抓取 Actuator"| backend
 ```
 
 ## 技术栈
@@ -107,7 +109,7 @@ flowchart LR
 | 腾讯云 SES SDK | 3.1.1291 | 邮箱验证码与邮件通知 |
 | AWS S3 SDK | 2.29.51 | S3 兼容对象存储（RustFS） |
 | Spring AI MCP Client | - | Web 搜索工具（WebFlux） |
-| Micrometer + Prometheus | - | 指标监控 |
+| Micrometer + Prometheus + Grafana | - | 指标监控与可视化（Actuator 独立端口，15s 抓取） |
 | Gradle | 8.14 | 构建工具 |
 
 > 注：Spring Boot 4.0 与 Spring AI 2.0.0-M1 为里程碑预览版，API 可能随正式版变动。
