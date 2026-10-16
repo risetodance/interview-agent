@@ -1,8 +1,6 @@
 package interview.guide.modules.interview.workflow;
 
 import com.alibaba.cloud.ai.graph.OverAllState;
-import interview.guide.modules.interview.listener.EvaluateStreamProducer;
-import interview.guide.modules.interview.model.InterviewSessionEntity;
 import interview.guide.modules.interview.model.InterviewSessionEntity.WorkflowStatus;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
 import interview.guide.modules.interview.service.InterviewStreamService;
@@ -11,11 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * 最终报告节点 - 生成面试最终报告
- * 设置 isComplete 标志，发送评估任务到消息队列
+ * 设置 isComplete 标志，评估任务经 outbox 可靠入队（消息队列异步生成评估报告）
  */
 @Slf4j
 @Component
@@ -23,7 +20,6 @@ import java.util.Optional;
 public class FinalReporterNode {
 
     private final InterviewPersistenceService persistenceService;
-    private final EvaluateStreamProducer evaluateStreamProducer;
     private final InterviewStreamService interviewStreamService;
 
     public OverAllState execute(OverAllState state) {
@@ -37,26 +33,9 @@ public class FinalReporterNode {
         }
 
         try {
-            // 获取会话
-            Optional<InterviewSessionEntity> sessionOpt = persistenceService.findBySessionId(sessionId);
-            if (sessionOpt.isEmpty()) {
-                log.error("Final reporter node: session not found, sessionId={}", sessionId);
-                return state;
-            }
-            InterviewSessionEntity session = sessionOpt.get();
-
-            // 组合事务：更新会话状态 + workflow_status DONE（内部含幂等守卫）
+            // 组合事务：更新会话状态 + workflow_status DONE + 评估任务写 outbox
+            // （幂等守卫在事务内：仅首次完成时置 PENDING 并入队，重复执行/恢复重放不会重复入队）
             persistenceService.completeInterview(sessionId, WorkflowStatus.DONE);
-
-            // 幂等守卫：如果会话已完成，跳过重复入队，只推 SSE
-            if (session.getStatus() == InterviewSessionEntity.SessionStatus.COMPLETED ||
-                session.getStatus() == InterviewSessionEntity.SessionStatus.EVALUATED) {
-                log.info("Final reporter node: 会话已完成，跳过重复入队 (幂等): sessionId={}", sessionId);
-            } else {
-                // 发送评估任务到 Redis Stream（让消息队列开始分析面试报告）
-                evaluateStreamProducer.sendEvaluateTask(sessionId);
-                log.info("Final reporter: 评估任务已入队, sessionId={}", sessionId);
-            }
 
             // 设置完成标志
             state.updateState(Map.of(

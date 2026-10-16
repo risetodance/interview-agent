@@ -3,6 +3,7 @@ package interview.guide.modules.interview.listener;
 import interview.guide.common.async.AbstractStreamConsumer;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
 import interview.guide.common.model.AsyncTaskStatus;
+import interview.guide.infrastructure.outbox.OutboxProperties;
 import interview.guide.infrastructure.redis.RedisService;
 import interview.guide.modules.interview.model.ComprehensiveReportDTO;
 import interview.guide.modules.interview.model.InterviewQuestionDTO;
@@ -40,13 +41,14 @@ public class EvaluateStreamConsumer extends AbstractStreamConsumer<EvaluateStrea
 
     public EvaluateStreamConsumer(
         RedisService redisService,
+        OutboxProperties outboxProperties,
         InterviewSessionRepository sessionRepository,
         AnswerEvaluationService answerEvaluationService,
         InterviewPersistenceService persistenceService,
         PerspectiveEvaluationService perspectiveEvaluationService,
         ObjectMapper objectMapper
     ) {
-        super(redisService);
+        super(redisService, outboxProperties);
         this.sessionRepository = sessionRepository;
         this.answerEvaluationService = answerEvaluationService;
         this.persistenceService = persistenceService;
@@ -97,8 +99,12 @@ public class EvaluateStreamConsumer extends AbstractStreamConsumer<EvaluateStrea
     }
 
     @Override
-    protected void markProcessing(EvaluatePayload payload) {
-        updateEvaluateStatus(payload.sessionId(), AsyncTaskStatus.PROCESSING, null);
+    protected boolean acquireTask(EvaluatePayload payload, boolean reclaimed) {
+        // 正常路径只允许从 PENDING/FAILED 抢占；PEL 回收（原消费者已死）放宽到僵尸 PROCESSING；COMPLETED 永不重做
+        List<AsyncTaskStatus> allowedFrom = reclaimed
+            ? List.of(AsyncTaskStatus.PENDING, AsyncTaskStatus.FAILED, AsyncTaskStatus.PROCESSING)
+            : List.of(AsyncTaskStatus.PENDING, AsyncTaskStatus.FAILED);
+        return sessionRepository.casEvaluateStatus(payload.sessionId(), allowedFrom) > 0;
     }
 
     @Override
@@ -206,16 +212,12 @@ public class EvaluateStreamConsumer extends AbstractStreamConsumer<EvaluateStrea
     }
 
     /**
-     * 更新评估状态
+     * 更新评估状态（定向 UPDATE，避免读-改-写旧快照覆盖并发更新）
      */
     private void updateEvaluateStatus(String sessionId, AsyncTaskStatus status, String error) {
         try {
-            sessionRepository.findBySessionId(sessionId).ifPresent(session -> {
-                session.setEvaluateStatus(status);
-                session.setEvaluateError(error);
-                sessionRepository.save(session);
-                log.debug("评估状态已更新: sessionId={}, status={}", sessionId, status);
-            });
+            sessionRepository.updateEvaluateStatus(sessionId, status, error);
+            log.debug("评估状态已更新: sessionId={}, status={}", sessionId, status);
         } catch (Exception e) {
             log.error("更新评估状态失败: sessionId={}, status={}, error={}", sessionId, status, e.getMessage(), e);
         }

@@ -3,6 +3,8 @@ package interview.guide.modules.interview.service;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.common.model.AsyncTaskStatus;
+import interview.guide.infrastructure.outbox.OutboxMessageType;
+import interview.guide.infrastructure.outbox.OutboxPublisher;
 import interview.guide.modules.interview.model.InterviewAnswerEntity;
 import interview.guide.modules.interview.model.InterviewQuestionDTO;
 import interview.guide.modules.interview.model.InterviewReportDTO;
@@ -22,6 +24,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -38,6 +41,7 @@ public class InterviewPersistenceService {
     private final ResumeRepository resumeRepository;
     private final interview.guide.modules.interview.workflow.WorkflowLeaseService workflowLeaseService;
     private final ObjectMapper objectMapper;
+    private final OutboxPublisher outboxPublisher;
 
     /**
      * 保存新的面试会话（无简历模式）
@@ -610,8 +614,10 @@ public class InterviewPersistenceService {
     }
 
     /**
-     * FinalReporterNode 的组合事务：更新会话状态 + 评估状态 + workflow_status
-     * 所有 DB 写入在一个事务内
+     * FinalReporterNode / 提前交卷的组合事务：更新会话状态 + 评估状态 + workflow_status + 评估任务入 outbox
+     * 所有 DB 写入在一个事务内。
+     * <p>幂等：仅首次完成（状态非 COMPLETED/EVALUATED）时置 PENDING 并写 outbox——
+     * 状态更新与入队原子绑定，重复执行/恢复重放不会重复入队。
      */
     @Transactional(rollbackFor = Exception.class)
     public void completeInterview(String sessionId, WorkflowStatus workflowStatus) {
@@ -624,6 +630,8 @@ public class InterviewPersistenceService {
                 session.setStatus(InterviewSessionEntity.SessionStatus.COMPLETED);
                 session.setCompletedAt(LocalDateTime.now());
                 session.setEvaluateStatus(AsyncTaskStatus.PENDING);
+                outboxPublisher.publish(OutboxMessageType.INTERVIEW_EVALUATE,
+                    Map.of("sessionId", sessionId));
             }
             session.setWorkflowStatus(workflowStatus);
             sessionRepository.save(session);

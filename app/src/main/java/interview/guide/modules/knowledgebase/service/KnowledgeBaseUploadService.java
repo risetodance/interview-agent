@@ -5,7 +5,6 @@ import interview.guide.common.exception.ErrorCode;
 import interview.guide.infrastructure.file.FileHashService;
 import interview.guide.infrastructure.file.FileStorageService;
 import interview.guide.infrastructure.file.FileValidationService;
-import interview.guide.modules.knowledgebase.listener.VectorizeStreamProducer;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
 import interview.guide.modules.knowledgebase.model.VectorStatus;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
@@ -20,7 +19,7 @@ import java.util.Optional;
 /**
  * 知识库上传服务
  * 处理知识库上传、解析的业务逻辑
- * 向量化改为异步处理，通过 Redis Stream 实现
+ * 向量化改为异步处理：任务经 outbox 可靠投递到 Redis Stream
  */
 @Slf4j
 @Service
@@ -33,7 +32,6 @@ public class KnowledgeBaseUploadService {
     private final KnowledgeBaseRepository knowledgeBaseRepository;
     private final FileValidationService fileValidationService;
     private final FileHashService fileHashService;
-    private final VectorizeStreamProducer vectorizeStreamProducer;
 
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
     
@@ -78,11 +76,8 @@ public class KnowledgeBaseUploadService {
         String fileUrl = storageService.getFileUrl(fileKey);
         log.info("知识库已存储到RustFS: {}", fileKey);
 
-        // 6. 保存知识库元数据到数据库（状态为 PENDING）
-        KnowledgeBaseEntity savedKb = persistenceService.saveKnowledgeBase(file, name, category, fileKey, fileUrl, fileHash, userId, fileName);
-
-        // 7. 发送向量化任务到 Redis Stream（异步处理）
-        vectorizeStreamProducer.sendVectorizeTask(savedKb.getId(), content);
+        // 6. 保存知识库元数据到数据库（状态为 PENDING；解析文本落库，向量化任务以 outbox 记录同事务写入）
+        KnowledgeBaseEntity savedKb = persistenceService.saveKnowledgeBase(file, name, category, fileKey, fileUrl, fileHash, userId, fileName, content);
 
         log.info("知识库上传完成，向量化任务已入队: {}, kbId={}", fileName, savedKb.getId());
 
@@ -147,11 +142,8 @@ public class KnowledgeBaseUploadService {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "无法从文件中提取文本内容");
         }
 
-        // 2. 更新状态为 PENDING（通过单独的 Service 保证事务生效）
-        persistenceService.updateVectorStatusToPending(kbId);
-
-        // 3. 发送向量化任务到 Stream
-        vectorizeStreamProducer.sendVectorizeTask(kbId, content);
+        // 2. 解析文本落库 + 状态置 PENDING + outbox 入队（同事务）
+        persistenceService.requeueVectorize(kbId, content);
 
         log.info("重新向量化任务已发送: kbId={}", kbId);
     }

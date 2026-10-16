@@ -2,6 +2,8 @@ package interview.guide.modules.knowledgebase.service;
 
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
+import interview.guide.infrastructure.outbox.OutboxMessageType;
+import interview.guide.infrastructure.outbox.OutboxPublisher;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
 import interview.guide.modules.knowledgebase.model.VectorStatus;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
@@ -23,6 +25,7 @@ import java.util.Map;
 public class KnowledgeBasePersistenceService {
 
     private final KnowledgeBaseRepository knowledgeBaseRepository;
+    private final OutboxPublisher outboxPublisher;
 
     /**
      * 处理重复知识库（更新访问计数）
@@ -59,7 +62,7 @@ public class KnowledgeBasePersistenceService {
     @Transactional(rollbackFor = Exception.class)
     public KnowledgeBaseEntity saveKnowledgeBase(MultipartFile file, String name, String category,
                                                   String storageKey, String storageUrl, String fileHash, Long userId,
-                                                  String originalFilename) {
+                                                  String originalFilename, String content) {
         try {
             KnowledgeBaseEntity kb = new KnowledgeBaseEntity();
             kb.setFileHash(fileHash);
@@ -71,9 +74,15 @@ public class KnowledgeBasePersistenceService {
             kb.setStorageKey(storageKey);
             kb.setStorageUrl(storageUrl);
             kb.setUserId(userId);
+            kb.setContent(content);
 
             KnowledgeBaseEntity saved = knowledgeBaseRepository.save(kb);
             log.info("知识库已保存: id={}, name={}, category={}, hash={}, userId={}", saved.getId(), saved.getName(), saved.getCategory(), fileHash, userId);
+
+            // 与知识库落库同事务写 outbox（vectorStatus=PENDING 与入队原子提交，relay 兜底投递）
+            outboxPublisher.publish(OutboxMessageType.KB_VECTORIZE,
+                Map.of("kbId", saved.getId().toString()));
+
             return saved;
         } catch (Exception e) {
             log.error("保存知识库失败: {}", e.getMessage(), e);
@@ -82,18 +91,23 @@ public class KnowledgeBasePersistenceService {
     }
 
     /**
-     * 更新知识库向量化状态为 PENDING
+     * 重新入队向量化任务：解析文本落库 + 状态置 PENDING + outbox 写入同事务。
+     * <p>解析文本原先只活在 Stream 消息里（丢了无法重建），现在落库为消费数据源。
      */
     @Transactional(rollbackFor = Exception.class)
-    public void updateVectorStatusToPending(Long kbId) {
+    public void requeueVectorize(Long kbId, String content) {
         KnowledgeBaseEntity kb = knowledgeBaseRepository.findById(kbId)
             .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "知识库不存在"));
-        
+
+        kb.setContent(content);
         kb.setVectorStatus(VectorStatus.PENDING);
         kb.setVectorError(null);
         knowledgeBaseRepository.save(kb);
-        
-        log.info("知识库向量化状态已更新为 PENDING: kbId={}", kbId);
+
+        outboxPublisher.publish(OutboxMessageType.KB_VECTORIZE,
+            Map.of("kbId", kbId.toString()));
+
+        log.info("知识库向量化任务已重新入 outbox: kbId={}", kbId);
     }
 
     /**

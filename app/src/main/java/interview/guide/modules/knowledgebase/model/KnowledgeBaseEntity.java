@@ -62,6 +62,10 @@ public class KnowledgeBaseEntity {
     // 问题数量（用户针对此知识库提问的次数）
     private Integer questionCount = 0;
 
+    // 解析出的文档纯文本（向量化任务的数据源；outbox 消息只带 ID，消费端从此列读取）
+    @Column(columnDefinition = "TEXT")
+    private String content;
+
     // 向量化状态（新上传时为 PENDING，异步处理完成后变为 COMPLETED）
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
@@ -126,6 +130,14 @@ public class KnowledgeBaseEntity {
         this.fileSize = fileSize;
     }
     
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
     public String getContentType() {
         return contentType;
     }

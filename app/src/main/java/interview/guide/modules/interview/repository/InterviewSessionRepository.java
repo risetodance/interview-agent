@@ -155,4 +155,30 @@ public interface InterviewSessionRepository extends JpaRepository<InterviewSessi
     @Query("SELECT s FROM InterviewSessionEntity s WHERE s.sessionId = :sessionId")
     Optional<InterviewSessionEntity> findBySessionIdForUpdate(@Param("sessionId") String sessionId);
 
+    /**
+     * CAS 抢占评估任务：仅当当前评估状态在允许集合内才置为 PROCESSING。
+     * <p>消费者幂等守卫——relay 重复投递/组内并发重复被此处拦截（返回 0）；
+     * COMPLETED 永不重做；PEL 回收路径由调用方在 allowedFrom 中放宽 PROCESSING（僵尸状态复活）。
+     *
+     * @return 1=抢占成功开始处理；0=任务处理中/已完成/会话不存在，跳过
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("UPDATE InterviewSessionEntity s SET s.evaluateStatus = interview.guide.common.model.AsyncTaskStatus.PROCESSING, s.evaluateError = NULL "
+            + "WHERE s.sessionId = :sessionId AND s.evaluateStatus IN :allowedFrom")
+    int casEvaluateStatus(@Param("sessionId") String sessionId,
+                          @Param("allowedFrom") List<interview.guide.common.model.AsyncTaskStatus> allowedFrom);
+
+    /**
+     * 定向更新评估状态（消费者高频调用，避免 findById + save 读-改-写覆盖并发更新）
+     *
+     * @return 实际更新行数（会话不存在时 0）
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("UPDATE InterviewSessionEntity s SET s.evaluateStatus = :status, s.evaluateError = :error WHERE s.sessionId = :sessionId")
+    int updateEvaluateStatus(@Param("sessionId") String sessionId,
+                             @Param("status") interview.guide.common.model.AsyncTaskStatus status,
+                             @Param("error") String error);
+
 }

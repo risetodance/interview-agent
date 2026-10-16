@@ -3,10 +3,8 @@ package interview.guide.modules.interview.service;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
-import interview.guide.common.model.AsyncTaskStatus;
 import interview.guide.infrastructure.redis.InterviewSessionCache;
 import interview.guide.infrastructure.redis.InterviewSessionCache.CachedSession;
-import interview.guide.modules.interview.listener.EvaluateStreamProducer;
 import interview.guide.modules.interview.model.*;
 import interview.guide.modules.interview.model.InterviewSessionDTO.SessionStatus;
 import interview.guide.modules.interview.workflow.WorkflowExecutor;
@@ -31,7 +29,6 @@ public class InterviewSessionService {
     private final InterviewPersistenceService persistenceService;
     private final InterviewSessionCache sessionCache;
     private final ObjectMapper objectMapper;
-    private final EvaluateStreamProducer evaluateStreamProducer;
     private final WorkflowExecutor workflowExecutor;
 
     /**
@@ -305,18 +302,9 @@ public class InterviewSessionService {
         // 更新 Redis 缓存
         sessionCache.updateSessionStatus(sessionId, SessionStatus.COMPLETED);
 
-        // 更新数据库状态
-        try {
-            persistenceService.updateSessionStatus(sessionId,
-                    InterviewSessionEntity.SessionStatus.COMPLETED);
-            // 设置评估状态为 PENDING
-            persistenceService.updateEvaluateStatus(sessionId, AsyncTaskStatus.PENDING, null);
-        } catch (Exception e) {
-            log.error("更新会话状态失败: {}", e.getMessage(), e);
-        }
-
-        // 发送评估任务到 Redis Stream
-        evaluateStreamProducer.sendEvaluateTask(sessionId);
+        // 组合事务：会话状态 COMPLETED + evaluateStatus PENDING + 评估任务写 outbox（同事务原子提交）。
+        // 失败直接抛错回滚（交卷失败用户可重试），不再吞异常后照发消息——那是「状态与消息不一致」的根源
+        persistenceService.completeInterview(sessionId, InterviewSessionEntity.WorkflowStatus.DONE);
 
         log.info("会话 {} 提前交卷，评估任务已入队", sessionId);
     }

@@ -7,15 +7,12 @@ import interview.guide.common.model.AsyncTaskStatus;
 import interview.guide.infrastructure.file.FileStorageService;
 import interview.guide.infrastructure.file.FileValidationService;
 import interview.guide.modules.interview.model.ResumeAnalysisResponse;
-import interview.guide.modules.resume.listener.AnalyzeStreamProducer;
 import interview.guide.modules.resume.model.ResumeEntity;
 import interview.guide.modules.resume.repository.ResumeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Map;
 import java.util.Optional;
@@ -23,7 +20,7 @@ import java.util.Optional;
 /**
  * 简历上传服务
  * 处理简历上传、解析的业务逻辑
- * AI 分析改为异步处理，通过 Redis Stream 实现
+ * AI 分析改为异步处理：任务经 outbox 可靠投递到 Redis Stream
  */
 @Slf4j
 @Service
@@ -35,7 +32,6 @@ public class ResumeUploadService {
     private final ResumePersistenceService persistenceService;
     private final AppConfigProperties appConfig;
     private final FileValidationService fileValidationService;
-    private final AnalyzeStreamProducer analyzeStreamProducer;
     private final ResumeRepository resumeRepository;
     private final ResumeVisionParseService visionParseService;
 
@@ -89,11 +85,8 @@ public class ResumeUploadService {
         String fileUrl = storageService.getFileUrl(fileKey);
         log.info("简历已存储到RustFS: {}", fileKey);
 
-        // 6. 保存简历到数据库（状态为 PENDING）
+        // 6. 保存简历到数据库（状态为 PENDING；分析任务以 outbox 记录同事务写入，relay 负责投递）
         ResumeEntity savedResume = persistenceService.saveResume(file, fileName, resumeText, fileKey, fileUrl, userId);
-
-        // 7. 发送分析任务到 Redis Stream（异步处理；本方法无外层事务，直接发送）
-        sendAnalyzeTaskAfterCommit(savedResume.getId(), resumeText);
 
         log.info("简历上传完成，分析任务已入队: {}, resumeId={}", fileName, savedResume.getId());
 
@@ -111,29 +104,6 @@ public class ResumeUploadService {
             ),
             "duplicate", false
         );
-    }
-
-    /**
-     * 事务提交后再发送分析任务到 Stream（无事务上下文则立即发送）。
-     * <p>若在 @Transactional 事务内直接发送，消费者会与未提交数据并发：
-     * 读到旧实体（旧 storageKey / 旧文本），其后的读-改-写还会用旧快照覆盖本次更新（lost update）。
-     * 发送失败不影响已提交的 DB 结果，由 Producer 的 onSendFailed 兜底置 FAILED 状态。
-     */
-    private void sendAnalyzeTaskAfterCommit(Long resumeId, String content) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    try {
-                        analyzeStreamProducer.sendAnalyzeTask(resumeId, content);
-                    } catch (Exception e) {
-                        log.error("事务提交后发送分析任务失败: resumeId={}", resumeId, e);
-                    }
-                }
-            });
-        } else {
-            analyzeStreamProducer.sendAnalyzeTask(resumeId, content);
-        }
     }
 
     /**
@@ -277,13 +247,10 @@ public class ResumeUploadService {
         }
         resume.setResumeText(resumeText);
 
-        // 更新状态为 PENDING
+        // 更新状态为 PENDING 并同事务入队 outbox
         resume.setAnalyzeStatus(AsyncTaskStatus.PENDING);
         resume.setAnalyzeError(null);
-        resumeRepository.save(resume);
-
-        // 发送分析任务到 Stream（事务提交后发，避免消费者读到未提交数据）
-        sendAnalyzeTaskAfterCommit(resumeId, resumeText);
+        persistenceService.updateResumeAndEnqueueAnalyze(resume);
 
         log.info("重新分析任务已发送: resumeId={}", resumeId);
     }
@@ -348,7 +315,6 @@ public class ResumeUploadService {
         resume.setUploadedAt(java.time.LocalDateTime.now());  // 更新时间戳（列表按上传时间倒序，重传后回到顶部）
         resume.setAnalyzeStatus(AsyncTaskStatus.PENDING);  // 重置分析状态
         resume.setAnalyzeError(null);
-        resumeRepository.save(resume);
 
         // 7. 清理被替换的旧文件（孤儿文件会一直占用存储；清理失败仅告警，不影响主流程）
         if (oldStorageKey != null && !oldStorageKey.equals(fileKey)) {
@@ -360,9 +326,8 @@ public class ResumeUploadService {
             }
         }
 
-        // 8. 发送分析任务到 Redis Stream（异步处理）——必须等事务提交后发：
-        // 事务内发消息时，消费者会与未提交数据并发读写（读到旧 storageKey、旧快照回写覆盖本次更新）
-        sendAnalyzeTaskAfterCommit(resumeId, resumeText);
+        // 8. 保存并同事务入队 outbox（消费者读 DB 拿最新数据，无未提交并发问题）
+        persistenceService.updateResumeAndEnqueueAnalyze(resume);
 
         log.info("简历重新上传完成，分析任务已入队: {}, resumeId={}", fileName, resumeId);
 

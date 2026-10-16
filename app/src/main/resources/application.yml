@@ -188,7 +188,24 @@ app:
     sse:
       heartbeat-interval: ${APP_INTERVIEW_SSE_HEARTBEAT_INTERVAL:30000}  # 心跳间隔（毫秒），默认30秒
     hybrid-search:
-      topk: ${APP_INTERVIEW_HYBRID_SEARCH_TOPK:3}  # 混合检索返回的结果数量
+      topk: ${APP_INTERVIEW_HYBRID_SEARCH_TOPK:3}
+
+  # Outbox 可靠消息投递配置
+  outbox:
+    relay:
+      # 轮询兜底扫描间隔（毫秒）；正常路径靠事务提交后立即投递，此值为兜底延迟上限
+      poll-interval-ms: ${APP_OUTBOX_POLL_INTERVAL_MS:2000}
+      # 每次扫描最多投递的 PENDING 记录数
+      batch-size: ${APP_OUTBOX_BATCH_SIZE:50}
+      # 投递失败退避基数（毫秒），实际等待 = 基数 * 2^retryCount，封顶 max-backoff-ms
+      backoff-base-ms: ${APP_OUTBOX_BACKOFF_BASE_MS:1000}
+      # 退避封顶（毫秒），默认 5 分钟
+      max-backoff-ms: ${APP_OUTBOX_MAX_BACKOFF_MS:300000}
+    # SENT 记录保留天数，超期由定时任务清理
+    retention-days: ${APP_OUTBOX_RETENTION_DAYS:7}
+    consumer:
+      # PEL 滞留消息回收阈值（毫秒）：消息被拉取后超过该时长未 ack 视为消费者已死，可被 XAUTOCLAIM 认领
+      claim-idle-threshold-ms: ${APP_OUTBOX_CLAIM_IDLE_THRESHOLD_MS:60000}  # 混合检索返回的结果数量
   resume:
     upload-dir: ${java.io.tmpdir}/ai-interview/resumes
     allowed-types:

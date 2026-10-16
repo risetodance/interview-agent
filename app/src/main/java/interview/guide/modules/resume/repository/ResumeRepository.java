@@ -49,4 +49,17 @@ public interface ResumeRepository extends JpaRepository<ResumeEntity, Long> {
     @Transactional
     @Query("UPDATE ResumeEntity r SET r.analyzeStatus = :status, r.analyzeError = :error WHERE r.id = :id")
     int updateAnalyzeStatus(@Param("id") Long id, @Param("status") AsyncTaskStatus status, @Param("error") String error);
+
+    /**
+     * CAS 抢占分析任务：仅当当前状态在允许集合内才置为 PROCESSING。
+     * <p>消费者幂等守卫——relay 重复投递/组内并发重复被此处拦截（返回 0）；
+     * COMPLETED 永不重做；PEL 回收路径由调用方在 allowedFrom 中放宽 PROCESSING（僵尸状态复活）。
+     *
+     * @return 1=抢占成功开始处理；0=任务处理中/已完成/不存在，跳过
+     */
+    @Modifying
+    @Transactional
+    @Query("UPDATE ResumeEntity r SET r.analyzeStatus = interview.guide.common.model.AsyncTaskStatus.PROCESSING, r.analyzeError = NULL "
+        + "WHERE r.id = :id AND r.analyzeStatus IN :allowedFrom")
+    int casAnalyzeStatus(@Param("id") Long id, @Param("allowedFrom") List<AsyncTaskStatus> allowedFrom);
 }

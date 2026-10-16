@@ -4,6 +4,8 @@ import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.infrastructure.file.FileHashService;
 import interview.guide.infrastructure.mapper.ResumeMapper;
+import interview.guide.infrastructure.outbox.OutboxMessageType;
+import interview.guide.infrastructure.outbox.OutboxPublisher;
 import interview.guide.modules.interview.model.ResumeAnalysisResponse;
 import interview.guide.modules.resume.model.ResumeAnalysisEntity;
 import interview.guide.modules.resume.model.ResumeEntity;
@@ -19,6 +21,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -35,6 +38,7 @@ public class ResumePersistenceService {
     private final ObjectMapper objectMapper;
     private final ResumeMapper resumeMapper;
     private final FileHashService fileHashService;
+    private final OutboxPublisher outboxPublisher;
     
     /**
      * 检查简历是否已存在（基于文件内容hash，按用户）
@@ -87,11 +91,29 @@ public class ResumePersistenceService {
             ResumeEntity saved = resumeRepository.save(resume);
             log.info("简历已保存: id={}, hash={}, userId={}", saved.getId(), fileHash, userId);
 
+            // 与简历落库同事务写 outbox（分析任务状态已置 PENDING，二者原子提交；
+            // 进程崩溃/Redis 不可用都不会丢任务，由 relay 兜底投递）
+            outboxPublisher.publish(OutboxMessageType.RESUME_ANALYZE,
+                Map.of("resumeId", saved.getId().toString()));
+
             return saved;
         } catch (Exception e) {
             log.error("保存简历失败: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.RESUME_UPLOAD_FAILED, "保存简历失败");
         }
+    }
+
+    /**
+     * 更新简历并同事务入队分析任务（重新分析 / 重新上传场景）。
+     * <p>简历保存（analyzeStatus 已由调用方置 PENDING）与 outbox 写入原子提交，
+     * 取代原先「事务提交后发 Stream 消息」的窗口期方案。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateResumeAndEnqueueAnalyze(ResumeEntity resume) {
+        resumeRepository.save(resume);
+        outboxPublisher.publish(OutboxMessageType.RESUME_ANALYZE,
+            Map.of("resumeId", resume.getId().toString()));
+        log.info("简历已更新且分析任务已入 outbox: resumeId={}", resume.getId());
     }
     
     /**

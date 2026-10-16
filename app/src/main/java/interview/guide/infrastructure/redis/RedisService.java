@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.*;
 import org.redisson.api.options.KeysScanOptions;
+import org.redisson.api.stream.AutoClaimResult;
 import org.redisson.api.stream.StreamAddArgs;
 import org.redisson.api.stream.StreamCreateGroupArgs;
 import org.redisson.api.stream.StreamMessageId;
@@ -314,6 +315,27 @@ public class RedisService {
     public void streamAck(String streamKey, String groupName, StreamMessageId... ids) {
         RStream<String, String> stream = redissonClient.getStream(streamKey, StringCodec.INSTANCE);
         stream.ack(groupName, ids);
+    }
+
+    /**
+     * 认领滞留消息（XAUTOCLAIM）：把超过 minIdleTime 未 ack 的 PEL 消息所有权转移到当前消费者。
+     * <p>用于消费者崩溃恢复——正常路径 neverDelivered() 只读新消息，滞留 PEL 的消息
+     * 只有被主动认领才能重新处理。
+     *
+     * @param streamKey    Stream 键
+     * @param groupName    消费者组名
+     * @param consumerName 认领者（当前消费者）
+     * @param minIdleTimeMs 消息最小空闲阈值（毫秒），超过视为原消费者已死
+     * @param count        最多认领条数
+     * @return 被认领的消息（messageId → 数据）；无滞留时为空 Map
+     */
+    public Map<StreamMessageId, Map<String, String>> streamAutoClaim(
+            String streamKey, String groupName, String consumerName, long minIdleTimeMs, int count) {
+        RStream<String, String> stream = redissonClient.getStream(streamKey, StringCodec.INSTANCE);
+        AutoClaimResult<String, String> result = stream.autoClaim(
+            groupName, consumerName, minIdleTimeMs, TimeUnit.MILLISECONDS,
+            new StreamMessageId(0, 0), count);
+        return result.getMessages();
     }
 
     /**

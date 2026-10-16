@@ -181,5 +181,30 @@ public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEnti
      */
     @Query("SELECT COALESCE(SUM(k.fileSize), 0) FROM KnowledgeBaseEntity k WHERE k.userId = :userId")
     long sumFileSizeByUserId(@Param("userId") Long userId);
+
+    /**
+     * CAS 抢占向量化任务：仅当当前状态在允许集合内才置为 PROCESSING。
+     * <p>消费者幂等守卫——relay 重复投递/组内并发重复被此处拦截（返回 0）；
+     * COMPLETED 永不重做；PEL 回收路径由调用方在 allowedFrom 中放宽 PROCESSING（僵尸状态复活）。
+     *
+     * @return 1=抢占成功开始处理；0=任务处理中/已完成/不存在，跳过
+     */
+    @Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("UPDATE KnowledgeBaseEntity k SET k.vectorStatus = interview.guide.modules.knowledgebase.model.VectorStatus.PROCESSING, k.vectorError = NULL "
+        + "WHERE k.id = :id AND k.vectorStatus IN :allowedFrom")
+    int casVectorStatus(@Param("id") Long id, @Param("allowedFrom") List<VectorStatus> allowedFrom);
+
+    /**
+     * 定向更新向量化状态（消费者高频调用）。
+     * <p>刻意用 UPDATE 语句而不是 findById + save 的读-改-写：后者会把并发期间读到的旧快照
+     * 整行回写，可能覆盖并发提交的 content 等字段（lost update）。
+     *
+     * @return 实际更新行数（知识库不存在时 0）
+     */
+    @Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("UPDATE KnowledgeBaseEntity k SET k.vectorStatus = :status, k.vectorError = :error WHERE k.id = :id")
+    int updateVectorStatus(@Param("id") Long id, @Param("status") VectorStatus status, @Param("error") String error);
 }
 
